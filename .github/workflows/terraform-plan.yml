@@ -29,6 +29,7 @@ jobs:
   terraform-plan:
     name: Plan (prod)
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
+    secrets: inherit      # Pass all secrets from caller to reusable workflow
     with:
       working-directory: live/prod
       aws-region: us-east-1

@@ -1,12 +1,14 @@
 # Module: networking
 
-VPC con subnets p\'ublicas/privadas en 2 AZs, Internet Gateway y NAT Gateway opcional.
+VPC con subnets públicas/privadas en 2 AZs, Internet Gateway y NAT Gateway opcional.
+
+> **Estado:** Módulo desarrollado pero no aplicado en producción todavía. Se mantiene en código como referencia para Fases futuras.
 
 ## Recursos creados
 
 - `aws_vpc`
 - `aws_internet_gateway`
-- `aws_subnet` (publicas y privadas)
+- `aws_subnet` (públicas y privadas)
 - `aws_eip` + `aws_nat_gateway` (condicional)
 - `aws_route_table` + `aws_route_table_association`
 
@@ -33,11 +35,11 @@ module "networking" {
 
 ## Outputs
 
-| Output | Descripci\'on |
+| Output | Descripción |
 |---|---|
 | `vpc_id` | ID de la VPC |
 | `vpc_cidr_block` | CIDR principal |
-| `public_subnet_ids` | IDs de subnets p\'ublicas |
+| `public_subnet_ids` | IDs de subnets públicas |
 | `private_subnet_ids` | IDs de subnets privadas |
 | `nat_gateway_id` | ID del NAT (null si desactivado) |
 | `internet_gateway_id` | ID del IGW |

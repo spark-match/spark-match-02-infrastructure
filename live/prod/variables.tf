@@ -40,6 +40,12 @@ variable "private_subnet_cidrs" {
   default     = ["10.0.10.0/24", "10.0.11.0/24"]
 }
 
+variable "bucket_suffix" {
+  description = "Sufijo aleatorio para garantizar unicidad global del nombre del bucket S3 de POC."
+  type        = string
+  default     = "001"
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

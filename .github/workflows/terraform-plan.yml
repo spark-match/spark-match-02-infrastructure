@@ -52,7 +52,11 @@ jobs:
       - name: Terraform init
         run: |
           mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
-          terraform init -input=false -backend=false
+          terraform init -input=false \
+            -backend-config="bucket=spark-match-tfstate-prod" \
+            -backend-config="key=prod/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="use_lockfile=true"
         env:
           TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
 

@@ -16,6 +16,7 @@ on:
       - "**.tf"
       - "**.tfvars"
       - ".github/workflows/**"
+      - "docs/**"
 
 permissions:
   contents: read
@@ -37,7 +38,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v4
         with:
-          terraform_version: 1.6.0
+          terraform_version: 1.10.0
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v5
@@ -50,7 +51,12 @@ jobs:
 
       - name: Terraform init
         run: |
-          terraform init -input=false -backend=false
+          mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
+          terraform init -input=false \
+            -backend-config="bucket=spark-match-tfstate-prod" \
+            -backend-config="key=prod/terraform.tfstate" \
+            -backend-config="region=us-east-1" \
+            -backend-config="use_lockfile=true"
         env:
           TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
 

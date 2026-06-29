@@ -1,13 +1,13 @@
 # Configuración de OIDC para GitHub Actions → AWS
 
-Esta guía explica cómo configurar **OpenID Connect (OIDC)** para que GitHub Actions pueda asumir un rol IAM en AWS sin necesidad de access keys de larga duración.
+Esta guía explica cómo configurar **OpenID Connect (OIDC)** para que GitHub Actions pueda asumir roles IAM en AWS sin necesidad de access keys de larga duración.
 
 ## ¿Por qué OIDC?
 
 | Método | Seguridad | Rotación | Secretos en GitHub |
 |---|---|---|---|
 | Access keys | Baja (filtrables) | Manual | 2 (key + secret) |
-| **OIDC** | Alta (sts:AssumeRoleWithWebIdentity) | Automática (1h) | 1 (solo el ARN) |
+| **OIDC** | Alta (sts:AssumeRoleWithWebIdentity) | Automática (1h) | 1 (ARN por role) |
 
 ## Arquitectura
 
@@ -21,6 +21,19 @@ GitHub Actions runner
           └─> Si OK: devuelve credenciales temporales (1h)
               └─> Terraform puede usar la cuenta AWS
 ```
+
+## Estrategia de roles separados (recomendado)
+
+Para minimizar el blast radius, usamos **dos roles** con permisos mínimos:
+
+| Role | Uso | Permisos | Secret en GitHub |
+|---|---|---|---|
+| `spark-match-terraform-plan` | `terraform plan` en PRs | **Read-only** (S3 Get/List, EC2 Describe, IAM Get) | `AWS_PLAN_ROLE_ARN` |
+| `spark-match-terraform-apply` | `terraform apply` en merges | **Write** (todo lo de plan + S3/EC2/IAM Put/Create/Delete) | `AWS_APPLY_ROLE_ARN` |
+
+**¿Por qué separar?** Si alguien mete código malicioso en un PR, solo puede **leer** tu infra, no destruirla.
+
+> Nota: el workflow `terraform-plan.yml` usa `-lock=false` porque el S3 lockfile de Terraform 1.6+ requiere `PutObject`, que es write. El plan es read-only por naturaleza, no necesita lock real.
 
 ## Pre-requisitos
 
@@ -55,126 +68,198 @@ aws iam create-open-id-connect-provider \
 
 ---
 
-## Paso 2: Crear el IAM Role
+## Paso 2: Crear los IAM Roles (plan + apply)
 
-Necesita dos documentos:
-- `trust-policy.json` — quién puede asumir el role
-- `permissions-policy.json` — qué puede hacer
+Necesitamos **3 documentos JSON**:
+- `trust-policy.json` — quién puede asumir el role (compartido)
+- `plan-policy.json` — permisos del role de plan (read-only)
+- `apply-policy.json` — permisos del role de apply (write)
 
 ### 2a. Trust policy (ya incluido en `trust-policy.json`)
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::681526276858:oidc-provider/token.actions.githubusercontent.com"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
-        },
-        "StringLike": {
-          "token.actions.githubusercontent.com:sub": [
-            "repo:spark-match/spark-match-02-infrastructure:ref:refs/heads/main",
-            "repo:spark-match/spark-match-02-infrastructure:ref:refs/heads/*",
-            "repo:spark-match/spark-match-02-infrastructure:environment:production"
-          ]
-        }
-      }
-    }
-  ]
-}
-```
-
-**Scope que permite:**
+Compartido entre ambos roles. Permite:
 - ✅ Pushes a `main`
-- ✅ Cualquier PR branch (cualquier feature branch)
+- ✅ Cualquier PR branch
 - ✅ Workflows con environment `production`
 
-### 2b. Permissions policy (ya incluido en `permissions-policy.json`)
+### 2b. Plan policy (ya incluido en `plan-policy.json`)
 
-Esta policy cubre:
-- **S3 bucket management** para buckets `spark-match-poc-*` y `spark-match-tfstate-*`
-- **EC2 read-only** (Describe*) — necesario para que Terraform lea el estado actual
-- **Terraform state access** (Get/Put/Delete objects en el bucket de state)
+Permisos read-only:
+- `s3:Get*`, `s3:List*` en buckets del proyecto
+- `ec2:Describe*` para refrescar el estado
+- `sts:GetCallerIdentity` (requerido por el SDK)
 
-> Para Fase 2+ (RDS, ECS, etc.) hay que expandir esta policy.
+### 2c. Apply policy (ya incluido en `apply-policy.json`)
 
-### 2c. Crear el role
+Permisos completos:
+- Todo lo de plan, MÁS:
+- `s3:CreateBucket`, `s3:PutBucket*`, `s3:DeleteBucket`
+- `ec2:Create*`, `ec2:Modify*`, `ec2:Delete*`
+- `iam:PassRole` (para EC2 instance profiles, ECS task roles, etc.)
+
+### 2d. Crear los roles
 
 ```bash
-# Crear el role
+# Role de PLAN (read-only)
 aws iam create-role \
-  --role-name spark-match-github-actions-terraform \
+  --role-name spark-match-terraform-plan \
   --assume-role-policy-document file://trust-policy.json \
-  --description "Role para GitHub Actions de Terraform (spark-match)" \
+  --description "Role para terraform plan (read-only)" \
   --max-session-duration 3600
 
-# Adjuntar la policy de permisos
 aws iam put-role-policy \
-  --role-name spark-match-github-actions-terraform \
-  --policy-name TerraformPermissions \
-  --policy-document file://permissions-policy.json
+  --role-name spark-match-terraform-plan \
+  --policy-name PlanPolicy \
+  --policy-document file://plan-policy.json
 
-# Obtener el ARN
-aws iam get-role --role-name spark-match-github-actions-terraform \
-  --query 'Role.Arn' --output text
-# → arn:aws:iam::681526276858:role/spark-match-github-actions-terraform
+# Role de APPLY (write)
+aws iam create-role \
+  --role-name spark-match-terraform-apply \
+  --assume-role-policy-document file://trust-policy.json \
+  --description "Role para terraform apply (write)" \
+  --max-session-duration 3600
+
+aws iam put-role-policy \
+  --role-name spark-match-terraform-apply \
+  --policy-name ApplyPolicy \
+  --policy-document file://apply-policy.json
+
+# Obtener los ARNs
+PLAN_ARN=$(aws iam get-role --role-name spark-match-terraform-plan --query 'Role.Arn' --output text)
+APPLY_ARN=$(aws iam get-role --role-name spark-match-terraform-apply --query 'Role.Arn' --output text)
+echo "Plan:   $PLAN_ARN"
+echo "Apply:  $APPLY_ARN"
 ```
 
 ---
 
-## Paso 3: Agregar el ARN como GitHub Secret
+## Paso 3: Agregar los ARNs como GitHub Secrets
 
 ### Opción A: GitHub Web
 
 https://github.com/spark-match/spark-match-02-infrastructure/settings/secrets/actions
 
-- New repository secret
-- Name: `AWS_DEPLOY_ROLE_ARN`
-- Value: `arn:aws:iam::681526276858:role/spark-match-github-actions-terraform`
+| Secret | Valor |
+|---|---|
+| `AWS_PLAN_ROLE_ARN` | ARN del role de plan |
+| `AWS_APPLY_ROLE_ARN` | ARN del role de apply |
 
 ### Opción B: gh CLI
 
 ```bash
-gh secret set AWS_DEPLOY_ROLE_ARN \
+gh secret set AWS_PLAN_ROLE_ARN \
   --repo spark-match/spark-match-02-infrastructure \
-  --body "arn:aws:iam::681526276858:role/spark-match-github-actions-terraform"
+  --body "$PLAN_ARN"
+
+gh secret set AWS_APPLY_ROLE_ARN \
+  --repo spark-match/spark-match-02-infrastructure \
+  --body "$APPLY_ARN"
 ```
 
 ---
 
-## Paso 4: Verificar el workflow
+## Paso 4: Configurar los workflows
 
-El archivo `.github/workflows/terraform-plan.yml` debe tener:
+### terraform-plan.yml (PR)
 
 ```yaml
 - name: Configure AWS credentials (OIDC)
   uses: aws-actions/configure-aws-credentials@v5
   with:
-    role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+    role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}   # <-- plan role
     aws-region: us-east-1
-    audience: sts.amazonaws.com
+```
+
+Y usar `-lock=false` en el plan:
+
+```yaml
+- name: Terraform plan
+  run: terraform plan -input=false -no-color -lock=false -out=tfplan
+```
+
+### terraform-apply.yml (merge, cuando se implemente)
+
+```yaml
+- name: Configure AWS credentials (OIDC)
+  uses: aws-actions/configure-aws-credentials@v5
+  with:
+    role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}   # <-- apply role
+    aws-region: us-east-1
+
+- name: Terraform apply
+  run: terraform apply -input=false tfplan
 ```
 
 ---
 
 ## Paso 5: Probar
 
-Crear un PR nuevo en el repo. El workflow `terraform-plan.yml` debería:
-1. ✅ Asumir el role correctamente
-2. ✅ Ejecutar `terraform init`
-3. ✅ Ejecutar `terraform plan`
-4. ✅ Postear el plan como comentario del PR
+### Probar plan role
 
-Si falla, revisa:
-- El ARN del role es correcto en el secret
-- El repo name en la trust policy coincide con el repo real
-- El identity provider existe en IAM
+```bash
+# Crear PR de prueba
+git checkout -b test/oidc-plan
+# (modificar cualquier archivo .tf o .tfvars)
+git push -u origin test/oidc-plan
+gh pr create --fill
+```
+
+El workflow `terraform-plan.yml` debería pasar.
+
+### Probar apply role
+
+Por ahora el workflow `terraform-apply.yml` no existe. Cuando se implemente (Fase 5 del roadmap), se prueba con un merge a `main`.
+
+---
+
+## Expansión futura
+
+Cuando agregues más módulos, expande `apply-policy.json`:
+
+| Módulo | Permisos a agregar (apply) |
+|---|---|
+| `database` (RDS) | `rds:*` en recursos específicos |
+| `compute` (ECS Fargate) | `ecs:*`, más `iam:PassRole` |
+| `cdn` (CloudFront) | `cloudfront:*`, `acm:ListCertificates` |
+| `security` (IAM roles) | `iam:CreateRole`, `iam:AttachRolePolicy` |
+| `secrets` (Secrets Manager) | `secretsmanager:*` |
+| `monitoring` (CloudWatch) | `logs:*`, `cloudwatch:*` |
+| `bedrock` | `bedrock:*` |
+
+Mantén el principio de **least privilege**: cada acción solo sobre los recursos del proyecto `spark-match-*`.
+
+**Para el plan role, NO necesitas expandir casi nada** — solo `Describe*` de los nuevos servicios para refrescar el estado.
+
+---
+
+## Troubleshooting
+
+| Error | Causa | Solución |
+|---|---|---|
+| `Credentials could not be loaded` | Secret no configurado o role no existe | Verifica `gh secret list` y `aws iam get-role` |
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Trust policy no incluye este repo/branch o no incluye `pull_request` pattern | Ajusta el `sub` pattern (ver `trust-policy.json`) |
+| `AccessDenied: s3:PutObject on terraform.tfstate.tflock` | Plan usando lock (no debería) | Usa `-lock=false` en el plan |
+| `AccessDenied` en plan | Plan role no cubre alguna lectura | Agrega la acción específica a `plan-policy.json` |
+| `AccessDenied` en apply | Apply role no cubre alguna acción | Agrega a `apply-policy.json` |
+| `Token expired` | Normal, dura 1h | El workflow ya maneja esto |
+
+## CloudTrail para debugging
+
+Para ver qué `sub` claim se está enviando:
+
+```bash
+aws cloudtrail lookup-events \
+  --lookup-attributes AttributeKey=EventName,AttributeValue=AssumeRoleWithWebIdentity \
+  --max-items 3 \
+  --query 'Events[].User' \
+  --output text
+```
+
+Debería verse algo como:
+```
+repo:spark-match/spark-match-02-infrastructure:pull_request
+repo:spark-match/spark-match-02-infrastructure:ref:refs/heads/main
+```
 
 ---
 
@@ -189,47 +274,27 @@ aws iam create-open-id-connect-provider \
   --client-id-list sts.amazonaws.com \
   --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1
 
-# 2. Crear role + adjuntar permisos
+# 2. Crear roles
 aws iam create-role \
-  --role-name spark-match-github-actions-terraform \
+  --role-name spark-match-terraform-plan \
   --assume-role-policy-document file://trust-policy.json
-
 aws iam put-role-policy \
-  --role-name spark-match-github-actions-terraform \
-  --policy-name TerraformPermissions \
-  --policy-document file://permissions-policy.json
+  --role-name spark-match-terraform-plan \
+  --policy-name PlanPolicy \
+  --policy-document file://plan-policy.json
 
-# 3. Setear el secret en GitHub
-gh secret set AWS_DEPLOY_ROLE_ARN \
-  --repo spark-match/spark-match-02-infrastructure \
-  --body "$(aws iam get-role --role-name spark-match-github-actions-terraform --query 'Role.Arn' --output text)"
+aws iam create-role \
+  --role-name spark-match-terraform-apply \
+  --assume-role-policy-document file://trust-policy.json
+aws iam put-role-policy \
+  --role-name spark-match-terraform-apply \
+  --policy-name ApplyPolicy \
+  --policy-document file://apply-policy.json
+
+# 3. Setear secrets en GitHub
+PLAN_ARN=$(aws iam get-role --role-name spark-match-terraform-plan --query 'Role.Arn' --output text)
+APPLY_ARN=$(aws iam get-role --role-name spark-match-terraform-apply --query 'Role.Arn' --output text)
+
+gh secret set AWS_PLAN_ROLE_ARN  --repo spark-match/spark-match-02-infrastructure --body "$PLAN_ARN"
+gh secret set AWS_APPLY_ROLE_ARN --repo spark-match/spark-match-02-infrastructure --body "$APPLY_ARN"
 ```
-
----
-
-## Expansión futura
-
-Cuando agregues más módulos, expande `permissions-policy.json`:
-
-| Módulo | Permisos a agregar |
-|---|---|
-| `database` (RDS) | `rds:*` en recursos específicos |
-| `compute` (ECS Fargate) | `ecs:*`, `iam:PassRole` |
-| `cdn` (CloudFront) | `cloudfront:*`, `acm:ListCertificates` |
-| `security` (IAM roles) | `iam:CreateRole`, `iam:AttachRolePolicy` |
-| `secrets` (Secrets Manager) | `secretsmanager:*` |
-| `monitoring` (CloudWatch) | `logs:*`, `cloudwatch:*` |
-| `bedrock` | `bedrock:*`, `iam:PassRole` |
-
-Mantén el principio de **least privilege**: cada acción solo sobre los recursos del proyecto `spark-match-*`.
-
----
-
-## Troubleshooting
-
-| Error | Causa | Solución |
-|---|---|---|
-| `Credentials could not be loaded` | Secret no configurado o role no existe | Verifica `gh secret list` y `aws iam get-role` |
-| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Trust policy no incluye este repo/branch | Ajusta el `sub` pattern |
-| `AccessDenied` en plan | Permissions policy no cubre la acción | Agrega la acción específica |
-| `Token expired` | Normal, dura 1h | El workflow ya maneja esto |

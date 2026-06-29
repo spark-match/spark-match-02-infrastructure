@@ -1,17 +1,11 @@
 # =============================================================================
 # CD - Terraform Apply on Merge to Main
 # =============================================================================
-# Trigger: Push to 'main' OR manual workflow_dispatch.
-# Action:  Runs terraform plan + apply with the APPLY role (write permissions).
-#          Uses GitHub Environment 'production' as approval gate.
+# Este workflow es un CALLER del reusable workflow en:
+#   spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml
 #
-# Required GitHub Environment Setup (one-time, by an admin):
-#   1. Go to Settings > Environments > New environment > name: "production"
-#   2. Add protection rules:
-#      - Required reviewers: at least 1 from @spark-match/devops or
-#        @spark-match/product-owners (you can add yourself)
-#      - Wait timer: 0 minutes (no delay)
-#      - Deployment branches: only 'main'
+# Solo define CUÁNDO triggerear y QUÉ inputs pasar.
+# Toda la lógica vive en el caller reusable.
 # =============================================================================
 
 name: CD - Terraform Apply
@@ -26,112 +20,21 @@ on:
         required: false
         default: "manual trigger"
 
-concurrency:
-  group: production-apply
-  cancel-in-progress: false   # Never cancel an apply in progress
-
 permissions:
-  id-token: write              # Required for OIDC
   contents: read
-  pull-requests: write         # For posting comments
+  pull-requests: write
+  id-token: write     # Required by the reusable workflow for OIDC
 
 jobs:
   terraform-apply:
     name: Apply (prod)
-    runs-on: ubuntu-latest
-    environment: production     # <-- GitHub approval gate here
-    defaults:
-      run:
-        working-directory: live/prod
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: 1.10.0
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v5
-        with:
-          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Terraform fmt
-        run: terraform fmt -check -recursive -diff
-
-      - name: Terraform init
-        run: |
-          mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
-          terraform init -input=false \
-            -backend-config="bucket=spark-match-tfstate-prod" \
-            -backend-config="key=prod/terraform.tfstate" \
-            -backend-config="region=us-east-1" \
-            -backend-config="use_lockfile=true"
-        env:
-          TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
-
-      - name: Terraform validate
-        run: terraform validate -no-color
-
-      - name: Terraform plan
-        id: plan
-        run: |
-          terraform plan -input=false -no-color -out=tfplan
-          echo "plan_exit_code=$?" >> $GITHUB_OUTPUT
-
-      - name: Convert plan to JSON
-        if: steps.plan.outputs.plan_exit_code == '0'
-        run: terraform show -json tfplan > tfplan.json
-
-      - name: Generate plan summary
-        if: steps.plan.outputs.plan_exit_code == '0'
-        run: |
-          echo "## Terraform Apply Plan" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Resource | Change |" >> $GITHUB_STEP_SUMMARY
-          echo "|:---|:---|" >> $GITHUB_STEP_SUMMARY
-          jq -r '
-            .resource_changes[]
-            | "| \(.address) | \(.change.actions | tostring | gsub("[\"\\[\\]]"; "")) |"
-          ' tfplan.json >> $GITHUB_STEP_SUMMARY || echo "_(no resource changes)_" >> $GITHUB_STEP_SUMMARY
-
-      - name: Terraform apply
-        if: steps.plan.outputs.plan_exit_code == '0'
-        run: terraform apply -input=false tfplan
-
-      - name: Apply summary
-        if: always()
-        run: |
-          echo "## Terraform Apply Result" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          if [ "${{ steps.plan.outputs.plan_exit_code }}" = "0" ]; then
-            echo "Status: **Success**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Triggered by: @${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-            echo "Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-            echo "Reason: ${{ github.event.head_commit.message }}" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "Status: **Failed** (plan exit code: ${{ steps.plan.outputs.plan_exit_code }})" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Notify on failure
-        if: failure()
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: terraform-apply-failed
-          message: |
-            ## Terraform Apply Failed
-
-            Commit: ${{ github.sha }}
-            Author: @${{ github.actor }}
-            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-            Please investigate. The state file may have partial changes if apply was interrupted.
-
-            To recover:
-            1. Check CloudTrail for what was created/modified
-            2. Run `terraform plan` locally to see the drift
-            3. Decide whether to manually fix or `terraform apply` again
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@main
+    secrets: inherit      # Pass all secrets from caller to reusable workflow
+    with:
+      working-directory: live/prod
+      aws-region: us-east-1
+      apply-role-arn-secret: AWS_APPLY_ROLE_ARN
+      terraform-version: '1.10.0'
+      backend-bucket: spark-match-tfstate-prod
+      backend-key: prod/terraform.tfstate
+      environment: production

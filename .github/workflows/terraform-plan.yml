@@ -16,6 +16,7 @@ on:
       - "**.tf"
       - "**.tfvars"
       - ".github/workflows/**"
+      - "docs/**"
 
 permissions:
   contents: read

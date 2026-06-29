@@ -14,7 +14,7 @@ terraform {
     # bucket         = "spark-match-tfstate-prod"
     # key            = "prod/terraform.tfstate"
     # region         = "us-east-1"
-    # dynamodb_table = "spark-match-tflock"
+    # use_lockfile   = true
     # encrypt        = true
   }
 }

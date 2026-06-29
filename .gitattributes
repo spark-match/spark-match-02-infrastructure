@@ -1,0 +1,25 @@
+# Normalizar line endings para consistencia cross-platform
+
+# Archivos que SIEMPRE deben tener LF (scripts, configs Unix)
+*.sh          text eol=lf
+.gitattributes eol=lf
+.gitignore    text eol=lf
+.tflint.hcl    text eol=lf
+
+# Workflows YAML (LF es el estandar en GitHub Actions)
+*.yml         text eol=lf
+*.yaml        text eol=lf
+
+# Archivos que SIEMPRE deben tener CRLF (scripts de Windows)
+*.bat         text eol=crlf
+*.cmd         text eol=crlf
+*.ps1         text eol=crlf
+
+# Terraform / HCL: LF
+*.tf          text eol=lf
+*.tfvars      text eol=lf
+*.tfvars.example text eol=lf
+
+# Markdown y texto general: LF
+*.md          text eol=lf
+LICENSE       text eol=lf

@@ -1,0 +1,101 @@
+# =============================================================================
+# CI - Terraform Plan on Pull Request
+# =============================================================================
+# Trigger: Pull Request opened/synchronize/reopened targeting 'main'.
+# Action:  Runs terraform fmt, validate, and plan. Uploads the plan as artifact
+#          and posts a comment with the plan summary on the PR.
+# =============================================================================
+
+name: CI - Terraform Plan
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  terraform-plan:
+    name: Plan (prod)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: live/prod
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.6.0
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Terraform fmt
+        run: terraform fmt -check -recursive -diff
+
+      - name: Terraform init
+        run: |
+          terraform init -input=false -backend=false
+        env:
+          TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
+
+      - name: Terraform validate
+        run: terraform validate -no-color
+
+      - name: Terraform plan
+        id: plan
+        run: |
+          terraform plan -input=false -no-color -out=tfplan
+          echo "plan_exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Convert plan to JSON
+        if: steps.plan.outputs.plan_exit_code == '0'
+        run: terraform show -json tfplan > tfplan.json
+
+      - name: Generate plan summary
+        if: steps.plan.outputs.plan_exit_code == '0'
+        id: summary
+        run: |
+          echo "## Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Change |" >> $GITHUB_STEP_SUMMARY
+          echo "|:---|:---|" >> $GITHUB_STEP_SUMMARY
+          jq -r '
+            .resource_changes[]
+            | "| \(.address) | \(.change.actions | tostring | gsub("[\"\\[\\]]"; "")) |"
+          ' tfplan.json >> $GITHUB_STEP_SUMMARY || echo "_(no resource changes)_" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload plan artifact
+        if: steps.plan.outputs.plan_exit_code == '0'
+        uses: actions/upload-artifact@v7
+        with:
+          name: terraform-plan-pr-${{ github.event.pull_request.number }}
+          path: live/prod/tfplan
+          retention-days: 7
+
+      - name: Comment PR with plan summary
+        if: steps.plan.outputs.plan_exit_code == '0' && github.event_name == 'pull_request'
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: terraform-plan
+          message: |
+            ## Terraform Plan
+
+            Run \`terraform show tfplan\` (artifact \`terraform-plan-pr-${{ github.event.pull_request.number }}\`) for details.
+
+            See [Job Summary](../../actions/runs/${{ github.run_id }}) for the resource change table.

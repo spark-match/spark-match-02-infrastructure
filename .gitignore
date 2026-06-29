@@ -1,0 +1,34 @@
+# Terraform local cache and state
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+crash.log
+crash.*.log
+
+# Plan files (locales)
+tfplan
+tfplan.json
+
+# tfvars con secretos (solo se commitea el .example)
+*.tfvars
+!*.tfvars.example
+
+# Plugin cache
+.terraform.d/
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Pre-commit cache
+.cache/
+
+# Terragrunt cache (si se usa en el futuro)
+.terragrunt-cache/

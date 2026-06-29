@@ -1,9 +1,11 @@
 # =============================================================================
 # CI - Terraform Plan on Pull Request
 # =============================================================================
-# Trigger: Pull Request opened/synchronize/reopened targeting 'main'.
-# Action:  Runs terraform fmt, validate, and plan. Uploads the plan as artifact
-#          and posts a comment with the plan summary on the PR.
+# Este workflow es un CALLER del reusable workflow en:
+#   spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml
+#
+# Solo define CUÁNDO triggerear y QUÉ inputs pasar.
+# Toda la lógica vive en el caller reusable.
 # =============================================================================
 
 name: CI - Terraform Plan
@@ -21,87 +23,16 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  id-token: write
 
 jobs:
   terraform-plan:
     name: Plan (prod)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: live/prod
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
-        with:
-          terraform_version: 1.10.0
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v5
-        with:
-          role-to-assume: ${{ secrets.AWS_PLAN_ROLE_ARN }}
-          aws-region: us-east-1
-
-      - name: Terraform fmt
-        run: terraform fmt -check -recursive -diff
-
-      - name: Terraform init
-        run: |
-          mkdir -p ${{ github.workspace }}/.terraform.d/plugin-cache
-          terraform init -input=false \
-            -backend-config="bucket=spark-match-tfstate-prod" \
-            -backend-config="key=prod/terraform.tfstate" \
-            -backend-config="region=us-east-1" \
-            -backend-config="use_lockfile=true"
-        env:
-          TF_PLUGIN_CACHE_DIR: ${{ github.workspace }}/.terraform.d/plugin-cache
-
-      - name: Terraform validate
-        run: terraform validate -no-color
-
-      - name: Terraform plan
-        id: plan
-        run: |
-          terraform plan -input=false -no-color -lock=false -out=tfplan
-          echo "plan_exit_code=$?" >> $GITHUB_OUTPUT
-
-      - name: Convert plan to JSON
-        if: steps.plan.outputs.plan_exit_code == '0'
-        run: terraform show -json tfplan > tfplan.json
-
-      - name: Generate plan summary
-        if: steps.plan.outputs.plan_exit_code == '0'
-        id: summary
-        run: |
-          echo "## Terraform Plan Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Resource | Change |" >> $GITHUB_STEP_SUMMARY
-          echo "|:---|:---|" >> $GITHUB_STEP_SUMMARY
-          jq -r '
-            .resource_changes[]
-            | "| \(.address) | \(.change.actions | tostring | gsub("[\"\\[\\]]"; "")) |"
-          ' tfplan.json >> $GITHUB_STEP_SUMMARY || echo "_(no resource changes)_" >> $GITHUB_STEP_SUMMARY
-
-      - name: Upload plan artifact
-        if: steps.plan.outputs.plan_exit_code == '0'
-        uses: actions/upload-artifact@v7
-        with:
-          name: terraform-plan-pr-${{ github.event.pull_request.number }}
-          path: live/prod/tfplan
-          retention-days: 7
-
-      - name: Comment PR with plan summary
-        if: steps.plan.outputs.plan_exit_code == '0' && github.event_name == 'pull_request'
-        uses: marocchino/sticky-pull-request-comment@v2
-        with:
-          header: terraform-plan
-          message: |
-            ## Terraform Plan
-
-            Run \`terraform show tfplan\` (artifact \`terraform-plan-pr-${{ github.event.pull_request.number }}\`) for details.
-
-            See [Job Summary](../../actions/runs/${{ github.run_id }}) for the resource change table.
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
+    with:
+      working-directory: live/prod
+      aws-region: us-east-1
+      plan-role-arn-secret: AWS_PLAN_ROLE_ARN
+      terraform-version: '1.10.0'
+      backend-bucket: spark-match-tfstate-prod
+      backend-key: prod/terraform.tfstate
+      comment-on-pr: true

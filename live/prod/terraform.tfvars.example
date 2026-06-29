@@ -7,14 +7,17 @@ aws_region        = "us-east-1"
 project_name      = "spark-match"
 environment       = "prod"
 
-# Networking
+# Networking (modulo NO se aplica aun)
 vpc_cidr             = "10.0.0.0/16"
 azs                  = ["us-east-1a", "us-east-1b"]
 public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24"]
 
+# POC S3 bucket
+bucket_suffix        = "001"  # Cambiar si colisiona con un bucket ya existente
+
 # Backend remoto (ver scripts/bootstrap-backend.sh)
 # terraform init -backend-config="bucket=spark-match-tfstate-prod" \
 #                -backend-config="key=prod/terraform.tfstate" \
 #                -backend-config="region=us-east-1" \
-#                -backend-config="dynamodb_table=spark-match-tflock"
+#                -backend-config="use_lockfile=true"

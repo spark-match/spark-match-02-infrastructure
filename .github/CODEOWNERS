@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-# CODEOWNERS — Spark Match Infrastructure (02)
+﻿# CODEOWNERS — Spark Match Infrastructure
 #
 # Política de aprobación (ADR-003 branch-based deployment):
 # - dev: 1 aprobación del CODE OWNER técnico (devops) es suficiente.
@@ -11,21 +10,3 @@
 
 # Catch-all: cualquier archivo es responsabilidad de devops
 *       @spark-match/devops
-=======
-# CODEOWNERS - Spark Match Infrastructure
-# Aprobaciones requeridas para PRs en este repositorio.
-
-# Catch-all: DevOps aprueba cualquier cambio de infraestructura
-*       @spark-match/devops
-
-# Apoyo cross-team: cambios a networking/compute también requieren backend-devs
-/modules/networking/      @spark-match/devops @spark-match/backend-devs
-/modules/networking/**/*  @spark-match/devops @spark-match/backend-devs
-/modules/compute/         @spark-match/devops @spark-match/backend-devs
-/modules/compute/**/*     @spark-match/devops @spark-match/backend-devs
-
-# Configuración crítica
-/.github/workflows/      @spark-match/devops
-/.github/workflows/**/*  @spark-match/devops
-/.github/CODEOWNERS               @spark-match/devops
->>>>>>> 8bf794d086ec2924c5938cc4a4c075289985db30

@@ -1,8 +1,16 @@
-# CODEOWNERS - Spark Match
+# CODEOWNERS - Spark Match Infrastructure
 # Aprobaciones requeridas para PRs en este repositorio.
 
-# Propietarios por defecto (Product Owners aprueban cualquier cambio)
-*       @spark-match/product-owners
+# Catch-all: DevOps aprueba cualquier cambio de infraestructura
+*       @spark-match/devops
 
-# Equipo principal responsable de este repositorio
-/*      @spark-match/devops
+# Apoyo cross-team: cambios a networking/compute también requieren backend-devs
+/modules/networking/      @spark-match/devops @spark-match/backend-devs
+/modules/networking/**/*  @spark-match/devops @spark-match/backend-devs
+/modules/compute/         @spark-match/devops @spark-match/backend-devs
+/modules/compute/**/*     @spark-match/devops @spark-match/backend-devs
+
+# Configuración crítica
+/.github/workflows/      @spark-match/devops
+/.github/workflows/**/*  @spark-match/devops
+/.github/CODEOWNERS               @spark-match/devops

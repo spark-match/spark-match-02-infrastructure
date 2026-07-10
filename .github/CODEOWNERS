@@ -1,12 +1,34 @@
-﻿# CODEOWNERS — Spark Match Infrastructure
+# CODEOWNERS - Spark Match Infrastructure (02)
 #
-# Política de aprobación (ADR-003 branch-based deployment):
-# - dev: 1 aprobación del CODE OWNER técnico (devops) es suficiente.
-# - main: 1 CODE OWNER review (devops) + reviewer manual de
-#   @spark-match/product-owners (solicitado por el autor al abrir el PR).
+# Politica de aprobacion (configurada en branch protection):
+#   - dev:  required_approving_review_count: 1
+#            require_code_owner_reviews: true
+#   - main: required_approving_review_count: 1
+#            require_code_owner_reviews: true
+#            require_last_push_approval: true
 #
-# CODE OWNERS del repo: @spark-match/devops
-#   Miembros actuales: ahincho, dbarretol
+# CODE OWNER del repo (catch-all): @spark-match/devops
+#   Miembros: dbarretol, ahincho
+#
+# Paths criticos (governance): @spark-match/product-owners
+#   - Decisiones arquitectonicas, onboarding, postmortems, docs raiz.
+#   - Miembros: dbarretol, FabiTaparaQuispe, ahincho
+#
+# Nota: el autor del PR no puede aprobar su propio PR, ni siquiera siendo
+# CODE OWNER (regla de GitHub). Por ejemplo, un PR abierto por ahincho
+# necesita la aprobacion de cualquier otro miembro del team.
 
-# Catch-all: cualquier archivo es responsabilidad de devops
-*       @spark-match/devops
+# =============================================================================
+# Catch-all: el equipo tecnico del repo es CODE OWNER del codigo
+# =============================================================================
+*                                          @spark-match/devops
+
+# =============================================================================
+# Paths criticos: product-owners revisa governance y docs raiz
+# =============================================================================
+/decisions/                                @spark-match/product-owners
+/onboarding/                               @spark-match/product-owners
+/postmortems/                              @spark-match/product-owners
+/README.md                                 @spark-match/product-owners
+/CONTRIBUTING.md                           @spark-match/product-owners
+/LICENSE                                   @spark-match/product-owners

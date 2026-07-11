@@ -1,20 +1,21 @@
 # =============================================================================
-# CI - Terraform Plan on Pull Request (matrix N-env: dev + prod)
+# CI - Terraform Plan (dev on PR, dev + prod on workflow_dispatch)
 # =============================================================================
 # Este workflow es un CALLER del reusable workflow en:
 #   spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml
 #
-# En cada PR corre `terraform plan` para cada ambiente definido en la matrix
-# (hoy dev + prod, escalable a staging u otros). Para agregar un nuevo env:
-#  1. Anadir entrada en la matrix
-#  2. Asegurarse de que existe el GH Secret AWS_PLAN_ROLE_ARN_<ENV>
-#  3. Asegurarse de que existe el bucket spark-match-tfstate-<env>
-#  4. (Opcional) Anadir entrada en docs
+# Comportamiento:
+#   - pull_request: solo corre Plan (dev) (Plan prod requiere trigger manual
+#     para evitar exponer state de prod en PRs de cualquier contribuidor).
+#   - workflow_dispatch: corre Plan (dev) y Plan (prod) para que el equipo
+#     valide cambios contra prod antes de mergear a main.
 #
-# Triggers:
-#   - pull_request a main o dev (cuando hay cambios a .tf / .tfvars / workflows
-#     / docs).
-#   - workflow_dispatch (para re-correr planes manualmente sin PR).
+# Para agregar un nuevo env (ej. staging):
+#   1. Agregar entrada en la matrix.
+#   2. Crear el GH Secret AWS_PLAN_ROLE_ARN_<ENV>.
+#   3. Crear el bucket spark-match-tfstate-<env>.
+#   4. Decidir si el env corre en PR (agregar a plan-pr) o solo dispatch
+#     (agregar a plan-dispatch).
 # =============================================================================
 
 name: CI - Terraform Plan
@@ -36,8 +37,42 @@ permissions:
   id-token: write     # Required by the reusable workflow for OIDC
 
 jobs:
-  terraform-plan:
+  # ---------------------------------------------------------------------------
+  # Plan environments that are safe to expose in PRs.
+  # Today: dev only. Add staging here if you create it later.
+  # ---------------------------------------------------------------------------
+  plan-pr:
     name: Plan (${{ matrix.environment }})
+    if: github.event_name == 'pull_request'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: dev
+            working-directory: live/dev
+            backend-bucket: spark-match-tfstate-dev
+            backend-key: dev/terraform.tfstate
+            plan-role-arn-secret: AWS_PLAN_ROLE_ARN_DEV
+
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
+    secrets: inherit
+    with:
+      environment: ${{ matrix.environment }}
+      working-directory: ${{ matrix.working-directory }}
+      aws-region: us-east-1
+      plan-role-arn-secret: ${{ matrix.plan-role-arn-secret }}
+      terraform-version: '1.10.0'
+      backend-bucket: ${{ matrix.backend-bucket }}
+      backend-key: ${{ matrix.backend-key }}
+      comment-on-pr: true
+
+  # ---------------------------------------------------------------------------
+  # Plan environments that should NOT be exposed in PRs (require manual
+  # trigger). Today: prod only.
+  # ---------------------------------------------------------------------------
+  plan-dispatch:
+    name: Plan (${{ matrix.environment }})
+    if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +89,7 @@ jobs:
             plan-role-arn-secret: AWS_PLAN_ROLE_ARN_PROD
 
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
-    secrets: inherit      # Pass all secrets from caller to reusable workflow
+    secrets: inherit
     with:
       environment: ${{ matrix.environment }}
       working-directory: ${{ matrix.working-directory }}
@@ -63,4 +98,4 @@ jobs:
       terraform-version: '1.10.0'
       backend-bucket: ${{ matrix.backend-bucket }}
       backend-key: ${{ matrix.backend-key }}
-      comment-on-pr: true
+      comment-on-pr: false   # No hay PR en workflow_dispatch

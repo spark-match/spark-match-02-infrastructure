@@ -1,24 +1,34 @@
 # =============================================================================
-# CI - Terraform Plan on Pull Request
+# CI - Terraform Plan on Pull Request (matrix N-env: dev + prod)
 # =============================================================================
 # Este workflow es un CALLER del reusable workflow en:
 #   spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml
 #
-# Solo define CUÁNDO triggerear y QUÉ inputs pasar.
-# Toda la lógica vive en el caller reusable.
+# En cada PR corre `terraform plan` para cada ambiente definido en la matrix
+# (hoy dev + prod, escalable a staging u otros). Para agregar un nuevo env:
+#  1. Anadir entrada en la matrix
+#  2. Asegurarse de que existe el GH Secret AWS_PLAN_ROLE_ARN_<ENV>
+#  3. Asegurarse de que existe el bucket spark-match-tfstate-<env>
+#  4. (Opcional) Anadir entrada en docs
+#
+# Triggers:
+#   - pull_request a main o dev (cuando hay cambios a .tf / .tfvars / workflows
+#     / docs).
+#   - workflow_dispatch (para re-correr planes manualmente sin PR).
 # =============================================================================
 
 name: CI - Terraform Plan
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, dev]
     types: [opened, synchronize, reopened]
     paths:
       - "**.tf"
       - "**.tfvars"
       - ".github/workflows/**"
       - "docs/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -27,14 +37,30 @@ permissions:
 
 jobs:
   terraform-plan:
-    name: Plan (prod)
+    name: Plan (${{ matrix.environment }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: dev
+            working-directory: live/dev
+            backend-bucket: spark-match-tfstate-dev
+            backend-key: dev/terraform.tfstate
+            plan-role-arn-secret: AWS_PLAN_ROLE_ARN_DEV
+          - environment: prod
+            working-directory: live/prod
+            backend-bucket: spark-match-tfstate-prod
+            backend-key: prod/terraform.tfstate
+            plan-role-arn-secret: AWS_PLAN_ROLE_ARN_PROD
+
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
     secrets: inherit      # Pass all secrets from caller to reusable workflow
     with:
-      working-directory: live/prod
+      environment: ${{ matrix.environment }}
+      working-directory: ${{ matrix.working-directory }}
       aws-region: us-east-1
-      plan-role-arn-secret: AWS_PLAN_ROLE_ARN
+      plan-role-arn-secret: ${{ matrix.plan-role-arn-secret }}
       terraform-version: '1.10.0'
-      backend-bucket: spark-match-tfstate-prod
-      backend-key: prod/terraform.tfstate
+      backend-bucket: ${{ matrix.backend-bucket }}
+      backend-key: ${{ matrix.backend-key }}
       comment-on-pr: true

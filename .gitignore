@@ -1,86 +1,31 @@
-# =============================================================================
-# Spark Match Infrastructure (02-infrastructure) - .gitignore
-# =============================================================================
-# Stack: Terraform (VPC, Aurora, EventBridge, S3, IAM, Secrets)
-# Helper scripts: Python (boto3) + Bash
-# =============================================================================
-
-# -----------------------------------------------------------------------------
 # Terraform local cache and state
-# -----------------------------------------------------------------------------
 .terraform/
-.terraform.lock.hcl
-.terraform.d/
 *.tfstate
 *.tfstate.*
 *.tfstate.backup
 crash.log
 crash.*.log
 
-# -----------------------------------------------------------------------------
+# Lock file: SI se commitea (reproducibilidad de versiones de providers).
+# Solo gitignore si existe override local. La convencion es commitearlo.
+!.terraform.lock.hcl
+
 # Plan files (locales)
-# -----------------------------------------------------------------------------
 tfplan
 tfplan.json
-*.tfplan
-*.tfplan.json
 
-# -----------------------------------------------------------------------------
-# tfvars con secretos (solo se commitea el .example)
-# -----------------------------------------------------------------------------
+# Tfvars con secretos (NO se commitea terraform.tfvars.local ni *.secret.tfvars).
+# Pero SI se commitean los tfvars "base" de cada env (sin secretos), porque
+# contienen la config de la infra (CIDR, NAT, endpoints, etc.) que todos los devs
+# necesitan sincronizada.
 *.tfvars
 !*.tfvars.example
-!example.tfvars
+!terraform.tfvars
 
-# -----------------------------------------------------------------------------
-# Terragrunt cache (si se usa en el futuro)
-# -----------------------------------------------------------------------------
-.terragrunt-cache/
+# Plugin cache
+.terraform.d/
 
-# -----------------------------------------------------------------------------
-# Pre-commit cache
-# -----------------------------------------------------------------------------
-.cache/
-
-# -----------------------------------------------------------------------------
-# Python (helper scripts con boto3)
-# -----------------------------------------------------------------------------
-__pycache__/
-**/__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.venv/
-venv/
-env/
-.python-version
-.uv/
-uv.lock
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-htmlcov/
-*.egg-info/
-
-# -----------------------------------------------------------------------------
-# AWS credentials y configs locales
-# -----------------------------------------------------------------------------
-.aws/
-credentials
-config.local
-*.pem
-*.key
-*.crt
-
-# -----------------------------------------------------------------------------
-# Node.js (actionlint via npx en CI)
-# -----------------------------------------------------------------------------
-node_modules/
-npm-debug.log*
-
-# -----------------------------------------------------------------------------
 # Editor / OS
-# -----------------------------------------------------------------------------
 .vscode/
 .idea/
 *.swp
@@ -88,3 +33,9 @@ npm-debug.log*
 *~
 .DS_Store
 Thumbs.db
+
+# Pre-commit cache
+.cache/
+
+# Terragrunt cache (si se usa en el futuro)
+.terragrunt-cache/

@@ -34,7 +34,7 @@ locals {
     }
   )
 
-  policies_dir = "${path.module}/../../docs/policies"
+  policies_dir = "${path.module}/policies"
 
   # Sub claim patterns ESTRICTOS por env: el role de X-env solo acepta tokens
   # emitidos para X-env. Asi, spark-match-sam-deploy-dev NO puede ser
@@ -73,6 +73,105 @@ resource "aws_kms_key" "main" {
   enable_key_rotation     = true
   deletion_window_in_days = var.kms_deletion_window_in_days
   multi_region            = false
+
+  # Key policy explicita: separa administradores de usuarios de la key.
+  # - Administracion (kms:Create*, kms:ScheduleKeyDeletion, kms:PutKeyPolicy):
+  #   rol del account root y rol Terraform-{env} (para futuros re-keys/rotations).
+  # - Uso (kms:Encrypt, kms:Decrypt, kms:GenerateDataKey*): los 4 roles IAM
+  #   del modulo y AWS services (CloudWatch Logs, SSM, Secrets Manager, S3,
+  #   Bedrock) que cifran data-at-rest con esta CMK.
+  # Ref: IMPROVEMENTS.md [SEC-05]
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "spark-match-${var.environment}-cmk-policy"
+    Statement = [
+      {
+        Sid    = "RootAccountManage"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "TerraformRoleManage"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/spark-match-terraform-${var.environment}"
+        }
+        Action = [
+          "kms:Create*",
+          "kms:Describe*",
+          "kms:Enable*",
+          "kms:List*",
+          "kms:Put*",
+          "kms:Update*",
+          "kms:Revoke*",
+          "kms:Disable*",
+          "kms:Get*",
+          "kms:Delete*",
+          "kms:TagResource",
+          "kms:UntagResource",
+          "kms:ScheduleKeyDeletion",
+          "kms:CancelKeyDeletion",
+        ]
+        Resource = "*"
+      },
+      {
+        Sid    = "IAMRolesUseCMK"
+        Effect = "Allow"
+        Principal = {
+          AWS = [
+            aws_iam_role.sam_deploy.arn,
+            aws_iam_role.bedrock_deploy.arn,
+            aws_iam_role.lambda_runtime.arn,
+            aws_iam_role.agentcore_runtime.arn,
+          ]
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/Environment" = var.environment
+            "aws:ResourceTag/Project"     = var.project_name
+          }
+        }
+      },
+      {
+        Sid    = "AWSServicesUseCMK"
+        Effect = "Allow"
+        Principal = {
+          Service = [
+            "logs.${data.aws_partition.current.dns_suffix}",
+            "ssm.${data.aws_partition.current.dns_suffix}",
+            "secretsmanager.${data.aws_partition.current.dns_suffix}",
+            "s3.${data.aws_partition.current.dns_suffix}",
+            "bedrock.${data.aws_partition.current.dns_suffix}",
+          ]
+        }
+        Action = [
+          "kms:Encrypt",
+          "kms:Decrypt",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:DescribeKey",
+        ]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:CallerAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+    ]
+  })
 
   tags = local.common_tags
 

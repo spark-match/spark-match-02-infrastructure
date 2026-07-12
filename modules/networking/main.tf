@@ -30,6 +30,12 @@ locals {
       Repository  = "spark-match/spark-match-02-infrastructure"
     }
   )
+
+  # Numero de NAT Gateways (y por extension EIPs, private RTs, asociaciones):
+  #   enable_nat_gateway=false                -> 0 (sin NAT, sin rutas privadas a internet)
+  #   enable_nat_gateway=true,  enable_nat_ha=false -> 1 (NAT unico compartido, ahorra $32/mes)
+  #   enable_nat_gateway=true,  enable_nat_ha=true  -> N (uno por AZ, HA real)
+  nat_count = var.enable_nat_gateway ? (var.enable_nat_ha ? length(var.azs) : 1) : 0
 }
 
 ###############################################################################
@@ -91,9 +97,9 @@ resource "aws_internet_gateway" "main" {
   })
 }
 
-# Elastic IPs para NAT (1 o 2 segun enable_nat_ha).
+# Elastic IPs para NAT (1 o N segun enable_nat_ha, controlado por local.nat_count).
 resource "aws_eip" "nat" {
-  count  = var.enable_nat_gateway ? length(var.azs) : 0
+  count  = local.nat_count
   domain = "vpc"
 
   tags = merge(local.common_tags, {
@@ -108,7 +114,7 @@ resource "aws_eip" "nat" {
 ###############################################################################
 
 resource "aws_nat_gateway" "main" {
-  count = var.enable_nat_gateway ? length(var.azs) : 0
+  count = local.nat_count
 
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
@@ -143,35 +149,38 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Route table privada: 1 sola por VPC con multiples asociaciones es OK (mismo destino).
-# Si enable_nat_ha=true, creamos 1 por AZ para que cada subnet privada rutee al NAT
-# de su misma AZ (mejor latencia y aislamiento).
+# Route table privada:
+#   - Sin NAT (nat_count=0): no se crea ninguna RT ni asociacion (dev offline).
+#   - NAT sin HA (nat_count=1): 1 RT compartida, todas las subnets privadas la usan.
+#   - NAT con HA (nat_count=N): N RTs (1 por AZ), cada subnet privada usa la de su AZ
+#     para rutear al NAT local (mejor latencia y aislamiento).
 resource "aws_route_table" "private" {
-  count = var.enable_nat_gateway ? length(var.azs) : 1
+  count = local.nat_count
 
   vpc_id = aws_vpc.main.id
 
   dynamic "route" {
-    for_each = var.enable_nat_gateway ? [1] : []
+    for_each = local.nat_count > 0 ? [1] : []
     content {
-      cidr_block     = "0.0.0.0/0"
-      nat_gateway_id = aws_nat_gateway.main[count.index].id
+      cidr_block = "0.0.0.0/0"
+      # Si HA=true, cada RT rutea al NAT de su propia AZ (aws_nat_gateway.main[i]).
+      # Si HA=false, todas las RTs (que en este caso es 1) rutean al mismo NAT (index 0).
+      nat_gateway_id = var.enable_nat_ha ? aws_nat_gateway.main[count.index].id : aws_nat_gateway.main[0].id
     }
   }
 
   tags = merge(local.common_tags, {
-    Name = var.enable_nat_ha ? "${var.project_name}-${var.environment}-private-rt-${var.azs[count.index]}" : "${var.project_name}-${var.environment}-private-rt"
+    Name = local.nat_count > 1 ? "${var.project_name}-${var.environment}-private-rt-${var.azs[count.index]}" : "${var.project_name}-${var.environment}-private-rt"
   })
 
-  # Si no hay NAT, esta route table queda sin route por defecto -> todas las
-  # asociaciones quedan offline. Para dev/staging donde no hay NAT publico,
-  # el caller deberia omitir asociaciones privadas.
   depends_on = [aws_nat_gateway.main]
 }
 
 resource "aws_route_table_association" "private" {
-  count = var.enable_nat_gateway && var.enable_nat_ha ? length(var.azs) : (var.enable_nat_gateway ? length(var.azs) : 0)
+  count = local.nat_count
 
-  subnet_id      = aws_subnet.private[count.index].id
-  route_table_id = var.enable_nat_ha ? aws_route_table.private[count.index].id : aws_route_table.private[0].id
+  subnet_id = aws_subnet.private[count.index].id
+  # Si HA=true, cada subnet usa la RT de su AZ (rt[i]).
+  # Si HA=false, todas las subnets usan la unica RT (rt[0]).
+  route_table_id = local.nat_count > 1 ? aws_route_table.private[count.index].id : aws_route_table.private[0].id
 }

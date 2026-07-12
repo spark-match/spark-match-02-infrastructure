@@ -1,0 +1,88 @@
+###############################################################################
+# CI - Terraform Security Scan (checkov)
+###############################################################################
+# Escaneo estatico de seguridad sobre el codigo Terraform usando checkov.
+# Detecta: SGs con ingress 0.0.0.0/0, S3 sin cifrado, IAM con Action="*"
+# sobre Resource="*", KMS sin key policy, etc.
+# Ref: IMPROVEMENTS.md [B7] [TF-05]
+#
+# trigger: pull_request contra dev/main, y workflow_dispatch manual.
+# output: SARIF subido a GitHub code scanning (no bloquea merge por default).
+###############################################################################
+
+name: CI - Terraform Security Scan
+
+on:
+  pull_request:
+    branches: [main, dev]
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - ".github/workflows/**"
+      - ".pre-commit-config.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  security-events: write   # Para subir SARIF a code scanning
+
+jobs:
+  checkov:
+    name: checkov (${{ matrix.path }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        path:
+          - live/dev
+          - live/prod
+          - modules/security
+          - modules/networking
+          - modules/endpoints
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install checkov
+        run: pip install --quiet "checkov==3.2.40"
+
+      - name: Run checkov (soft-fail)
+        working-directory: ${{ matrix.path }}
+        run: |
+          # soft-fail permite que el job continue aunque haya findings; el SARIF
+          # igual se sube a code scanning para visibilidad.
+          mkdir -p checkov-output
+          checkov \
+            --directory . \
+            --framework terraform \
+            --output cli \
+            --output sarif \
+            --output-file-path checkov-output \
+            --soft-fail \
+            || true
+
+      - name: Upload SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: ${{ matrix.path }}/checkov-output/results_sarif.sarif
+          category: checkov-${{ matrix.path }}
+        continue-on-error: true
+
+      - name: Upload raw logs as artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          # Artifact names cannot contain forward slashes; use github.run_id
+          # and github.run_attempt for uniqueness instead of matrix.path.
+          name: checkov-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ matrix.path }}/checkov-output
+          retention-days: 30
+          if-no-files-found: ignore

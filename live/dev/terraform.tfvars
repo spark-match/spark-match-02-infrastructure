@@ -48,6 +48,11 @@ enable_nat_ha      = false
 enable_all_endpoints_by_default = false
 enable_s3_gateway_endpoint      = true
 
+# Flow logs: desactivado en dev para minimizar costo (~$0.50/mes si esta
+# prendido y hay trafico). Se puede activar localmente con -var si se necesita
+# debuggear trafico de red en una sesion.
+enable_flow_logs = false
+
 ###############################################################################
 # Security (modulo security - se usara en Fase 1.5)
 ###############################################################################

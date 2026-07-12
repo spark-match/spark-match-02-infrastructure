@@ -33,12 +33,18 @@ enable_nat_ha      = false
 # Endpoints (modulo endpoints - se usara en Fase 1.5)
 ###############################################################################
 
-# Dev: solo el S3 gateway endpoint (gratis). El resto del trafico AWS se hace
-# desde la Lambda ENI hacia los service endpoints publicos (sin NAT, gracias
-# a que el SDK de boto3 resuelve hacia el endpoint regional publico sin
-# necesidad de NAT cuando la Lambda tiene internet access via egress SG).
-# En la practica, esto significa que el agente (08-deep-agent) puede llamar
-# a Bedrock sin NAT porque la Lambda tiene egress 0.0.0.0/0 en el SG lambda.
+# Decisión de arquitectura dev (Opción A — IMPROVEMENTS.md A4/NET-01):
+#   Las Lambdas de 03-backend y 08-deep-agent corren FUERA de la VPC.
+#   Justificación:
+#     - Tavily (búsqueda web externa) y LangSmith (métricas) requieren acceso
+#       a internet público desde la Lambda. Sin VPC, esto es directo (sin NAT).
+#     - Aurora PostgreSQL Serverless v2 con RDS Data API habilitada permite
+#       conectar a RDS por HTTPS público, sin necesidad de Lambda en VPC.
+#     - Servicios AWS regionales (DynamoDB, SSM, Secrets Manager, Bedrock,
+#       S3) son accesibles vía endpoints públicos sin VPC ni NAT.
+#   Costo networking dev: $0/mes (sin NAT, sin interface endpoints).
+#
+# Por lo tanto, en dev NO prendemos NAT ni interface endpoints.
 enable_all_endpoints_by_default = false
 enable_s3_gateway_endpoint      = true
 

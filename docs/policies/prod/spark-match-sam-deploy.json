@@ -1,0 +1,329 @@
+﻿{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CloudFormationReadAll",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:ListStacks",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResource",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:GetTemplate",
+        "cloudformation:GetTemplateSummary",
+        "cloudformation:ListStackResources"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudFormationManageBackendStack",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack",
+        "cloudformation:UpdateStack",
+        "cloudformation:DeleteStack",
+        "cloudformation:CreateChangeSet",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:ContinueUpdateRollback",
+        "cloudformation:RollbackStack"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:us-east-1:681526276858:stack/spark-match-backend-*-${environment}",
+        "arn:aws:cloudformation:us-east-1:681526276858:stack/spark-match-backend-*-${environment}/*"
+      ]
+    },
+    {
+      "Sid": "LambdaReadAll",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:ListFunctions",
+        "lambda:ListEventSourceMappings",
+        "lambda:GetAccountSettings"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LambdaManageFunctions",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:DeleteFunction",
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:CreateEventSourceMapping",
+        "lambda:UpdateEventSourceMapping",
+        "lambda:DeleteEventSourceMapping",
+        "lambda:AddPermission",
+        "lambda:RemovePermission",
+        "lambda:GetPolicy",
+        "lambda:PutFunctionConcurrency",
+        "lambda:DeleteFunctionConcurrency",
+        "lambda:PublishVersion",
+        "lambda:CreateAlias",
+        "lambda:UpdateAlias",
+        "lambda:InvokeFunction"
+      ],
+      "Resource": [
+        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-backend-*-${environment}",
+        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-backend-*-${environment}:*"
+      ]
+    },
+    {
+      "Sid": "LambdaManageLayers",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:GetLayerVersion",
+        "lambda:ListLayerVersions",
+        "lambda:PublishLayerVersion",
+        "lambda:DeleteLayerVersion"
+      ],
+      "Resource": [
+        "arn:aws:lambda:us-east-1:681526276858:layer:spark-match-node-shared-*-${environment}",
+        "arn:aws:lambda:us-east-1:681526276858:layer:spark-match-node-runtime-*-${environment}",
+        "arn:aws:lambda:us-east-1:681526276858:layer:spark-match-python-shared-*-${environment}",
+        "arn:aws:lambda:us-east-1:681526276858:layer:spark-match-python-runtime-*-${environment}"
+      ]
+    },
+    {
+      "Sid": "ApiGatewayV2Manage",
+      "Effect": "Allow",
+      "Action": [
+        "apigatewayv2:CreateApi",
+        "apigatewayv2:UpdateApi",
+        "apigatewayv2:DeleteApi",
+        "apigatewayv2:GetApi",
+        "apigatewayv2:ImportApi",
+        "apigatewayv2:CreateRoute",
+        "apigatewayv2:UpdateRoute",
+        "apigatewayv2:DeleteRoute",
+        "apigatewayv2:GetRoutes",
+        "apigatewayv2:CreateIntegration",
+        "apigatewayv2:UpdateIntegration",
+        "apigatewayv2:DeleteIntegration",
+        "apigatewayv2:GetIntegrations",
+        "apigatewayv2:CreateStage",
+        "apigatewayv2:UpdateStage",
+        "apigatewayv2:DeleteStage",
+        "apigatewayv2:GetStages",
+        "apigatewayv2:CreateDeployment",
+        "apigatewayv2:GetDeployments",
+        "apigatewayv2:DeleteDeployment",
+        "apigatewayv2:CreateVpcLink",
+        "apigatewayv2:UpdateVpcLink",
+        "apigatewayv2:DeleteVpcLink",
+        "apigatewayv2:GetVpcLinks",
+        "apigatewayv2:CreateAuthorizer",
+        "apigatewayv2:UpdateAuthorizer",
+        "apigatewayv2:DeleteAuthorizer",
+        "apigatewayv2:AddTagsToResource",
+        "apigatewayv2:RemoveTagsFromResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "EventBridgeManageBusAndRules",
+      "Effect": "Allow",
+      "Action": [
+        "events:PutRule",
+        "events:DeleteRule",
+        "events:DescribeRule",
+        "events:ListRules",
+        "events:ListTargetsByRule",
+        "events:PutTargets",
+        "events:RemoveTargets",
+        "events:EnableRule",
+        "events:DisableRule",
+        "events:PutArchive",
+        "events:DeleteArchive",
+        "events:DescribeArchive",
+        "events:ListArchives",
+        "events:CreateArchive",
+        "events:UpdateArchive",
+        "events:TagResource",
+        "events:UntagResource",
+        "events:ListTagsForResource",
+        "events:CreateEventBus",
+        "events:DeleteEventBus",
+        "events:DescribeEventBus",
+        "events:ListEventBuses",
+        "events:PutPermission",
+        "events:RemovePermission",
+        "events:DescribeEventSource"
+      ],
+      "Resource": [
+        "arn:aws:events:us-east-1:681526276858:rule/spark-match-*",
+        "arn:aws:events:us-east-1:681526276858:event-bus/spark-match-*",
+        "arn:aws:events:us-east-1:681526276858:archive/spark-match-*"
+      ]
+    },
+    {
+      "Sid": "IAMManageExecutionRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:UpdateRole",
+        "iam:TagRole",
+        "iam:UntagRole",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy"
+      ],
+      "Resource": [
+        "arn:aws:iam::681526276858:role/spark-match-backend-*-${environment}",
+        "arn:aws:iam::681526276858:role/spark-match-backend-*-exec-${environment}",
+        "arn:aws:iam::681526276858:role/spark-match-lambda-runtime-${environment}"
+      ]
+    },
+    {
+      "Sid": "IAMPassRoleToLambdaAndEvents",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": [
+        "arn:aws:iam::681526276858:role/spark-match-backend-*-${environment}",
+        "arn:aws:iam::681526276858:role/spark-match-backend-*-exec-${environment}",
+        "arn:aws:iam::681526276858:role/spark-match-lambda-runtime-${environment}"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "iam:PassedToService": [
+            "lambda.amazonaws.com",
+            "apigateway.amazonaws.com",
+            "events.amazonaws.com"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "S3SamArtifacts",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket",
+        "s3:GetBucketVersioning",
+        "s3:GetEncryptionConfiguration"
+      ],
+      "Resource": [
+        "arn:aws:s3:::spark-match-sam-artifacts-${environment}",
+        "arn:aws:s3:::spark-match-sam-artifacts-${environment}/*",
+        "arn:aws:s3:::spark-match-backend-deploy-${environment}",
+        "arn:aws:s3:::spark-match-backend-deploy-${environment}/*"
+      ]
+    },
+    {
+      "Sid": "S3ReadTfStateForOutputs",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::spark-match-tfstate-${environment}",
+        "arn:aws:s3:::spark-match-tfstate-${environment}/*"
+      ]
+    },
+    {
+      "Sid": "SSMReadParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": [
+        "arn:aws:ssm:us-east-1:681526276858:parameter/spark-match/*"
+      ]
+    },
+    {
+      "Sid": "KMSDecryptSparkKeys",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": "arn:aws:kms:us-east-1:681526276858:key/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Project": "spark-match",
+          "aws:ResourceTag/Environment": "${environment}"
+        }
+      }
+    },
+    {
+      "Sid": "CloudWatchLogsManage",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:DescribeLogGroups",
+        "logs:CreateLogStream",
+        "logs:DeleteLogStream",
+        "logs:DescribeLogStreams",
+        "logs:PutRetentionPolicy",
+        "logs:DeleteRetentionPolicy",
+        "logs:TagResource",
+        "logs:UntagResource",
+        "logs:PutSubscriptionFilter",
+        "logs:DeleteSubscriptionFilter"
+      ],
+      "Resource": [
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/backend/${environment}/*",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/*",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-backend-*-${environment}"
+      ]
+    },
+    {
+      "Sid": "XRayTracing",
+      "Effect": "Allow",
+      "Action": [
+        "xray:PutTraceSegments",
+        "xray:PutTelemetryRecords",
+        "xray:GetTraceSummaries",
+        "xray:BatchGetTraces"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "STSGetCallerIdentity",
+      "Effect": "Allow",
+      "Action": "sts:GetCallerIdentity",
+      "Resource": "*"
+    },
+    {
+      "Sid": "SqsDLQ",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:CreateQueue",
+        "sqs:DeleteQueue",
+        "sqs:GetQueueAttributes",
+        "sqs:SetQueueAttributes",
+        "sqs:AddPermission",
+        "sqs:RemovePermission",
+        "sqs:TagQueue",
+        "sqs:UntagQueue",
+        "sqs:ListQueueTags",
+        "sqs:SendMessage",
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:GetQueueUrl"
+      ],
+      "Resource": [
+        "arn:aws:sqs:us-east-1:681526276858:spark-match-backend-*-${environment}"
+      ]
+    }
+  ]
+}

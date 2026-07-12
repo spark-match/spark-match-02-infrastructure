@@ -1,0 +1,126 @@
+﻿{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "LambdaBasicLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams"
+      ],
+      "Resource": [
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-backend-*-${environment}",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/backend/${environment}/*:*"
+      ]
+    },
+    {
+      "Sid": "VPCNetworkInterfaceForVPCLambdas",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateNetworkInterface",
+        "ec2:DescribeNetworkInterfaces",
+        "ec2:DeleteNetworkInterface",
+        "ec2:AssignPrivateIpAddresses",
+        "ec2:UnassignPrivateIpAddresses"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "XRayDaemonWrite",
+      "Effect": "Allow",
+      "Action": [
+        "xray:PutTraceSegments",
+        "xray:PutTelemetryRecords",
+        "xray:GetSamplingRules",
+        "xray:GetSamplingTargets",
+        "xray:GetSamplingStatisticSummaries"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecretsManagerGetSecret",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:DescribeSecret"
+      ],
+      "Resource": [
+        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/backend-*-${environment}"
+      ]
+    },
+    {
+      "Sid": "SSMReadParameters",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": [
+        "arn:aws:ssm:us-east-1:681526276858:parameter/spark-match/*"
+      ]
+    },
+    {
+      "Sid": "EventBridgePutEvents",
+      "Effect": "Allow",
+      "Action": [
+        "events:PutEvents",
+        "events:DescribeEventBus"
+      ],
+      "Resource": [
+        "arn:aws:events:us-east-1:681526276858:event-bus/spark-match-events-${environment}"
+      ]
+    },
+    {
+      "Sid": "DynamoDBIdempotencyTable",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:DeleteItem",
+        "dynamodb:Query",
+        "dynamodb:Scan",
+        "dynamodb:BatchWriteItem",
+        "dynamodb:BatchGetItem"
+      ],
+      "Resource": [
+        "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-backend-*-${environment}",
+        "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-backend-*-${environment}/index/*"
+      ]
+    },
+    {
+      "Sid": "KMSDecrypt",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey"
+      ],
+      "Resource": "arn:aws:kms:us-east-1:681526276858:key/*",
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/Project": "spark-match",
+          "aws:ResourceTag/Environment": "${environment}"
+        }
+      }
+    },
+    {
+      "Sid": "S3RagDocumentsOptional",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject",
+        "s3:ListBucket"
+      ],
+      "Resource": [
+        "arn:aws:s3:::spark-match-rag-documents-${environment}",
+        "arn:aws:s3:::spark-match-rag-documents-${environment}/*"
+      ]
+    }
+  ]
+}

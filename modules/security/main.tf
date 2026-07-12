@@ -215,10 +215,13 @@ resource "aws_iam_role" "sam_deploy" {
 }
 
 # Inline policy (~9.8 KB) -- excede limite de 6 KB de managed policy.
+# Usa templatefile() para interpolar ${environment} desde la policy por env.
 resource "aws_iam_role_policy" "sam_deploy_inline" {
-  name   = "SamDeployPolicy"
-  role   = aws_iam_role.sam_deploy.id
-  policy = file("${local.policies_dir}/spark-match-sam-deploy.json")
+  name = "SamDeployPolicy"
+  role = aws_iam_role.sam_deploy.id
+  policy = templatefile("${local.policies_dir}/${var.environment}/spark-match-sam-deploy.json", {
+    environment = var.environment
+  })
 }
 
 # -----------------------------------------------------------------------------
@@ -255,9 +258,11 @@ resource "aws_iam_role" "bedrock_deploy" {
 }
 
 resource "aws_iam_role_policy" "bedrock_deploy_inline" {
-  name   = "BedrockAgentCoreDeployPolicy"
-  role   = aws_iam_role.bedrock_deploy.id
-  policy = file("${local.policies_dir}/spark-match-bedrock-agentcore-deploy.json")
+  name = "BedrockAgentCoreDeployPolicy"
+  role = aws_iam_role.bedrock_deploy.id
+  policy = templatefile("${local.policies_dir}/${var.environment}/spark-match-bedrock-agentcore-deploy.json", {
+    environment = var.environment
+  })
 }
 
 ###############################################################################
@@ -309,9 +314,11 @@ resource "aws_iam_role_policy_attachment" "lambda_xray_daemon" {
 }
 
 resource "aws_iam_role_policy" "lambda_runtime_inline" {
-  name   = "LambdaRuntimePolicy"
-  role   = aws_iam_role.lambda_runtime.id
-  policy = file("${local.policies_dir}/spark-match-lambda-runtime.json")
+  name = "LambdaRuntimePolicy"
+  role = aws_iam_role.lambda_runtime.id
+  policy = templatefile("${local.policies_dir}/${var.environment}/spark-match-lambda-runtime.json", {
+    environment = var.environment
+  })
 }
 
 # -----------------------------------------------------------------------------
@@ -357,7 +364,9 @@ resource "aws_iam_role_policy_attachment" "agentcore_xray_daemon" {
 }
 
 resource "aws_iam_role_policy" "agentcore_runtime_inline" {
-  name   = "AgentCoreRuntimePolicy"
-  role   = aws_iam_role.agentcore_runtime.id
-  policy = file("${local.policies_dir}/spark-match-agentcore-runtime.json")
+  name = "AgentCoreRuntimePolicy"
+  role = aws_iam_role.agentcore_runtime.id
+  policy = templatefile("${local.policies_dir}/${var.environment}/spark-match-agentcore-runtime.json", {
+    environment = var.environment
+  })
 }

@@ -1,4 +1,4 @@
-{
+﻿{
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -32,7 +32,7 @@
         "ecr:ListTagsForResource"
       ],
       "Resource": [
-        "arn:aws:ecr:us-east-1:681526276858:repository/spark-match-agent-*"
+        "arn:aws:ecr:us-east-1:681526276858:repository/spark-match-agent-*-${environment}"
       ]
     },
     {
@@ -73,8 +73,8 @@
         "logs:UntagResource"
       ],
       "Resource": [
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/agent/*",
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/bedrock-agentcore/*"
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/agent/${environment}/*",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/bedrock-agentcore/${environment}/*"
       ]
     },
     {
@@ -82,8 +82,8 @@
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": [
-        "arn:aws:iam::681526276858:role/spark-match-agentcore-exec-*",
-        "arn:aws:iam::681526276858:role/spark-match-agentcore-runtime-*"
+        "arn:aws:iam::681526276858:role/spark-match-agentcore-exec-${environment}",
+        "arn:aws:iam::681526276858:role/spark-match-agentcore-runtime-${environment}"
       ],
       "Condition": {
         "StringEquals": {
@@ -112,8 +112,8 @@
         "iam:ListAttachedRolePolicies"
       ],
       "Resource": [
-        "arn:aws:iam::681526276858:role/spark-match-agentcore-exec-*",
-        "arn:aws:iam::681526276858:role/spark-match-agentcore-runtime-*"
+        "arn:aws:iam::681526276858:role/spark-match-agentcore-exec-${environment}",
+        "arn:aws:iam::681526276858:role/spark-match-agentcore-runtime-${environment}"
       ]
     },
     {
@@ -127,7 +127,8 @@
       "Resource": "arn:aws:kms:us-east-1:681526276858:key/*",
       "Condition": {
         "StringEquals": {
-          "aws:ResourceTag/Project": "spark-match"
+          "aws:ResourceTag/Project": "spark-match",
+          "aws:ResourceTag/Environment": "${environment}"
         }
       }
     },
@@ -151,7 +152,7 @@
         "secretsmanager:DescribeSecret"
       ],
       "Resource": [
-        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-*"
+        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-*-${environment}"
       ]
     },
     {

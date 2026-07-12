@@ -80,7 +80,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: checkov-${{ matrix.path }}
+          # Artifact names cannot contain forward slashes; replace / with -.
+          name: checkov-${{ replace(matrix.path, '/', '-') }}
           path: ${{ matrix.path }}/checkov-output
           retention-days: 30
           if-no-files-found: ignore

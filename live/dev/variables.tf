@@ -11,9 +11,14 @@ variable "project_name" {
 }
 
 variable "environment" {
-  description = "Nombre del entorno (dev, staging, prod)."
+  description = "Nombre del entorno (dev, staging, prod). Determina nombres de recursos, OIDC trust policies y tagging."
   type        = string
   default     = "dev"
+
+  validation {
+    condition     = contains(["dev", "staging", "prod"], var.environment)
+    error_message = "environment debe ser uno de: dev, staging, prod."
+  }
 }
 
 ###############################################################################

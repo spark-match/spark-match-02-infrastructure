@@ -19,7 +19,12 @@
 # ============================================================================
 set -euo pipefail
 
-ENV="${1:-prod}"
+# Argumento obligatorio: <dev|prod>. Sin argumento o argumento invalido falla rapido.
+ENV="${1:?Uso: $0 <dev|prod>}"
+if [[ "${ENV}" != "dev" && "${ENV}" != "prod" ]]; then
+  echo "[ERROR] Ambiente invalido: '${ENV}'. Valores permitidos: dev, prod." >&2
+  exit 1
+fi
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 LIVE_DIR="${PROJECT_DIR}/live/${ENV}"

@@ -71,6 +71,24 @@ variable "enable_all_endpoints_by_default" {
   default     = false
 }
 
+variable "enable_flow_logs" {
+  description = "Si crear VPC Flow Logs hacia CloudWatch Logs. Costo bajo pero no nulo. Default false en dev, true en prod."
+  type        = bool
+  default     = false
+}
+
+variable "flow_log_traffic_type" {
+  description = "Tipo de trafico a loguear en VPC Flow Logs: ACCEPT, REJECT, o ALL. Default REJECT."
+  type        = string
+  default     = "REJECT"
+}
+
+variable "flow_log_retention_days" {
+  description = "Retention en dias del log group de flow logs."
+  type        = number
+  default     = 30
+}
+
 variable "enable_s3_gateway_endpoint" {
   description = "Si crear el S3 gateway endpoint (gratis). Recomendado true siempre."
   type        = bool

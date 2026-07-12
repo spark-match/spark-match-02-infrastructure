@@ -96,3 +96,47 @@ variable "enable_nat_ha" {
   type        = bool
   default     = false
 }
+
+variable "enable_flow_logs" {
+  description = "Si crear VPC Flow Logs hacia CloudWatch Logs. Default true en prod, false en dev (costo bajo pero no nulo)."
+  type        = bool
+  default     = false
+}
+
+variable "flow_log_traffic_type" {
+  description = "Tipo de trafico a loguear: ACCEPT, REJECT, o ALL. Default REJECT (mas util para detectar intentos de acceso no autorizados)."
+  type        = string
+  default     = "REJECT"
+
+  validation {
+    condition     = contains(["ACCEPT", "REJECT", "ALL"], var.flow_log_traffic_type)
+    error_message = "flow_log_traffic_type debe ser ACCEPT, REJECT, o ALL."
+  }
+}
+
+variable "flow_log_retention_days" {
+  description = "Retention en dias del log group de flow logs. Default 30. AWS valores validos: 1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653."
+  type        = number
+  default     = 30
+
+  validation {
+    condition = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.flow_log_retention_days)
+    error_message = "flow_log_retention_days debe estar en los valores validos de CloudWatch Logs retention."
+  }
+}
+
+variable "kms_key_arn" {
+  description = "ARN de la CMK de KMS para cifrar el log group de flow logs. Si null, AWS usa el default (cifrado del lado del server con CMK administrada por AWS)."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.kms_key_arn == null || can(regex("^arn:aws[a-z]*:kms:", var.kms_key_arn))
+    error_message = "kms_key_arn debe ser null o un ARN valido de KMS."
+  }
+}
+
+# Outputs que este modulo expone para que callers (modules/endpoints,
+# modules/security) los consuman:
+# - vpc_id, public_subnet_ids, private_subnet_ids
+# - private_route_table_ids (para el S3 gateway endpoint)

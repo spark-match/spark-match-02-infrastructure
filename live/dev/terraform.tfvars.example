@@ -1,0 +1,11 @@
+###############################################################################
+# Ejemplo de variables para live/dev.
+# Para empezar: cp terraform.tfvars.example terraform.tfvars y editar.
+###############################################################################
+
+aws_region   = "us-east-1"
+project_name = "spark-match"
+environment  = "dev"
+
+# Ver terraform.tfvars (valores commiteados) para los defaults reales.
+# Este archivo solo documenta que variables existen.

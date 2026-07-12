@@ -1,5 +1,5 @@
 ###############################################################################
-# Outputs del entorno prod
+# Outputs del entorno dev
 ###############################################################################
 #
 # Placeholder: en Fase 1 este archivo empezara a exportar IDs de los recursos

@@ -11,109 +11,209 @@ Infraestructura AWS del proyecto **Spark Match** (Copiloto de Orientación Vocac
 
 - **Cloud:** AWS (`us-east-1`)
 - **IaC:** Terraform `>= 1.6.0`, provider `hashicorp/aws ~> 5.40`
-- **Backend:** S3 (state) + S3 native lockfile (sin DynamoDB)
+- **Backend:** S3 (state) + S3 native lockfile (sin DynamoDB), un bucket por ambiente
 - **Linting:** `tflint`, `terraform fmt`, `pre-commit-terraform`
 - **CI/CD:** GitHub Actions con **OIDC** hacia AWS (roles separados plan/apply)
 - **Pipelines:** [Reusable workflows](https://github.com/spark-match/spark-match-01-devops) desde `spark-match-01-devops`
+
+---
+
+## Estado actual (Fase 0 cerrada)
+
+Cuenta `681526276858`, región `us-east-1`. Estado validado contra AWS:
+
+- **Aplicado:** 2 buckets de state (`spark-match-tfstate-dev`, `spark-match-tfstate-prod`) con versionado + AES256 + PAB + lockfile nativo; OIDC provider de GitHub; **4 IAM roles OIDC** (`spark-match-terraform-{plan,apply}-{dev,prod}`) con trust policy estricto por env; 4 GH Secrets (`AWS_{PLAN,APPLY}_ROLE_ARN_{DEV,PROD}`).
+- **Aplicado (Fase 1):** módulos `security`, `networking`, `endpoints` escritos y validados con `terraform validate` (sin apply todavía).
+- **No aplicado:** cero recursos de Spark Match creados (VPC, secrets, RDS, bus, DDB, Lambda, ECR, CF stacks). Todo es greenfield.
+
+---
+
+## Multi-environment setup (dev + prod)
+
+| Aspecto | dev | prod |
+|---|---|---|
+| **Branch** | `dev` | `main` |
+| **GitHub Environment** | `dev` (sin required reviewers) | `production` (con required reviewers) |
+| **State bucket** | `spark-match-tfstate-dev` | `spark-match-tfstate-prod` |
+| **State key** | `dev/terraform.tfstate` | `prod/terraform.tfstate` |
+| **VPC CIDR** | `10.10.0.0/16` | `10.0.0.0/16` |
+| **NAT Gateway** | OFF ($0/mes) | HA en 2 AZs ($64/mes) |
+| **VPC Endpoints** | Solo S3 gateway (gratis) | 10 interface endpoints + S3 gateway (~$72/mes) |
+| **KMS deletion window** | 7 días | 30 días |
+| **Lambda concurrency** | Default 10 | Default 10 |
+| **Triggers de apply** | push a `dev`, o `workflow_dispatch` con `environment=dev` | push a `main`, o `workflow_dispatch` con `environment=prod` |
+
+> **CIDR planning**: dev `10.10/16`, prod `10.0/16`. Reservado `10.20/16` para staging futuro. Permite VPC peering / Transit Gateway sin colisiones.
+
+### Diagrama de flujo de cambios
+
+```
+PR abierto contra main o dev
+  └─> terraform-plan.yml corre matrix [dev, prod]
+      ├─> Plan dev: working-dir=live/dev, bucket=spark-match-tfstate-dev
+      └─> Plan prod: working-dir=live/prod, bucket=spark-match-tfstate-prod
+  └─> Comment sticky en PR con tabla de cambios por env
+
+Merge a dev branch
+  └─> terraform-apply.yml -> apply-dev
+      └─> GH Environment "dev" (auto, sin reviewers)
+
+Merge a main branch
+  └─> terraform-apply.yml -> apply-prod
+      └─> GH Environment "production" (requiere aprobacion de @spark-match/devops)
+```
+
+---
 
 ## Estructura
 
 ```
 spark-match-02-infrastructure/
-|-- modules/                      # Módulos reutilizables de Terraform
-|   |-- networking/               # VPC, subnets, NAT, IGW (Fase 1, no aplicado)
-|   |-- s3-example/               # Bucket S3 de ejemplo (Fase 1, prueba de concepto)
-|   |-- database/                 # RDS PostgreSQL (Fase 2)
-|   |-- storage/                  # S3 buckets (Fase 2)
-|   |-- compute/                  # ECS Fargate (Fase 3)
-|   |-- cdn/                      # CloudFront (Fase 3)
-|   |-- security/                 # IAM roles, security groups (Fase 4)
-|   |-- secrets/                  # Secrets Manager (Fase 4)
-|   |-- monitoring/               # CloudWatch + SNS (Fase 4)
-|   |-- bedrock/                  # IAM para AWS Bedrock (Fase 4)
+|-- modules/                      # Modulos reutilizables de Terraform
+|   |-- security/                 # (Fase 1) IAM base roles, KMS keys, security groups
+|   |-- networking/               # (Fase 1) VPC, subnets publicas/privadas, NAT
+|   |-- endpoints/                # (Fase 1) VPC interface endpoints (SSM, ECR, etc.)
+|   |-- database/                 # (Fase 2) RDS Aurora PostgreSQL v2 + pgvector
+|   |-- storage/                  # (Fase 2) S3 buckets definitivos
+|   |-- events/                   # (Fase 2) EventBridge bus + archive + DLQ
+|   |-- secrets/                  # (Fase 2) Secrets Manager (JWT, DB credentials)
+|   |-- monitoring/               # (Fase 2) CloudWatch + SNS
+|   |-- bedrock/                  # (Fase 4) IAM Bedrock + ECR repo del agente
 |-- live/
+|   |-- dev/                      # Instancia dev (Fase 0 cerrado)
+|   |   |-- main.tf
+|   |   |-- variables.tf
+|   |   |-- outputs.tf
+|   |   |-- versions.tf
+|   |   |-- providers.tf
+|   |   |-- terraform.tfvars
+|   |   |-- terraform.tfvars.example
+|   |   |-- .terraform.lock.hcl
 |   |-- prod/                     # Instancia productiva
-|       |-- main.tf               # Compone los módulos
-|       |-- variables.tf
-|       |-- outputs.tf
-|       |-- versions.tf           # Required Terraform + providers + backend s3
-|       |-- providers.tf          # AWS provider + default_tags
-|       |-- terraform.tfvars.example
+|   |   |-- main.tf
+|   |   |-- variables.tf
+|   |   |-- outputs.tf
+|   |   |-- versions.tf
+|   |   |-- providers.tf
+|   |   |-- terraform.tfvars
+|   |   |-- terraform.tfvars.example
+|   |   |-- .terraform.lock.hcl
 |-- scripts/
-|   |-- bootstrap-backend.sh      # Crea S3 bucket (ejecutar 1 vez)
-|   |-- plan.sh                   # terraform plan
-|   |-- apply.sh                  # terraform apply
-|   |-- destroy.sh                # terraform destroy (con confirmación)
+|   |-- bootstrap-backend.sh      # Crea S3 bucket para state (parametrizable por env)
+|   |-- plan.sh                   # terraform plan (acepta env como argumento)
+|   |-- apply.sh                  # terraform apply (acepta env como argumento)
+|   |-- destroy.sh                # terraform destroy (con confirmacion textual)
+|-- docs/
+|   |-- IAM_ROLES.md              # (Fase 0) Design + JSON policies de roles por dominio
+|   |-- policies/                 # JSON de policies para roles IAM del modulo security
+|       |-- spark-match-sam-deploy.json
+|       |-- spark-match-bedrock-agentcore-deploy.json
+|       |-- spark-match-lambda-runtime.json
+|       |-- spark-match-agentcore-runtime.json
 |-- .github/workflows/
-|   |-- terraform-plan.yml        # Caller de reusable workflow (PR)
-|   |-- terraform-apply.yml       # Caller de reusable workflow (merge, con approval)
+|   |-- terraform-plan.yml        # Caller de reusable (matrix dev + prod)
+|   |-- terraform-apply.yml       # Caller de reusable (2 jobs: apply-dev, apply-prod)
 |-- .tflint.hcl
 |-- .pre-commit-config.yaml
 |-- LICENSE
 |-- README.md
 ```
 
+> Los modulos `s3-example` (que era una POC nunca aplicada) y `networking` viejo fueron eliminados por completo durante Fase 0 (recuperables via git history). El `networking` actual se reescribio en Fase 1 con foco en multi-env.
+
+---
+
 ## Pre-requisitos
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) `>= 1.6.0`
 - [AWS CLI](https://aws.amazon.com/cli/) configurado con un perfil o variables de entorno
 - (Opcional) [pre-commit](https://pre-commit.com/) + [tflint](https://github.com/terraform-linters/tflint)
+- (Opcional) [GitHub CLI](https://cli.github.com/) para gestionar secrets y environments
 
 ---
 
-## Bootstrap (primera vez)
+## Bootstrap (primera vez por ambiente)
 
-Antes del primer `terraform init`, crear el bucket S3 para el state remoto:
+Antes del primer `terraform init` en cada ambiente, crear el bucket S3 para el state remoto. El script es idempotente.
 
 ```bash
 chmod +x scripts/*.sh
-./scripts/bootstrap-backend.sh
+
+# Bootstrap dev
+ENVIRONMENT=dev ./scripts/bootstrap-backend.sh
+
+# Bootstrap prod
+ENVIRONMENT=prod ./scripts/bootstrap-backend.sh
 ```
 
-Esto crea el bucket S3 `spark-match-tfstate-prod` con versionado y encriptación. El locking se hace con **S3 native lockfile** (no requiere DynamoDB desde Terraform 1.6).
+Esto crea el bucket `spark-match-tfstate-{env}` con:
+- Versionado habilitado (obligatorio para state + lockfile)
+- Encriptación server-side AES256
+- Acceso público bloqueado (4 flags)
 
-### Verificar el bucket manualmente
+> **Locking**: S3 native lockfile (Terraform >= 1.6). NO se crea tabla DynamoDB. Si vienes de versiones anteriores del script que creaba `spark-match-tflock`, esa tabla DynamoDB quedara huerfana y deberas eliminarla manualmente.
+
+### Verificar los buckets manualmente
 
 ```bash
-aws --profile spark-match-prod --region us-east-1 s3api get-bucket-versioning \
-  --bucket spark-match-tfstate-prod
+aws --profile spark-match --region us-east-1 s3api get-bucket-versioning \
+  --bucket spark-match-tfstate-dev
 
-aws --profile spark-match-prod --region us-east-1 s3api get-bucket-encryption \
-  --bucket spark-match-tfstate-prod
+aws --profile spark-match --region us-east-1 s3api get-bucket-encryption \
+  --bucket spark-match-tfstate-dev
+
+aws --profile spark-match --region us-east-1 s3api get-public-access-block \
+  --bucket spark-match-tfstate-dev
 ```
 
 ---
 
 ## Uso diario
 
-### Terraform local
+### Terraform local (un ambiente)
 
 ```bash
-cd live/prod
-terraform init -backend-config="bucket=spark-match-tfstate-prod" \
-               -backend-config="key=prod/terraform.tfstate" \
+cd live/dev   # o live/prod
+
+terraform init -backend-config="bucket=spark-match-tfstate-dev" \
+               -backend-config="key=dev/terraform.tfstate" \
                -backend-config="region=us-east-1" \
                -backend-config="use_lockfile=true"
 
-cp terraform.tfvars.example terraform.tfvars
-# Editar terraform.tfvars según necesidad
+# terraform.tfvars ya viene commiteado con los valores del env
+./scripts/plan.sh dev
+./scripts/apply.sh dev
+```
 
+### Terraform local (ambos ambientes)
+
+```bash
+# Planear ambos envs en paralelo (en terminales separadas)
+./scripts/plan.sh dev
 ./scripts/plan.sh prod
+
+# Aplicar uno por uno (con confirmacion interactiva)
+./scripts/apply.sh dev
 ./scripts/apply.sh prod
+
+# Destruir (PELIGROSO, requiere confirmacion textual)
+./scripts/destroy.sh dev
+./scripts/destroy.sh prod
 ```
 
 ### Con variables de entorno PowerShell (Windows)
 
 ```powershell
-$env:AWS_PROFILE="spark-match-prod"
+$env:AWS_PROFILE="spark-match"
 $env:AWS_REGION="us-east-1"
 $env:AWS_SDK_LOAD_CONFIG="1"   # Necesario para que Terraform lea el perfil
 
-terraform init -backend-config="bucket=spark-match-tfstate-prod" `
-               -backend-config="key=prod/terraform.tfstate" `
+# Dev
+cd live/dev
+terraform init -backend-config="bucket=spark-match-tfstate-dev" `
+               -backend-config="key=dev/terraform.tfstate" `
                -backend-config="region=us-east-1" `
                -backend-config="use_lockfile=true"
-
 terraform plan
 ```
 
@@ -121,13 +221,14 @@ terraform plan
 
 ## Workflow de desarrollo
 
-1. Crear rama: `git checkout -b feat/<modulo>-<descripcion>`
+1. Crear rama: `git checkout -b feat/<modulo>-<descripcion>` (desde `dev` o `main`)
 2. Editar o agregar módulos en `modules/`
-3. Consumir desde `live/prod/main.tf`
-4. Abrir PR hacia `main` → el workflow `terraform-plan.yml` corre (vía caller + reusable workflow)
-5. CODEOWNERS requiere aprobación de `@spark-match/devops` o `@spark-match/product-owners`
-6. Al mergear, el workflow `terraform-apply.yml` se triggerea con approval gate (environment `production`)
-7. Aprobar el deployment en GitHub UI → `terraform apply` corre
+3. Consumir desde `live/dev/main.tf` y/o `live/prod/main.tf`
+4. Abrir PR hacia `dev` o `main` → el workflow `terraform-plan.yml` corre matrix [dev, prod] y postea resumen en el PR
+5. CODEOWNERS requiere aprobación de `@spark-match/devops`
+6. Merge a `dev` → `apply-dev` corre (sin approval, GH env `dev`).
+7. Merge a `main` → `apply-prod` corre con approval gate (GH env `production` requiere reviewers).
+8. Aprobar el deployment en GitHub UI → `terraform apply` corre.
 
 ---
 
@@ -135,8 +236,8 @@ terraform plan
 
 1. `mkdir -p modules/<nombre>`
 2. Crear `main.tf`, `variables.tf`, `outputs.tf`, `README.md`
-3. Agregar un bloque `module "<nombre>"` en `live/prod/main.tf`
-4. (Opcional) agregar variables en `live/prod/variables.tf` y defaults en `terraform.tfvars.example`
+3. Agregar un bloque `module "<nombre>"` en `live/dev/main.tf` y `live/prod/main.tf`
+4. (Opcional) agregar variables en `live/{dev,prod}/variables.tf` y defaults en `terraform.tfvars`
 
 ---
 
@@ -164,18 +265,53 @@ GitHub Actions runner
               └─> Terraform puede usar la cuenta AWS
 ```
 
-### Estrategia de roles separados (recomendado)
+### Roles Terraform plan/apply (este repo)
 
-Para minimizar el blast radius, usamos **dos roles** con permisos mínimos:
+> NOTA: estos roles son SOLO para terraform plan/apply desde el repo `02-infrastructure`. Son DIFERENTES de los roles OIDC que desplegarán SAM y AgentCore (esos viven en `modules/security` y se crean por env).
 
-| Role | ARN | Permisos | Secret en GitHub |
-|---|---|---|---|
-| `spark-match-terraform-plan` | `arn:aws:iam::681526276858:role/spark-match-terraform-plan` | **Read-only** (S3 Get/List, EC2 Describe, IAM Get) | `AWS_PLAN_ROLE_ARN` |
-| `spark-match-terraform-apply` | `arn:aws:iam::681526276858:role/spark-match-terraform-apply` | **Write** (todo lo de plan + S3/EC2/IAM Put/Create/Delete) | `AWS_APPLY_ROLE_ARN` |
+**Estrategia multi-env estricta**: **4 IAM roles**, uno por `(env, capability)`. Cada role acepta SOLO el `sub` claim de su env específico. Un token OIDC con `environment:dev` NO puede asumir un role `*-prod`.
 
-**¿Por qué separar?** Si alguien mete código malicioso en un PR, solo puede **leer** tu infra, no destruirla.
+| Role | ARN | Trust policy | IAM policy | Secret en GitHub |
+|---|---|---|---|---|
+| `spark-match-terraform-plan-dev` | `arn:aws:iam::681526276858:role/spark-match-terraform-plan-dev` | Solo `environment:dev` + `ref:refs/heads/dev` | Read-only sobre `spark-match-tfstate-dev` + EC2/KMS/IAM describe | `AWS_PLAN_ROLE_ARN_DEV` |
+| `spark-match-terraform-apply-dev` | `arn:aws:iam::681526276858:role/spark-match-terraform-apply-dev` | Solo `environment:dev` + `ref:refs/heads/dev` | Write sobre `spark-match-tfstate-dev` + EC2/KMS/IAM create + Logs dev | `AWS_APPLY_ROLE_ARN_DEV` |
+| `spark-match-terraform-plan` (prod) | `arn:aws:iam::681526276858:role/spark-match-terraform-plan` | Solo `environment:production` + `ref:refs/heads/main` | Read-only sobre `spark-match-tfstate-prod` + EC2/KMS/IAM describe | `AWS_PLAN_ROLE_ARN_PROD` |
+| `spark-match-terraform-apply` (prod) | `arn:aws:iam::681526276858:role/spark-match-terraform-apply` | Solo `environment:production` + `ref:refs/heads/main` | Write sobre `spark-match-tfstate-prod` + EC2/KMS/IAM create + Logs prod | `AWS_APPLY_ROLE_ARN_PROD` |
+
+**Aislamiento real entre envs**:
+
+1. **IAM role**: cada uno tiene trust policy con `StringLike` que SOLO matchea el sub claim de su env.
+2. **IAM policy**: cada uno tiene permisos SOLO sobre su bucket + recursos scoped por `aws:ResourceTag/Project=spark-match` y ARN patterns con `*-dev` / `*-prod`.
+3. **S3 backend**: bucket y key separados por env.
+4. **GH Environment**: dev sin reviewers, production con reviewers + branch policy.
+5. **Caller workflow**: cada job pasa el secret específico del env (`AWS_PLAN_ROLE_ARN_DEV` vs `AWS_PLAN_ROLE_ARN_PROD`).
+
+**¿Por qué separar plan vs apply?** Si alguien mete código malicioso en un PR, solo puede **leer** tu infra, no destruirla.
+
+**¿Por qué separar por env (4 roles)?** Si las credenciales OIDC de dev se filtran, el atacante puede tocar dev pero NO prod (el role de dev no tiene permisos para los recursos de prod).
 
 > Nota: el caller `terraform-plan.yml` usa `-lock=false` porque el S3 lockfile de Terraform 1.6+ requiere `PutObject`, que es write. El plan es read-only por naturaleza, no necesita lock real.
+
+### GitHub Secrets en este repo (estado actual)
+
+```bash
+# Listar
+gh secret list --repo spark-match/spark-match-02-infrastructure
+
+# Resultado:
+# AWS_APPLY_ROLE_ARN          (legacy, no usado por callers actuales)
+# AWS_APPLY_ROLE_ARN_DEV      arn:aws:iam::681526276858:role/spark-match-terraform-apply-dev
+# AWS_APPLY_ROLE_ARN_PROD     arn:aws:iam::681526276858:role/spark-match-terraform-apply
+# AWS_PLAN_ROLE_ARN           (legacy, no usado por callers actuales)
+# AWS_PLAN_ROLE_ARN_DEV       arn:aws:iam::681526276858:role/spark-match-terraform-plan-dev
+# AWS_PLAN_ROLE_ARN_PROD      arn:aws:iam::681526276858:role/spark-match-terraform-plan
+```
+
+Para un nuevo env (e.g. `staging`), agregar 2 secrets:
+```bash
+gh secret set AWS_PLAN_ROLE_ARN_STAGING  --body "arn:aws:iam::...:role/spark-match-terraform-plan-staging"
+gh secret set AWS_APPLY_ROLE_ARN_STAGING --body "arn:aws:iam::...:role/spark-match-terraform-apply-staging"
+```
 
 ### Setup OIDC (una vez)
 
@@ -192,9 +328,7 @@ aws iam create-open-id-connect-provider \
 
 > El thumbprint es estable desde 2023. Si GitHub cambia su cert raíz, hay que actualizarlo.
 
-#### Paso 2: Trust policy (compartida)
-
-Crea un archivo `trust-policy.json`:
+#### Paso 2: Trust policy (compartida, multi-env)
 
 ```json
 {
@@ -213,8 +347,10 @@ Crea un archivo `trust-policy.json`:
         "StringLike": {
           "token.actions.githubusercontent.com:sub": [
             "repo:spark-match/spark-match-02-infrastructure:ref:refs/heads/main",
+            "repo:spark-match/spark-match-02-infrastructure:ref:refs/heads/dev",
             "repo:spark-match/spark-match-02-infrastructure:ref:refs/heads/*",
             "repo:spark-match/spark-match-02-infrastructure:pull_request",
+            "repo:spark-match/spark-match-02-infrastructure:environment:dev",
             "repo:spark-match/spark-match-02-infrastructure:environment:production"
           ]
         }
@@ -224,221 +360,24 @@ Crea un archivo `trust-policy.json`:
 }
 ```
 
-#### Paso 3: Plan policy (read-only)
+#### Pasos 3-5: crear roles, policies, secrets, environments
 
-Crea un archivo `plan-policy.json`:
+Ver el script original o ejecutar manualmente con `aws iam create-role`, `aws iam put-role-policy`, `gh secret set`, `gh api environments`.
 
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "S3ReadForStateRefresh",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:GetObjectVersion",
-        "s3:ListBucket",
-        "s3:ListBucketVersions"
-      ],
-      "Resource": [
-        "arn:aws:s3:::spark-match-tfstate-prod",
-        "arn:aws:s3:::spark-match-tfstate-prod/*"
-      ]
-    },
-    {
-      "Sid": "S3ReadForBucketDiscovery",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetAccelerateConfiguration",
-        "s3:GetBucketAcl",
-        "s3:GetBucketCORS",
-        "s3:GetBucketEncryption",
-        "s3:GetBucketLogging",
-        "s3:GetBucketNotification",
-        "s3:GetBucketObjectLockConfiguration",
-        "s3:GetBucketPolicy",
-        "s3:GetBucketPublicAccessBlock",
-        "s3:GetBucketRequestPayment",
-        "s3:GetBucketTagging",
-        "s3:GetBucketVersioning",
-        "s3:GetBucketWebsite",
-        "s3:GetLifecycleConfiguration",
-        "s3:GetReplicationConfiguration"
-      ],
-      "Resource": [
-        "arn:aws:s3:::spark-match-poc-*",
-        "arn:aws:s3:::spark-match-tfstate-*"
-      ]
-    },
-    {
-      "Sid": "EC2ReadOnly",
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeVpcs",
-        "ec2:DescribeSubnets",
-        "ec2:DescribeInternetGateways",
-        "ec2:DescribeRouteTables",
-        "ec2:DescribeRouteTableAssociations",
-        "ec2:DescribeNatGateways",
-        "ec2:DescribeNetworkAcls",
-        "ec2:DescribeSecurityGroups",
-        "ec2:DescribeAvailabilityZones"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "STSGetCallerIdentity",
-      "Effect": "Allow",
-      "Action": "sts:GetCallerIdentity",
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-#### Paso 4: Apply policy (write)
-
-Crea un archivo `apply-policy.json`:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "S3StateManagement",
-      "Effect": "Allow",
-      "Action": [
-        "s3:GetObject",
-        "s3:GetObjectVersion",
-        "s3:PutObject",
-        "s3:DeleteObject",
-        "s3:ListBucket",
-        "s3:ListBucketVersions",
-        "s3:GetBucketVersioning",
-        "s3:PutBucketVersioning"
-      ],
-      "Resource": [
-        "arn:aws:s3:::spark-match-tfstate-prod",
-        "arn:aws:s3:::spark-match-tfstate-prod/*"
-      ]
-    },
-    {
-      "Sid": "S3BucketManagement",
-      "Effect": "Allow",
-      "Action": [
-        "s3:CreateBucket",
-        "s3:DeleteBucket",
-        "s3:PutBucketPublicAccessBlock",
-        "s3:PutBucketEncryption",
-        "s3:PutBucketTagging",
-        "s3:PutBucketVersioning",
-        "s3:PutEncryptionConfiguration",
-        "s3:PutLifecycleConfiguration",
-        "... (todas las acciones S3 necesarias)"
-      ],
-      "Resource": [
-        "arn:aws:s3:::spark-match-poc-*",
-        "arn:aws:s3:::spark-match-tfstate-*"
-      ]
-    },
-    {
-      "Sid": "EC2FullManagement",
-      "Effect": "Allow",
-      "Action": [
-        "ec2:Describe*",
-        "ec2:CreateVpc",
-        "ec2:DeleteVpc",
-        "ec2:CreateSubnet",
-        "ec2:DeleteSubnet",
-        "ec2:CreateInternetGateway",
-        "ec2:CreateRouteTable",
-        "ec2:AssociateRouteTable",
-        "ec2:CreateSecurityGroup",
-        "ec2:AuthorizeSecurityGroupIngress",
-        "... (todas las acciones EC2 necesarias)"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "STSGetCallerIdentity",
-      "Effect": "Allow",
-      "Action": "sts:GetCallerIdentity",
-      "Resource": "*"
-    }
-  ]
-}
-```
-
-#### Paso 5: Crear los roles
+#### Paso 6: Crear GitHub Environments
 
 ```bash
-# Role de PLAN (read-only)
-aws iam create-role \
-  --role-name spark-match-terraform-plan \
-  --assume-role-policy-document file://trust-policy.json \
-  --description "Role para terraform plan (read-only)" \
-  --max-session-duration 3600
+# Dev (sin reviewers)
+gh api --method PUT "repos/spark-match/spark-match-02-infrastructure/environments/dev" \
+  --input '{"wait_timer":0,"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}'
+gh api --method POST "repos/spark-match/spark-match-02-infrastructure/environments/dev/deployment-branch-policies" \
+  --input '{"name":"dev"}'
 
-aws iam put-role-policy \
-  --role-name spark-match-terraform-plan \
-  --policy-name PlanPolicy \
-  --policy-document file://plan-policy.json
-
-# Role de APPLY (write)
-aws iam create-role \
-  --role-name spark-match-terraform-apply \
-  --assume-role-policy-document file://trust-policy.json \
-  --description "Role para terraform apply (write)" \
-  --max-session-duration 3600
-
-aws iam put-role-policy \
-  --role-name spark-match-terraform-apply \
-  --policy-name ApplyPolicy \
-  --policy-document file://apply-policy.json
-
-# Obtener los ARNs
-PLAN_ARN=$(aws iam get-role --role-name spark-match-terraform-plan --query 'Role.Arn' --output text)
-APPLY_ARN=$(aws iam get-role --role-name spark-match-terraform-apply --query 'Role.Arn' --output text)
-echo "Plan:   $PLAN_ARN"
-echo "Apply:  $APPLY_ARN"
-```
-
-#### Paso 6: Agregar los ARNs como GitHub Secrets
-
-```bash
-gh secret set AWS_PLAN_ROLE_ARN  --repo spark-match/spark-match-02-infrastructure --body "$PLAN_ARN"
-gh secret set AWS_APPLY_ROLE_ARN --repo spark-match/spark-match-02-infrastructure --body "$APPLY_ARN"
-```
-
-#### Paso 7: Configurar GitHub Environment `production`
-
-Para que `terraform-apply.yml` requiera aprobación manual:
-
-```bash
-gh api -X PUT repos/spark-match/spark-match-02-infrastructure/environments/production \
-  -H "Accept: application/vnd.github+json" --input environment.json
-```
-
-Donde `environment.json`:
-
-```json
-{
-  "wait_timer": 0,
-  "prevent_self_review": false,
-  "reviewers": [{"type": "User", "id": <your_github_user_id>}],
-  "deployment_branch_policy": {
-    "protected_branches": false,
-    "custom_branch_policies": true
-  }
-}
-```
-
-Y luego:
-
-```bash
-gh api -X POST repos/spark-match/spark-match-02-infrastructure/environments/production/deployment-branch-policies \
-  -H "Accept: application/vnd.github+json" --input '{"name":"main"}'
+# Production (con reviewers)
+gh api --method PUT "repos/spark-match/spark-match-02-infrastructure/environments/production" \
+  --input '{"wait_timer":0,"deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true},"reviewers":[{"type":"User","id":<github_user_id>}]}'
+gh api --method POST "repos/spark-match/spark-match-02-infrastructure/environments/production/deployment-branch-policies" \
+  --input '{"name":"main"}'
 ```
 
 ### Troubleshooting
@@ -446,10 +385,11 @@ gh api -X POST repos/spark-match/spark-match-02-infrastructure/environments/prod
 | Error | Causa | Solución |
 |---|---|---|
 | `Credentials could not be loaded` | Secret no configurado o role no existe | Verifica `gh secret list` y `aws iam get-role` |
-| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Trust policy no incluye este repo/branch o falta `pull_request` pattern | Agregar el patrón correspondiente al `sub` |
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Trust policy no incluye este repo/branch o falta el `sub` pattern del env | Agregar el patrón correspondiente al `sub` |
 | `AccessDenied: s3:PutObject on terraform.tfstate.tflock` | Plan usando lock (no debería) | El caller usa `-lock=false` |
 | `AccessDenied` en plan | Plan role no cubre alguna lectura | Agregar la acción específica a `plan-policy.json` |
 | `AccessDenied` en apply | Apply role no cubre alguna acción | Agregar a `apply-policy.json` |
+| Plan funciona local pero falla en CI | Falta secret `AWS_PLAN_ROLE_ARN` en repo | `gh secret set AWS_PLAN_ROLE_ARN ...` |
 
 Verificar qué `sub` claim se está enviando:
 
@@ -464,20 +404,23 @@ aws cloudtrail lookup-events \
 Debería verse:
 ```
 repo:spark-match/spark-match-02-infrastructure:pull_request
-repo:spark-match/spark-match-02-infrastructure:ref:refs/heads/main
+repo:spark-match/spark-match-02-infrastructure:environment:dev
+repo:spark-match/spark-match-02-infrastructure:environment:production
 ```
 
 ---
 
 ## Roadmap
 
-| Fase | Contenido |
-|---|---|
-| **1 (actual)** | Repo + `modules/networking` + `modules/s3-example` + `live/prod` + CI/CD via reusable workflows |
-| 2 | `modules/database` (RDS) + `modules/storage` (S3) |
-| 3 | `modules/compute` (ECS Fargate) + `modules/cdn` (CloudFront) |
-| 4 | `modules/security`, `secrets`, `monitoring`, `bedrock` (IAM) |
-| 5 | Drift detection diario + Infracost en PRs |
+| Fase | Contenido | Estado |
+|---|---|---|
+| **0** | Repo + `live/dev` y `live/prod` skeleton + reusable workflows + diseño de roles IAM + bootstrap de buckets | 🟢 Cerrada |
+| **1** | `modules/security` (IAM base, KMS, SG) + `modules/networking` (VPC, subnets, NAT) + `modules/endpoints` (VPC interface endpoints) | 🟢 Escritos, sin apply |
+| 1.5 | Componer `live/{dev,prod}/main.tf` con los 3 modulos + primer `terraform apply` | ⏳ Próxima |
+| 2 | `modules/database` (Aurora + pgvector) + `modules/storage` (S3) + `modules/events` (EventBridge) + `modules/secrets` + `modules/monitoring` | ⏳ |
+| 3 | Deploy de `03-backend` via `sam-deploy.yml` (TF crea los SSM params que SAM consume) | ⏳ |
+| 4 | `modules/bedrock` + ECR + Dockerfile + `agentcore-deploy.yml` para `08-deep-agent` | ⏳ |
+| 5 | Drift detection diario + Infracost en PRs + CODEOWNERS linter reusable | ⏳ |
 
 ---
 

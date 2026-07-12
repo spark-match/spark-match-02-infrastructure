@@ -1,20 +1,43 @@
 # =============================================================================
-# CD - Terraform Apply on Merge to Main
+# CD - Terraform Apply (matrix N-env: dev + prod)
 # =============================================================================
 # Este workflow es un CALLER del reusable workflow en:
 #   spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml
 #
-# Solo define CUÁNDO triggerear y QUÉ inputs pasar.
-# Toda la lógica vive en el caller reusable.
+# Por cada env (dev, prod) crea un job separado que invoca el reusable con
+# los parametros correctos. Para agregar staging u otro ambiente:
+#   1. Anadir un nuevo job `apply-<env>` siguiendo el mismo patron
+#   2. Configurar GH Environment "<env>" con branch policy correspondiente
+#   3. Crear secret AWS_APPLY_ROLE_ARN_<ENV>
+#   4. Crear bucket spark-match-tfstate-<env>
+#
+# Cada job usa:
+#   - working-directory: live/dev vs live/prod
+#   - backend S3: spark-match-tfstate-{env}
+#   - OIDC role secret: AWS_APPLY_ROLE_ARN_{DEV,PROD} (cada uno apunta a un
+#     IAM role con trust policy restringido al env especifico).
+#   - GH Environment: dev (sin reviewers) vs production (con reviewers).
+#
+# Secrets requeridos (ya configurados):
+#   AWS_APPLY_ROLE_ARN_DEV   = arn:aws:iam::...:role/spark-match-terraform-apply-dev
+#   AWS_APPLY_ROLE_ARN_PROD  = arn:aws:iam::...:role/spark-match-terraform-apply
 # =============================================================================
 
 name: CD - Terraform Apply
 
 on:
   push:
-    branches: [main]
+    branches: [dev, main]
   workflow_dispatch:
     inputs:
+      environment:
+        description: "Target environment (dev | prod)"
+        type: choice
+        required: true
+        default: "dev"
+        options:
+          - dev
+          - prod
       reason:
         description: "Reason for manual apply"
         required: false
@@ -26,15 +49,50 @@ permissions:
   id-token: write     # Required by the reusable workflow for OIDC
 
 jobs:
-  terraform-apply:
-    name: Apply (prod)
+  # ---------------------------------------------------------------------------
+  # Apply to dev
+  # Trigger: push a dev, o dispatch con environment=dev
+  # GH Environment "dev": sin required reviewers (autopromocion).
+  # auto-approve=true para que el job corra sin esperar aprobacion GH env.
+  # ---------------------------------------------------------------------------
+  apply-dev:
+    name: Apply (dev)
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@main
-    secrets: inherit      # Pass all secrets from caller to reusable workflow
+    secrets: inherit
     with:
+      environment: dev
+      gh-environment: dev
+      working-directory: live/dev
+      aws-region: us-east-1
+      apply-role-arn-secret: AWS_APPLY_ROLE_ARN_DEV
+      terraform-version: '1.10.0'
+      backend-bucket: spark-match-tfstate-dev
+      backend-key: dev/terraform.tfstate
+      auto-approve: true
+
+  # ---------------------------------------------------------------------------
+  # Apply to prod
+  # Trigger: push a main, o dispatch con environment=prod
+  # GH Environment "production": con required reviewers del team.
+  # auto-approve=false para que el job requiera aprobacion manual.
+  # ---------------------------------------------------------------------------
+  apply-prod:
+    name: Apply (prod)
+    if: |
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@main
+    secrets: inherit
+    with:
+      environment: prod
+      gh-environment: production
       working-directory: live/prod
       aws-region: us-east-1
-      apply-role-arn-secret: AWS_APPLY_ROLE_ARN
+      apply-role-arn-secret: AWS_APPLY_ROLE_ARN_PROD
       terraform-version: '1.10.0'
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate
-      environment: production
+      auto-approve: false

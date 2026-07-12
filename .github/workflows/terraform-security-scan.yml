@@ -2,16 +2,12 @@
 # CI - Terraform Security Scan (checkov)
 ###############################################################################
 # Escaneo estatico de seguridad sobre el codigo Terraform usando checkov.
-# Detecta:
-#   - SGs con ingress 0.0.0.0/0
-#   - S3 sin cifrado
-#   - IAM policies con Action "*" sobre Resource "*"
-#   - KMS sin key policy
-#   - etc.
+# Detecta: SGs con ingress 0.0.0.0/0, S3 sin cifrado, IAM con Action="*"
+# sobre Resource="*", KMS sin key policy, etc.
 # Ref: IMPROVEMENTS.md [B7] [TF-05]
 #
-# trigger: pull_request contra dev o main, y workflow_dispatch manual.
-# output: artefacto .sarif subido a GitHub code scanning + resumen en el log.
+# trigger: pull_request contra dev/main, y workflow_dispatch manual.
+# output: SARIF subido a GitHub code scanning (no bloquea merge por default).
 ###############################################################################
 
 name: CI - Terraform Security Scan
@@ -57,106 +53,34 @@ jobs:
       - name: Install checkov
         run: pip install --quiet "checkov==3.2.40"
 
-      - name: Run checkov (JSON)
+      - name: Run checkov (soft-fail)
         working-directory: ${{ matrix.path }}
         run: |
+          # soft-fail permite que el job continue aunque haya findings; el SARIF
+          # igual se sube a code scanning para visibilidad.
+          mkdir -p checkov-output
           checkov \
             --directory . \
             --framework terraform \
-            --output json \
             --output cli \
+            --output sarif \
+            --output-file-path checkov-output \
             --soft-fail \
-            > $GITHUB_WORKSPACE/checkov-${{ matrix.path // '/' '-' }}.log 2>&1
-          # soft-fail permite que el job continue aunque haya findings; el SARIF
-          # igual se sube a code scanning para visibilidad.
-
-      - name: Convert results to SARIF
-        if: always()
-        run: |
-          python - <<'PY'
-          import json
-          import glob
-          import os
-          
-          sarif_runs = []
-          for log_path in glob.glob("$GITHUB_WORKSPACE/checkov-*.log"):
-              try:
-                  # El CLI output de checkov emite JSON despues de los logs de progreso.
-                  # Extraer el primer JSON valido del archivo.
-                  with open(log_path) as f:
-                      content = f.read()
-                  # Buscar el primer '{' seguido de un JSON valido.
-                  start = content.find('\n{')
-                  if start == -1:
-                      continue
-                  data = json.loads(content[start+1:])
-                  
-                  results = []
-                  for check in data.get("results", {}).get("failed_checks", []):
-                      file_path = check.get("file_path", "").replace("/home/runner/work/spark-match-02-infrastructure/spark-match-02-infrastructure/", "")
-                      results.append({
-                          "ruleId": check.get("check_id", "UNKNOWN"),
-                          "level": "error" if check.get("severity") in ("HIGH", "CRITICAL") else "warning",
-                          "message": {"text": check.get("check_name", "")},
-                          "locations": [{
-                              "physicalLocation": {
-                                  "artifactLocation": {"uri": file_path},
-                                  "region": {
-                                      "startLine": check.get("file_line_range", [1])[0],
-                                  }
-                              }
-                          }]
-                      })
-                  
-                  sarif_runs.append({
-                      "tool": {
-                          "driver": {
-                              "name": "checkov",
-                              "version": "3.2.40",
-                              "informationUri": "https://www.checkov.io/"
-                          }
-                      },
-                      "results": results,
-                  })
-              except Exception as e:
-                  print(f"Error procesando {log_path}: {e}")
-          
-          sarif = {
-              "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
-              "version": "2.1.0",
-              "runs": sarif_runs,
-          }
-          with open("$GITHUB_WORKSPACE/checkov-results.sarif", "w") as f:
-              json.dump(sarif, f, indent=2)
-          print(f"SARIF generado: {len(sarif_runs)} runs, {sum(len(r['results']) for r in sarif_runs)} findings")
-          PY
+            || true
 
       - name: Upload SARIF to code scanning
         if: always()
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: checkov-results.sarif
-          category: checkov
+          sarif_file: ${{ matrix.path }}/checkov-output/results_sarif.sarif
+          category: checkov-${{ matrix.path }}
+        continue-on-error: true
 
-      - name: Summary
-        if: always()
-        run: |
-          echo "### Checkov Security Scan" >> $GITHUB_STEP_SUMMARY
-          for log in checkov-*.log; do
-            if [ -f "$log" ]; then
-              echo "**Path:** \`${{ matrix.path }}\`" >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              grep -E "Passed:|Failed:" "$log" 2>/dev/null | head -5 >> $GITHUB_STEP_SUMMARY || echo "Sin resultados" >> $GITHUB_STEP_SUMMARY
-              echo '```' >> $GITHUB_STEP_SUMMARY
-              echo "" >> $GITHUB_STEP_SUMMARY
-            fi
-          done
-
-      - name: Archive logs
+      - name: Upload raw logs as artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: checkov-logs-${{ matrix.path // '/' '-' }}
-          path: checkov-*.log
+          name: checkov-${{ matrix.path }}
+          path: ${{ matrix.path }}/checkov-output
           retention-days: 30
+          if-no-files-found: ignore

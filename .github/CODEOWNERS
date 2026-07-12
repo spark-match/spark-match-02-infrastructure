@@ -1,34 +1,94 @@
 # CODEOWNERS - Spark Match Infrastructure (02)
 #
-# Politica de aprobacion (configurada en branch protection):
+# Politica de aprobacion (configurada via ruleset):
 #   - dev:  required_approving_review_count: 1
-#            require_code_owner_reviews: true
+#            require_code_owner_review: true
 #   - main: required_approving_review_count: 1
-#            require_code_owner_reviews: true
-#            require_last_push_approval: true
+#            require_code_owner_review: true
 #
-# CODE OWNER del repo (catch-all): @spark-match/devops
-#   Miembros: dbarretol, ahincho
+# CODE OWNERS del repo:
+#   @spark-match/devops        Miembros: dbarretol, ahincho
+#   @spark-match/product-owners Miembros: dbarretol, FabiTaparaQuispe, ahincho
 #
-# Paths criticos (governance): @spark-match/product-owners
-#   - Decisiones arquitectonicas, onboarding, postmortems, docs raiz.
-#   - Miembros: dbarretol, FabiTaparaQuispe, ahincho
+# Convencion (replicada desde spark-match-01-devops PR #8):
+#   - NO usamos catch-all (*) porque GitHub ACUMULA los code owners de
+#     TODAS las reglas que matchean un path. Si tenemos `* @devops` y
+#     ademas `README.md @product-owners`, entonces README.md requiere
+#     aprobacion de ambos equipos.
+#   - Cada path del repo debe estar listado explicitamente.
+#   - Si se crea un path nuevo, agregar una linea aqui antes de mergearlo.
 #
 # Nota: el autor del PR no puede aprobar su propio PR, ni siquiera siendo
-# CODE OWNER (regla de GitHub). Por ejemplo, un PR abierto por ahincho
-# necesita la aprobacion de cualquier otro miembro del team.
+# CODE OWNER (regla de GitHub). Un PR abierto por ahincho necesita la
+# aprobacion de cualquier otro miembro del team.
 
 # =============================================================================
-# Catch-all: el equipo tecnico del repo es CODE OWNER del codigo
+# Documentos de governance en raiz
 # =============================================================================
-*                                          @spark-match/devops
+# README.md es la cara visible del repo. Cambios afectan como el equipo
+# entiende el repo, asi que ambos equipos aprueban.
+/README.md                                  @spark-match/devops @spark-match/product-owners
+
+# Documento de governance de como contribuir al repo.
+/CONTRIBUTING.md                            @spark-match/devops @spark-match/product-owners
 
 # =============================================================================
-# Paths criticos: product-owners revisa governance y docs raiz
+# Paths tecnicos - DevOps gobierna
 # =============================================================================
-/decisions/                                @spark-match/product-owners
-/onboarding/                               @spark-match/product-owners
-/postmortems/                              @spark-match/product-owners
-/README.md                                 @spark-match/product-owners
-/CONTRIBUTING.md                           @spark-match/product-owners
-/LICENSE                                   @spark-match/product-owners
+# CI/CD callers (terraform-apply.yml, terraform-plan.yml), CODEOWNERS, branch
+# protection, secrets/environments.
+/.github/                                    @spark-match/devops
+
+# Scripts auxiliares (apply.sh, destroy.sh, plan.sh, bootstrap-backend.sh,
+# generate-policies.ps1).
+/scripts/                                    @spark-match/devops
+
+# Configuracion tecnica de lint, git ignores y atributos.
+/.pre-commit-config.yaml                   @spark-match/devops
+/.tflint.hcl                                 @spark-match/devops
+/.gitignore                                  @spark-match/devops
+/.gitattributes                              @spark-match/devops
+
+# =============================================================================
+# Terraform - root modules por ambiente
+# =============================================================================
+# Configuracion del ambiente dev (N. Virginia), incluyendo backend, providers,
+# variables y tfvars.
+/live/dev/                                   @spark-match/devops
+
+# Configuracion del ambiente prod (N. Virginia), incluyendo backend, providers,
+# variables y tfvars.
+/live/prod/                                  @spark-match/devops
+
+# =============================================================================
+# Terraform - modulos reusables
+# =============================================================================
+# Modulo de seguridad: IAM roles, OIDC trust policies, KMS CMK, Security Groups,
+# politicas IAM parametrizadas por ambiente.
+/modules/security/                           @spark-match/devops
+
+# Modulo de networking: VPC, subnets, route tables, NAT Gateway, internet gateway,
+# Elastic IPs.
+/modules/networking/                         @spark-match/devops
+
+# Modulo de endpoints: VPC interface endpoints (secretsmanager, kms, logs, ssm,
+# sts, bedrock-runtime, ecr, ssmmessages, ec2messages) + S3 gateway endpoint.
+/modules/endpoints/                          @spark-match/devops
+
+# =============================================================================
+# Documentacion tecnica - DevOps gobierna
+# =============================================================================
+# IAM_ROLES.md documenta el diseno y las politicas IAM. Cambios estructurales
+# deben coordinarse con la implementacion en modules/security.
+/docs/IAM_ROLES.md                           @spark-match/devops
+
+# Politicas IAM versionadas por ambiente (4 policies x 2 envs = 8 JSON).
+# Cambios aqui DEBEN coordinarse con modules/security/main.tf (templatefile).
+/docs/policies/                              @spark-match/devops
+
+# =============================================================================
+# Licencia
+# =============================================================================
+# La licencia es governance: cualquier cambio requiere aprobacion explicita
+# de product-owners ademas de devops.
+/LICENSE                                    @spark-match/devops @spark-match/product-owners

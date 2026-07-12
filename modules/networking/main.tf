@@ -38,6 +38,10 @@ locals {
   nat_count = var.enable_nat_gateway ? (var.enable_nat_ha ? length(var.azs) : 1) : 0
 }
 
+data "aws_caller_identity" "current" {}
+data "aws_partition" "current" {}
+data "aws_region" "current" {}
+
 ###############################################################################
 # VPC
 ###############################################################################
@@ -202,4 +206,83 @@ resource "aws_route_table_association" "private" {
   # Si HA=true, cada subnet usa la RT de su AZ (rt[i]).
   # Si HA=false, todas las subnets usan la unica RT (rt[0]).
   route_table_id = local.nat_count > 1 ? aws_route_table.private[count.index].id : aws_route_table.private[0].id
+}
+
+###############################################################################
+# VPC Flow Logs
+###############################################################################
+# Ref: IMPROVEMENTS.md [NET-03]
+# Habilita VPC Flow Logs hacia CloudWatch Logs para auditoria y debugging de
+# trafico de red. Por default activado en prod, desactivado en dev (costo ~$0.50/mes
+# en dev, ~$5/mes en prod segun volumen de trafico). Configurable via
+# `enable_flow_logs` y `flow_log_traffic_type` (ACCEPT, REJECT, ALL).
+# El IAM role y log group se crean en este modulo (no se referencia uno externo)
+# para mantener el modulo self-contained.
+
+resource "aws_iam_role" "flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
+
+  name = "${var.project_name}-flow-logs-${var.environment}"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Principal = {
+          Service = "vpc-flow-logs.amazonaws.com"
+        }
+        Action = "sts:AssumeRole"
+      },
+    ]
+  })
+
+  tags = local.common_tags
+}
+
+resource "aws_iam_role_policy" "flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
+
+  name = "FlowLogsCloudWatchPolicy"
+  role = aws_iam_role.flow_logs[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+          "logs:DescribeLogGroups",
+          "logs:DescribeLogStreams",
+        ]
+        Resource = "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/vpc/${var.project_name}-${var.environment}:*"
+      },
+    ]
+  })
+}
+
+resource "aws_cloudwatch_log_group" "flow_logs" {
+  count = var.enable_flow_logs ? 1 : 0
+
+  name              = "/aws/vpc/${var.project_name}-${var.environment}"
+  retention_in_days = var.flow_log_retention_days
+  kms_key_id        = var.kms_key_arn
+
+  tags = local.common_tags
+}
+
+resource "aws_flow_log" "main" {
+  count = var.enable_flow_logs ? 1 : 0
+
+  vpc_id          = aws_vpc.main.id
+  traffic_type    = var.flow_log_traffic_type
+  log_destination = aws_cloudwatch_log_group.flow_logs[0].arn
+  iam_role_arn    = aws_iam_role.flow_logs[0].arn
+
+  tags = merge(local.common_tags, {
+    Name = "${var.project_name}-flow-logs-${var.environment}"
+  })
 }

@@ -68,7 +68,25 @@ variable "enable_nat_ha" {
 variable "enable_all_endpoints_by_default" {
   description = "Si crear todos los interface endpoints (SSM, ECR, Logs, Secrets, Bedrock, KMS, STS, etc.). Costo ~$72/mes en prod."
   type        = bool
+  default     = false
+}
+
+variable "enable_flow_logs" {
+  description = "Si crear VPC Flow Logs hacia CloudWatch Logs. Default false en dev, true en prod."
+  type        = bool
   default     = true
+}
+
+variable "flow_log_traffic_type" {
+  description = "Tipo de trafico a loguear en VPC Flow Logs: ACCEPT, REJECT, o ALL. Default REJECT (mas util para detectar intentos de acceso)."
+  type        = string
+  default     = "REJECT"
+}
+
+variable "flow_log_retention_days" {
+  description = "Retention en dias del log group de flow logs. Default 90 en prod."
+  type        = number
+  default     = 90
 }
 
 variable "enable_s3_gateway_endpoint" {

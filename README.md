@@ -427,3 +427,164 @@ repo:spark-match/spark-match-02-infrastructure:environment:production
 ## Licencia
 
 MIT — ver [LICENSE](LICENSE).
+
+---
+
+## Runbook: recuperación del bucket de state
+
+Los buckets `spark-match-tfstate-dev` y `spark-match-tfstate-prod` son el source of truth de la infraestructura. **Si se pierden, se pierde toda la historia de los recursos creados por Terraform** y se vuelve imposible hacer `terraform plan`/`apply` sin recrear manualmente todo.
+
+Este runbook cubre los escenarios más comunes.
+
+### Escenario 1: state se corrompe (terraform apply deja el state inconsistente)
+
+**Síntoma**: `terraform plan` muestra deltas inesperados, o `terraform apply` falla con "Error: state snapshot was created from a different state file".
+
+**Recuperación** (gracias a versioning del bucket):
+
+```bash
+# 1. Listar versiones del state
+aws --profile spark-match --region us-east-1 s3api list-object-versions \
+  --bucket spark-match-tfstate-dev \
+  --prefix dev/terraform.tfstate \
+  --query 'Versions[].{VersionId:VersionId,LastModified:LastModified}' \
+  --output table
+
+# 2. Identificar la version "buena" (la ultima que se sabe que funciono)
+#    Tip: comparar timestamps con el ultimo apply exitoso en GitHub Actions
+#    (gh run list --workflow=terraform-apply.yml --status=success)
+
+# 3. Restaurar a esa version
+aws --profile spark-match --region us-east-1 s3api get-object \
+  --bucket spark-match-tfstate-dev \
+  --key dev/terraform.tfstate \
+  --version-id <VERSION_ID> \
+  /tmp/terraform.tfstate.recovered
+
+aws --profile spark-match --region us-east-1 s3 cp /tmp/terraform.tfstate.recovered \
+  s3://spark-match-tfstate-dev/dev/terraform.tfstate
+
+# 4. Verificar
+cd live/dev && terraform plan
+```
+
+### Escenario 2: state se borra accidentalmente (el bucket sigue existiendo)
+
+**Síntoma**: `terraform init` muestra "Error: Failed to read state file... NoSuchKey".
+
+**Recuperación**:
+
+```bash
+# 1. Listar versiones borradas (soft-delete en S3 versioning)
+aws --profile spark-match --region us-east-1 s3api list-object-versions \
+  --bucket spark-match-tfstate-dev \
+  --prefix dev/terraform.tfstate
+
+# 2. Si aparece como "DeleteMarker", removerlo
+aws --profile spark-match --region us-east-1 s3api delete-object \
+  --bucket spark-match-tfstate-dev \
+  --key dev/terraform.tfstate \
+  --version-id <DELETE_MARKER_VERSION_ID>
+
+# 3. Si el state se borró completamente, no hay nada que recuperar.
+#    Solución: hacer `terraform import` de cada recurso o recrear todo.
+#    Esto es lo que evita el runbook de "Escenario 3".
+```
+
+### Escenario 3: el bucket completo se borra (worst case)
+
+**Síntoma**: el bucket `spark-match-tfstate-{env}` no existe. `terraform init` muestra "Error: Failed to get S3 bucket".
+
+**Prevención**: en este escenario NO HAY recovery posible desde S3 (aunque el bucket tuviera versioning, los objetos están en el bucket). La única defensa es:
+
+1. **Snapshots cross-region** (recomendado para prod): configurar CRR (Cross-Region Replication) del bucket `spark-match-tfstate-prod` a un bucket en otra región, idealmente otra cuenta AWS.
+2. **Backup offline** (alternativa barata): descargar el state periódicamente:
+   ```bash
+   aws --profile spark-match --region us-east-1 s3 cp \
+     s3://spark-match-tfstate-prod/prod/terraform.tfstate \
+     ./backups/tfstate-prod-$(date +%Y%m%d).tfstate
+   ```
+   Guardar en un lugar seguro (otro bucket S3, repositorio privado, máquina del operador).
+
+3. **Re-bootstrap + terraform import** (si no hay backup): seguir el runbook de "Recrear infra desde cero" abajo.
+
+**Recrear infra desde cero** (cuando no hay backup):
+
+```bash
+# 1. Re-crear el bucket
+ENVIRONMENT=prod ./scripts/bootstrap-backend.sh
+
+# 2. terraform init con backend vacio
+cd live/prod
+terraform init
+
+# 3. terraform import cada recurso (muy laborioso, mejor evitar llegar aca)
+#    Ejemplo para VPC:
+#    terraform import module.networking.aws_vpc.main vpc-xxxxxxxxx
+#    (repetir para cada resource address)
+```
+
+### Escenario 4: el state existe pero apunta a recursos que no existen en AWS (drift severo)
+
+**Síntoma**: `terraform plan` muestra que va a recrear muchos recursos.
+
+**Diagnóstico**:
+
+```bash
+# Comparar state con AWS real
+cd live/prod
+terraform plan -detailed-exitcode
+# exit 0 = sin cambios
+# exit 1 = error
+# exit 2 = hay cambios (drift detectado)
+
+# Listar recursos administrados por este state
+terraform state list
+```
+
+**Opciones**:
+- Si los recursos fueron borrados a mano y querés recuperarlos: `terraform apply` (Terraform los recrea).
+- Si los recursos fueron movidos y querés reescribir el state: `terraform state mv` o `terraform state rm` + `terraform import`.
+
+### Checklist post-incidente
+
+Después de cualquier incidente con el state:
+
+- [ ] Verificar que `terraform plan` no muestra deltas inesperados
+- [ ] Confirmar que el run más reciente de `terraform-apply.yml` pasó
+- [ ] Documentar el incidente en `D:\UNI\Spark\POSTMORTEMS.md` (raíz del proyecto)
+- [ ] Si fue por error humano, evaluar agregar más validaciones o gates
+- [ ] Si fue por bug de Terraform/provider, evaluar pin de versión
+
+### Monitoreo del bucket
+
+Recomendado configurar CloudWatch alarm o GitHub Action periódico que verifique:
+
+- `s3:ListBucket` retorna resultados esperados
+- `s3:GetObject` en `terraform.tfstate` retorna sin error
+- El size del state es razonable (<1MB para nuestro caso)
+- Versioning sigue habilitado
+
+---
+
+## AWS Budgets y alertas de costo
+
+Para monitoreo de costo, ver:
+
+- **Budget activo**: `spark-match-monthly-total` ($200 USD/mes)
+- **SNS topic de alertas**: `arn:aws:sns:us-east-1:681526276858:spark-match-budget-alerts`
+- **Notifications configuradas**:
+  - ACTUAL 80% (alerta cuando el costo real llega al 80% del budget)
+  - FORECASTED 100% (alerta cuando el forecast proyecta que se va a pasar)
+
+**Para activar las alertas por email**, cualquier miembro del equipo puede suscribirse:
+
+```bash
+aws sns subscribe \
+  --topic-arn arn:aws:sns:us-east-1:681526276858:spark-match-budget-alerts \
+  --protocol email \
+  --notification-endpoint <email-del-equipo> \
+  --profile spark-match --region us-east-1
+```
+
+AWS envía un email de confirmación que debe ser aceptado. Una vez confirmado, el email recibe todas las alertas del budget.

@@ -56,6 +56,21 @@ resource "aws_vpc" "main" {
   }
 }
 
+# Lock del Security Group default de la VPC.
+# AWS crea automaticamente un SG "default" en cada VPC que permite TODO el
+# trafico intra-SG (ingress 0.0.0.0/0 al mismo SG). Esto es un riesgo de
+# compliance (CIS AWS Foundations Benchmark control 5.3). Al reescribirlo
+# con ingress=[] y egress=[], Terraform lo deja vacio de forma efectiva:
+# cualquier instancia/recurso que termine asociada al SG default no tendra
+# reglas de trafico. Esto obliga a usar SGs explicitos.
+# Ref: IMPROVEMENTS.md [SEC-09]
+resource "aws_default_security_group" "default" {
+  vpc_id = aws_vpc.main.id
+
+  ingress = []
+  egress  = []
+}
+
 ###############################################################################
 # Subnets
 ###############################################################################

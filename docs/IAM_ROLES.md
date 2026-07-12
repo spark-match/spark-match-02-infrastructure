@@ -357,3 +357,45 @@ module "security" {
 - **Estrategia estricta por env** → cada role IAM lleva el sufijo del ambiente
   (`-dev`, `-prod`) y su trust policy SOLO acepta tokens emitidos para ESE
   ambiente. Imposible confundir deploys entre envs.
+
+## Decision documentada: por que el trust policy incluye `ref:refs/heads/*` ademas de `environment:*`
+
+Ref: IMPROVEMENTS.md [SEC-04]
+
+Los trust policies de `spark-match-sam-deploy-{env}` y
+`spark-match-bedrock-agentcore-deploy-{env}` aceptan 3 tipos de `sub` claim:
+
+1. `repo:<repo>:ref:refs/heads/dev`
+2. `repo:<repo>:ref:refs/heads/main`
+3. `repo:<repo>:environment:${environment}`
+
+**Por que NO removemos los patterns `ref:refs/heads/*` y dejamos solo `environment:*`:**
+
+El workflow `terraform-plan.yml` (caller de `02-infrastructure`) corre en
+`pull_request` contra `dev` o `main`. Ese job NO se asocia a un GH Environment,
+por lo que el token OIDC emitido por GitHub Actions **no contiene** el claim
+`environment:`. Solo contiene `ref:refs/heads/<branch>` y `pull_request`.
+
+Si removemos los patterns `ref:refs/heads/*`, el `terraform plan` en PRs
+no podria asumir el role de plan, y el CI se romperia (no se podria validar
+un PR antes de mergear).
+
+**Trade-off aceptado:**
+
+- (+) El plan en PRs funciona sin requerir un environment explicito.
+- (-) Un token emitido por un push directo a `dev` o `main` (sin pasar por
+  un environment) puede asumir el role. Esto en la practica esta mitigado
+  por el ruleset del repo: `non_fast_forward` y `required_linear_history`
+  bloquean force-pushes, y el CODE OWNER de devops es requerido para aprobar
+  cualquier PR contra `dev` o `main`.
+
+**Alternativa futura:** si el equipo decide endurecer mas, se podria crear
+un GH Environment "plan-dev" y "plan-prod" sin required reviewers, y mover
+el caller `terraform-plan.yml` para usar `environment: plan-dev` en el job
+`plan-pr`. Esto permitiria remover los patterns `ref:refs/heads/*`. Pero
+es un cambio de workflow que requiere decision explicita del equipo.
+
+**Conclusion:** mantenemos los 3 patterns. La decision queda registrada en
+este documento (trazabilidad) y en el codigo de
+`modules/security/main.tf` (comentario sobre los `sam_deploy_sub_patterns`
+y `bedrock_deploy_sub_patterns`).

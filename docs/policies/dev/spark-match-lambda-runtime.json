@@ -1,4 +1,4 @@
-{
+﻿{
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -12,8 +12,8 @@
         "logs:DescribeLogStreams"
       ],
       "Resource": [
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-backend-*",
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/backend/*:*"
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-backend-*-${environment}",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/backend/${environment}/*:*"
       ]
     },
     {
@@ -48,7 +48,7 @@
         "secretsmanager:DescribeSecret"
       ],
       "Resource": [
-        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/backend-*"
+        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/backend-*-${environment}"
       ]
     },
     {
@@ -71,7 +71,7 @@
         "events:DescribeEventBus"
       ],
       "Resource": [
-        "arn:aws:events:us-east-1:681526276858:event-bus/spark-match-events-*"
+        "arn:aws:events:us-east-1:681526276858:event-bus/spark-match-events-${environment}"
       ]
     },
     {
@@ -88,8 +88,8 @@
         "dynamodb:BatchGetItem"
       ],
       "Resource": [
-        "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-backend-*",
-        "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-backend-*/index/*"
+        "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-backend-*-${environment}",
+        "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-backend-*-${environment}/index/*"
       ]
     },
     {
@@ -103,7 +103,8 @@
       "Resource": "arn:aws:kms:us-east-1:681526276858:key/*",
       "Condition": {
         "StringEquals": {
-          "aws:ResourceTag/Project": "spark-match"
+          "aws:ResourceTag/Project": "spark-match",
+          "aws:ResourceTag/Environment": "${environment}"
         }
       }
     },
@@ -117,8 +118,8 @@
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::spark-match-rag-documents-*",
-        "arn:aws:s3:::spark-match-rag-documents-*/*"
+        "arn:aws:s3:::spark-match-rag-documents-${environment}",
+        "arn:aws:s3:::spark-match-rag-documents-${environment}/*"
       ]
     }
   ]

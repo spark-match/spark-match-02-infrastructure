@@ -75,6 +75,10 @@ resource "aws_kms_key" "main" {
   multi_region            = false
 
   tags = local.common_tags
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "aws_kms_alias" "main" {
@@ -188,7 +192,7 @@ resource "aws_security_group_rule" "endpoints_ingress_from_lambda" {
 resource "aws_iam_role" "sam_deploy" {
   name                 = "${var.project_name}-sam-deploy-${var.environment}"
   description          = "Role asumido por spark-match-03-backend para deploy SAM en ${var.environment} (CloudFormation, Lambda, API GW, EventBridge). Ver docs/IAM_ROLES.md."
-  max_session_duration = 3600
+  max_session_duration = var.iam_role_max_session_duration
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -231,7 +235,7 @@ resource "aws_iam_role_policy" "sam_deploy_inline" {
 resource "aws_iam_role" "bedrock_deploy" {
   name                 = "${var.project_name}-bedrock-agentcore-deploy-${var.environment}"
   description          = "Role asumido por spark-match-08-deep-agent para docker build+push a ECR y agentcore deploy en ${var.environment}. Ver docs/IAM_ROLES.md."
-  max_session_duration = 3600
+  max_session_duration = var.iam_role_max_session_duration
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -292,7 +296,7 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 resource "aws_iam_role" "lambda_runtime" {
   name                 = "${var.project_name}-lambda-runtime-${var.environment}"
   description          = "Execution role para Lambdas spark-match-backend-* en ${var.environment}. Logs + X-Ray + SSM + Secrets + Events + DDB + KMS."
-  max_session_duration = 3600
+  max_session_duration = var.iam_role_max_session_duration
   assume_role_policy   = data.aws_iam_policy_document.lambda_assume_role.json
 
   tags = local.common_tags
@@ -347,7 +351,7 @@ data "aws_iam_policy_document" "agentcore_assume_role" {
 resource "aws_iam_role" "agentcore_runtime" {
   name                 = "${var.project_name}-agentcore-runtime-${var.environment}"
   description          = "Execution role para el contenedor FastAPI del agente en Bedrock AgentCore (${var.environment}). Bedrock InvokeModel + Secrets + SSM + RDS-data + KMS."
-  max_session_duration = 3600
+  max_session_duration = var.iam_role_max_session_duration
   assume_role_policy   = data.aws_iam_policy_document.agentcore_assume_role.json
 
   tags = local.common_tags

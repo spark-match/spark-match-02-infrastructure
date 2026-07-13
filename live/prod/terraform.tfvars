@@ -41,9 +41,9 @@ enable_s3_gateway_endpoint      = true
 
 # Flow logs: activado en prod para auditoria y debugging. Costo estimado
 # ~$5-10/mes segun volumen de trafico. Retencion 90 dias.
-enable_flow_logs          = true
-flow_log_traffic_type     = "REJECT"
-flow_log_retention_days   = 90
+enable_flow_logs        = true
+flow_log_traffic_type   = "REJECT"
+flow_log_retention_days = 90
 
 ###############################################################################
 # Security (modulo security - se usara en Fase 1.5)

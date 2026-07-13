@@ -98,3 +98,80 @@ module "notifications" {
   budget_name         = "spark-match-monthly-total"
   budget_limit_amount = 200
 }
+
+###############################################################################
+# Module: security
+###############################################################################
+# Capa de seguridad perimetral y de identidad para dev (Fase 1.5):
+#   - KMS CMK por entorno (`alias/spark-match-dev-main`) para cifrar
+#     SSM/Secrets/S3/data-at-rest. CMK con `enable_key_rotation=true` y
+#     `deletion_window_in_days=7` (estricto en dev).
+#   - 3 SGs: lambda (egress only), rds (ingress 5432 desde sg-lambda),
+#     endpoints (ingress 443 desde sg-lambda). Los 3 con `egress = []` inline
+#     para neutralizar el default "egress allow all 0.0.0.0/0" de AWS
+#     (IMPROVEMENTS.md A6/SEC-08).
+#   - 4 roles OIDC (sam_deploy-dev, bedrock_deploy-dev, lambda_runtime-dev,
+#     agentcore_runtime-dev) consumidos por 03-backend y 08-deep-agent desde
+#     sus workflows de deploy.
+#
+# Wire a GitHub:
+#   - spark-match-03-backend necesita `AWS_SAM_DEPLOY_ROLE_ARN_DEV` apuntando
+#     a module.security.sam_deploy_role_arn.
+#   - spark-match-08-deep-agent necesita `AWS_BEDROCK_DEPLOY_ROLE_ARN_DEV`
+#     apuntando a module.security.bedrock_deploy_role_arn.
+###############################################################################
+
+module "security" {
+  source = "../../modules/security"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  vpc_id   = module.networking.vpc_id
+  vpc_cidr = var.vpc_cidr
+
+  # 7 dias en dev (mas rapido si hay que borrar el key); 30 en prod.
+  kms_deletion_window_in_days = var.kms_deletion_window_in_days
+
+  # Repos GitHub permitidos a asumir los roles OIDC.
+  # Se mantienen como variables en live/dev/variables.tf para no hardcodear.
+  sam_deploy_github_repos     = var.sam_deploy_github_repos
+  bedrock_deploy_github_repos = var.bedrock_deploy_github_repos
+}
+
+###############################################################################
+# Module: endpoints
+###############################################################################
+# VPC endpoints para que las Lambdas (cuando esten en VPC) y el contenedor
+# FastAPI del agente (en AgentCore) no salgan por NAT para hablar con AWS.
+#
+# Decisión dev (Opción A — IMPROVEMENTS.md A4/NET-01):
+#   - Interface endpoints: DESACTIVADOS en dev (~$7.20/mes por endpoint × 10 =
+#     $72/mes). Las Lambdas corren FUERA de VPC por lo que no los necesitan.
+#   - Gateway endpoint S3: ACTIVADO (gratis). Lo activamos igual porque si en
+#     algun momento una Lambda entra a VPC, ya tendra acceso privado a S3 sin
+#     cargo.
+#
+# El SG que se pasa (`endpoints_security_group_id`) es el mismo que se creo en
+# module.security, y permite ingress 443 desde sg-lambda (regla que también se
+# creo en module.security via `aws_security_group_rule.endpoints_ingress_from_lambda`).
+###############################################################################
+
+module "endpoints" {
+  source = "../../modules/endpoints"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+
+  vpc_id                  = module.networking.vpc_id
+  private_subnet_ids      = module.networking.private_subnet_ids
+  private_route_table_ids = module.networking.private_route_table_ids
+
+  # SG de VPC endpoints (creado en module.security, con ingress 443 desde sg-lambda).
+  endpoints_security_group_id = module.security.sg_endpoints_id
+
+  # Decisión dev: solo S3 gateway endpoint (gratis), sin interface endpoints.
+  enable_all_endpoints_by_default = var.enable_all_endpoints_by_default
+  enable_s3_gateway_endpoint      = var.enable_s3_gateway_endpoint
+}

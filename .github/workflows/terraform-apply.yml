@@ -60,7 +60,7 @@ jobs:
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/dev')
       || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
-    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@debug/print-role-arn
     secrets: inherit
     with:
       environment: dev
@@ -84,7 +84,7 @@ jobs:
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
       || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')
-    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@debug/print-role-arn
     secrets: inherit
     with:
       environment: prod

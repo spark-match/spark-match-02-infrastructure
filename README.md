@@ -275,8 +275,8 @@ GitHub Actions runner
 |---|---|---|---|---|
 | `spark-match-terraform-plan-dev` | `arn:aws:iam::681526276858:role/spark-match-terraform-plan-dev` | Solo `environment:dev` + `ref:refs/heads/dev` | Read-only sobre `spark-match-tfstate-dev` + EC2/KMS/IAM describe | `AWS_PLAN_ROLE_ARN_DEV` |
 | `spark-match-terraform-apply-dev` | `arn:aws:iam::681526276858:role/spark-match-terraform-apply-dev` | Solo `environment:dev` + `ref:refs/heads/dev` | Write sobre `spark-match-tfstate-dev` + EC2/KMS/IAM create + Logs dev | `AWS_APPLY_ROLE_ARN_DEV` |
-| `spark-match-terraform-plan` (prod) | `arn:aws:iam::681526276858:role/spark-match-terraform-plan` | Solo `environment:production` + `ref:refs/heads/main` | Read-only sobre `spark-match-tfstate-prod` + EC2/KMS/IAM describe | `AWS_PLAN_ROLE_ARN_PROD` |
-| `spark-match-terraform-apply` (prod) | `arn:aws:iam::681526276858:role/spark-match-terraform-apply` | Solo `environment:production` + `ref:refs/heads/main` | Write sobre `spark-match-tfstate-prod` + EC2/KMS/IAM create + Logs prod | `AWS_APPLY_ROLE_ARN_PROD` |
+| `spark-match-terraform-plan-prod` | `arn:aws:iam::681526276858:role/spark-match-terraform-plan-prod` | Solo `environment:production` + `ref:refs/heads/main` | Read-only sobre `spark-match-tfstate-prod` + EC2/KMS/IAM describe | `AWS_PLAN_ROLE_ARN_PROD` |
+| `spark-match-terraform-apply-prod` | `arn:aws:iam::681526276858:role/spark-match-terraform-apply-prod` | Solo `environment:production` + `ref:refs/heads/main` | Write sobre `spark-match-tfstate-prod` + EC2/KMS/IAM create + Logs prod | `AWS_APPLY_ROLE_ARN_PROD` |
 
 **Aislamiento real entre envs**:
 
@@ -301,10 +301,10 @@ gh secret list --repo spark-match/spark-match-02-infrastructure
 # Resultado:
 # AWS_APPLY_ROLE_ARN          (legacy, no usado por callers actuales)
 # AWS_APPLY_ROLE_ARN_DEV      arn:aws:iam::681526276858:role/spark-match-terraform-apply-dev
-# AWS_APPLY_ROLE_ARN_PROD     arn:aws:iam::681526276858:role/spark-match-terraform-apply
+# AWS_APPLY_ROLE_ARN_PROD     arn:aws:iam::681526276858:role/spark-match-terraform-apply-prod
 # AWS_PLAN_ROLE_ARN           (legacy, no usado por callers actuales)
 # AWS_PLAN_ROLE_ARN_DEV       arn:aws:iam::681526276858:role/spark-match-terraform-plan-dev
-# AWS_PLAN_ROLE_ARN_PROD      arn:aws:iam::681526276858:role/spark-match-terraform-plan
+# AWS_PLAN_ROLE_ARN_PROD      arn:aws:iam::681526276858:role/spark-match-terraform-plan-prod
 ```
 
 Para un nuevo env (e.g. `staging`), agregar 2 secrets:

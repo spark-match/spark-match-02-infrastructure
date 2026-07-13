@@ -64,3 +64,37 @@ module "networking" {
   # Por ahora null: AWS usa CMK administrada por defecto para cifrar el log group.
   kms_key_arn = null
 }
+
+###############################################################################
+# Module: notifications
+###############################################################################
+# Recursos "de cuenta" independientes del environment:
+#   - SNS topic para alertas de AWS Budget
+#   - Suscripciones email del equipo
+#   - AWS Budget ($200/mes, COST)
+#
+# Se instancia desde live/dev porque el primer `terraform apply` historico fue
+# desde dev (Fase 0). Como son recursos de cuenta, el mismo modulo se podria
+# instanciar tambien desde live/prod sin duplicar nada (los ARN son unicos a
+# nivel de cuenta AWS). Para Fase 2 se podria mover a live/_shared/.
+###############################################################################
+
+module "notifications" {
+  source = "../../modules/notifications"
+
+  project_name = var.project_name
+
+  # Suscriptores email del equipo. Agregar/quitar requiere un PR + apply.
+  # AWS envia email de confirmacion cada vez que se agrega un nuevo suscriptor.
+  # Keys son nombres logicos (sin @ ni .) porque Terraform resource addresses
+  # para for_each no permiten esos caracteres.
+  email_subscriptions = {
+    ahincho = "ahincho@unsa.edu.pe"
+    ftapara = "ftapara@unsa.edu.pe"
+  }
+
+  # Defaults explicitos para documentacion:
+  topic_name          = "spark-match-budget-alerts"
+  budget_name         = "spark-match-monthly-total"
+  budget_limit_amount = 200
+}

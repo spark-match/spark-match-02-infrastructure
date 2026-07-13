@@ -194,6 +194,13 @@ resource "aws_security_group" "lambda" {
   description = "Security group for AWS Lambda functions in ${var.environment} (egress only)"
   vpc_id      = var.vpc_id
 
+  # Bloque `egress` explicito (vacio) para forzar a Terraform a remover la
+  # default egress rule de AWS (que es "allow all 0.0.0.0/0"). Sin esto, las
+  # reglas `aws_security_group_rule` se SUMAN al default, no lo reemplazan,
+  # dejando un bypass de seguridad.
+  # Ref: IMPROVEMENTS.md [A6] [SEC-08]
+  egress = []
+
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-sg-lambda-${var.environment}"
   })
@@ -232,6 +239,12 @@ resource "aws_security_group" "rds" {
   description = "Security group for Aurora PostgreSQL in ${var.environment}"
   vpc_id      = var.vpc_id
 
+  # RDS es un server de base de datos: solo responde a queries entrantes
+  # (port 5432 desde sg-lambda). No deberia iniciar conexiones outbound.
+  # El default de AWS es "egress allow all 0.0.0.0/0" -- lo removemos para
+  # defense in depth. Ref: IMPROVEMENTS.md [A6] [SEC-08]
+  egress = []
+
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-sg-rds-${var.environment}"
   })
@@ -253,6 +266,12 @@ resource "aws_security_group" "endpoints" {
   name        = "${var.project_name}-sg-endpoints-${var.environment}"
   description = "Security group for VPC interface endpoints (SSM, Secrets, ECR, Bedrock, KMS, Logs, STS)"
   vpc_id      = var.vpc_id
+
+  # VPC interface endpoints son servicios AWS administrados: solo responden
+  # a llamadas HTTPS entrantes (port 443 desde sg-lambda). No deberian iniciar
+  # conexiones outbound. Removemos el egress default "allow all" para defense
+  # in depth. Ref: IMPROVEMENTS.md [A6] [SEC-08]
+  egress = []
 
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-sg-endpoints-${var.environment}"

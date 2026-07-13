@@ -73,7 +73,7 @@ spark-match-02-infrastructure/
 |   |-- security/                 # (Fase 1) IAM base roles, KMS keys, security groups
 |   |-- networking/               # (Fase 1) VPC, subnets publicas/privadas, NAT
 |   |-- endpoints/                # (Fase 1) VPC interface endpoints (SSM, ECR, etc.)
-|   |-- database/                 # (Fase 2) RDS Aurora PostgreSQL v2 + pgvector
+|   |-- database/                 # (Fase 2) RDS Aurora PostgreSQL Serverless v2 (vector store separado, ver ADR-008 superseded)
 |   |-- storage/                  # (Fase 2) S3 buckets definitivos
 |   |-- events/                   # (Fase 2) EventBridge bus + archive + DLQ
 |   |-- secrets/                  # (Fase 2) Secrets Manager (JWT, DB credentials)
@@ -275,8 +275,8 @@ GitHub Actions runner
 |---|---|---|---|---|
 | `spark-match-terraform-plan-dev` | `arn:aws:iam::681526276858:role/spark-match-terraform-plan-dev` | Solo `environment:dev` + `ref:refs/heads/dev` | Read-only sobre `spark-match-tfstate-dev` + EC2/KMS/IAM describe | `AWS_PLAN_ROLE_ARN_DEV` |
 | `spark-match-terraform-apply-dev` | `arn:aws:iam::681526276858:role/spark-match-terraform-apply-dev` | Solo `environment:dev` + `ref:refs/heads/dev` | Write sobre `spark-match-tfstate-dev` + EC2/KMS/IAM create + Logs dev | `AWS_APPLY_ROLE_ARN_DEV` |
-| `spark-match-terraform-plan` (prod) | `arn:aws:iam::681526276858:role/spark-match-terraform-plan` | Solo `environment:production` + `ref:refs/heads/main` | Read-only sobre `spark-match-tfstate-prod` + EC2/KMS/IAM describe | `AWS_PLAN_ROLE_ARN_PROD` |
-| `spark-match-terraform-apply` (prod) | `arn:aws:iam::681526276858:role/spark-match-terraform-apply` | Solo `environment:production` + `ref:refs/heads/main` | Write sobre `spark-match-tfstate-prod` + EC2/KMS/IAM create + Logs prod | `AWS_APPLY_ROLE_ARN_PROD` |
+| `spark-match-terraform-plan-prod` | `arn:aws:iam::681526276858:role/spark-match-terraform-plan-prod` | Solo `environment:production` + `ref:refs/heads/main` | Read-only sobre `spark-match-tfstate-prod` + EC2/KMS/IAM describe | `AWS_PLAN_ROLE_ARN_PROD` |
+| `spark-match-terraform-apply-prod` | `arn:aws:iam::681526276858:role/spark-match-terraform-apply-prod` | Solo `environment:production` + `ref:refs/heads/main` | Write sobre `spark-match-tfstate-prod` + EC2/KMS/IAM create + Logs prod | `AWS_APPLY_ROLE_ARN_PROD` |
 
 **Aislamiento real entre envs**:
 
@@ -301,10 +301,10 @@ gh secret list --repo spark-match/spark-match-02-infrastructure
 # Resultado:
 # AWS_APPLY_ROLE_ARN          (legacy, no usado por callers actuales)
 # AWS_APPLY_ROLE_ARN_DEV      arn:aws:iam::681526276858:role/spark-match-terraform-apply-dev
-# AWS_APPLY_ROLE_ARN_PROD     arn:aws:iam::681526276858:role/spark-match-terraform-apply
+# AWS_APPLY_ROLE_ARN_PROD     arn:aws:iam::681526276858:role/spark-match-terraform-apply-prod
 # AWS_PLAN_ROLE_ARN           (legacy, no usado por callers actuales)
 # AWS_PLAN_ROLE_ARN_DEV       arn:aws:iam::681526276858:role/spark-match-terraform-plan-dev
-# AWS_PLAN_ROLE_ARN_PROD      arn:aws:iam::681526276858:role/spark-match-terraform-plan
+# AWS_PLAN_ROLE_ARN_PROD      arn:aws:iam::681526276858:role/spark-match-terraform-plan-prod
 ```
 
 Para un nuevo env (e.g. `staging`), agregar 2 secrets:
@@ -417,7 +417,7 @@ repo:spark-match/spark-match-02-infrastructure:environment:production
 | **0** | Repo + `live/dev` y `live/prod` skeleton + reusable workflows + diseño de roles IAM + bootstrap de buckets | 🟢 Cerrada |
 | **1** | `modules/security` (IAM base, KMS, SG) + `modules/networking` (VPC, subnets, NAT) + `modules/endpoints` (VPC interface endpoints) | 🟢 Escritos, sin apply |
 | 1.5 | Componer `live/{dev,prod}/main.tf` con los 3 modulos + primer `terraform apply` | ⏳ Próxima |
-| 2 | `modules/database` (Aurora + pgvector) + `modules/storage` (S3) + `modules/events` (EventBridge) + `modules/secrets` + `modules/monitoring` | ⏳ |
+| 2 | `modules/database` (Aurora Serverless v2, sin pgvector) + `modules/storage` (S3) + `modules/events` (EventBridge) + `modules/secrets` + `modules/monitoring` | ⏳ |
 | 3 | Deploy de `03-backend` via `sam-deploy.yml` (TF crea los SSM params que SAM consume) | ⏳ |
 | 4 | `modules/bedrock` + ECR + Dockerfile + `agentcore-deploy.yml` para `08-deep-agent` | ⏳ |
 | 5 | Drift detection diario + Infracost en PRs + CODEOWNERS linter reusable | ⏳ |

@@ -38,3 +38,13 @@ output "budget_limit_amount" {
   description = "Limite mensual del budget en USD."
   value       = aws_budgets_budget.monthly.limit_amount
 }
+
+output "kms_key_arn" {
+  description = "ARN de la CMK de KMS que cifra el SNS topic."
+  value       = aws_kms_key.sns.arn
+}
+
+output "kms_key_alias" {
+  description = "Alias legible de la CMK."
+  value       = aws_kms_alias.sns.name
+}

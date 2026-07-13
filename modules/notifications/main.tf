@@ -16,12 +16,13 @@
 #     modules/notifications (cuenta) + modules/dev/notifications, etc.
 #
 # Decisiones de diseno:
-#   - SNS topic sin KMS (default encryption del lado del server). Las alertas
-#     no contienen datos sensibles, solo notificaciones de presupuesto.
+#   - SNS topic cifrado con KMS CMK (no default encryption). Las alertas de
+#     budget contienen info financiera (cuanto llevamos gastado del mes), por
+#     compliance y para satisfacer checkov CKV_AWS_55 / CIS 2.8.
 #   - Display name vacio (default) para no exponer el topic en busquedas del
 #     console de SNS.
 #   - EffectiveDeliveryPolicy default (20s, 3 retries, linear backoff).
-#   - Suscripciones via for_each sobre `var.email_endpoints`. Agregar/quitar
+#   - Suscripciones via for_each sobre `var.email_subscriptions`. Agregar/quitar
 #     correos = editar el .tf y aplicar.
 #   - AWS Budget incluye 2 notifications embebidas:
 #     * ACTUAL > 80% (alerta cuando el costo real acumulado del mes llega al 80%)
@@ -48,15 +49,98 @@ locals {
 }
 
 ###############################################################################
+# KMS CMK (de cuenta, no de env)
+#
+# Customer Managed Key dedicada a cifrar el SNS topic de notificaciones de
+# budget. Esta separada del CMK del modulo security (que es por env) porque
+# este recurso es de cuenta (no se replica por dev/prod/staging).
+#
+# Key policy:
+#   - Root account de la org: full access (para que admins puedan rotar).
+#   - sns.amazonaws.com: kms:Encrypt + kms:Decrypt + kms:GenerateDataKey*
+#     + kms:DescribeKey. Necesario para que SNS pueda cifrar mensajes al
+#     recibir publish de budgets.amazonaws.com y descifrar al entregar a
+#     suscriptores.
+###############################################################################
+
+resource "aws_kms_key" "sns" {
+  description             = "CMK para cifrar el SNS topic ${var.topic_name} (notificaciones de budget de Spark Match)"
+  deletion_window_in_days = 30 # CMK de cuenta, ventana larga para recovery
+  enable_key_rotation     = true
+  multi_region            = false
+
+  tags = merge(local.common_tags, {
+    Name = "${var.topic_name}-cmk"
+  })
+}
+
+resource "aws_kms_alias" "sns" {
+  name          = "alias/${var.project_name}-sns-budget-alerts"
+  target_key_id = aws_kms_key.sns.key_id
+}
+
+# Key policy inline: se aplica como default key policy. Necesario porque las
+# politicas IAM externas no son suficientes para KMS: cada CMK tiene su
+# propia key policy que SIEMPRE se evalua ademas de las politicas IAM.
+data "aws_caller_identity" "current" {}
+
+resource "aws_kms_key_policy" "sns" {
+  key_id = aws_kms_key.sns.id
+
+  # Habilitar rotation de la policy key. Sin esto, KMS rota solo la
+  # cryptographic material (key_id), no la policy.
+  # bypass_policy_lockout_safety_check permite politicas restrictivas
+  # (ej. sin statement para root). Como aca SI damos permisos al root, no es
+  # estrictamente necesario, pero es defense in depth.
+  bypass_policy_lockout_safety_check = false
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Id      = "SparkMatchSnsCmkPolicy"
+    Statement = [
+      {
+        Sid    = "RootAccountFullAccess"
+        Effect = "Allow"
+        Principal = {
+          AWS = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:root"
+        }
+        Action   = "kms:*"
+        Resource = "*"
+      },
+      {
+        Sid    = "AllowSnsServiceToUseCmk"
+        Effect = "Allow"
+        Principal = {
+          Service = "sns.amazonaws.com"
+        }
+        Action = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey",
+          "kms:GenerateDataKeyWithoutPlaintext",
+          "kms:CreateGrant",
+          "kms:DescribeKey",
+        ]
+        Resource = "*"
+        # Sin condicion: SNS cifra TODOS los publishes de cualquier source
+        # que llegue al topic. El control fino de quien PUEDE publicar al
+        # topic esta en aws_sns_topic_policy (que solo permite
+        # budgets.amazonaws.com), no en el KMS policy.
+      },
+    ]
+  })
+}
+
+###############################################################################
 # SNS topic
 ###############################################################################
 
 resource "aws_sns_topic" "budget_alerts" {
   name = var.topic_name
 
-  # KMS master key NO seteado: default encryption (AES256 managed by AWS).
-  # Las alertas de budget no contienen datos sensibles.
-  # Si en el futuro se envia info sensible (ej. PII), cambiar a KMS CMK.
+  # KMS CMK de cuenta (no default encryption). Cifra todos los mensajes en
+  # reposo. Ref: checkov CKV_AWS_55 (Ensure all data stored in the SNS topic
+  # is encrypted), CIS AWS Foundations Benchmark 2.8.
+  kms_master_key_id = aws_kms_key.sns.arn
 
   tags = merge(local.common_tags, {
     Name = var.topic_name
@@ -72,7 +156,6 @@ resource "aws_sns_topic" "budget_alerts" {
 
 data "aws_partition" "current" {}
 data "aws_region" "current" {}
-data "aws_caller_identity" "current" {}
 
 resource "aws_sns_topic_policy" "budget_alerts" {
   arn = aws_sns_topic.budget_alerts.arn

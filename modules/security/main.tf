@@ -74,6 +74,20 @@ resource "aws_kms_key" "main" {
   deletion_window_in_days = var.kms_deletion_window_in_days
   multi_region            = false
 
+  # La key policy referencia los ARNs de los 4 IAM roles de este mismo modulo
+  # (sam_deploy, bedrock_deploy, lambda_runtime, agentcore_runtime). KMS exige
+  # que los principals existan al validar la policy, por lo que Terraform debe
+  # garantizar que los roles se creen ANTES de la key. Sin esta dependencia,
+  # KMS lanza "MalformedPolicyDocumentException: Policy contains a statement
+  # with one or more invalid principals." en el primer apply.
+  # Ref: IMPROVEMENTS.md [B12]
+  depends_on = [
+    aws_iam_role.sam_deploy,
+    aws_iam_role.bedrock_deploy,
+    aws_iam_role.lambda_runtime,
+    aws_iam_role.agentcore_runtime,
+  ]
+
   # Key policy explicita: separa administradores de usuarios de la key.
   # - Administracion (kms:Create*, kms:ScheduleKeyDeletion, kms:PutKeyPolicy):
   #   rol del account root y rol Terraform-{env} (para futuros re-keys/rotations).
@@ -98,7 +112,10 @@ resource "aws_kms_key" "main" {
         Sid    = "TerraformRoleManage"
         Effect = "Allow"
         Principal = {
-          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/spark-match-terraform-${var.environment}"
+          AWS = [
+            "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/spark-match-terraform-plan-${var.environment}",
+            "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/spark-match-terraform-apply-${var.environment}",
+          ]
         }
         Action = [
           "kms:Create*",
@@ -137,12 +154,6 @@ resource "aws_kms_key" "main" {
           "kms:DescribeKey",
         ]
         Resource = "*"
-        Condition = {
-          StringEquals = {
-            "aws:ResourceTag/Environment" = var.environment
-            "aws:ResourceTag/Project"     = var.project_name
-          }
-        }
       },
       {
         Sid    = "AWSServicesUseCMK"
@@ -205,8 +216,16 @@ resource "aws_security_group" "lambda" {
     Name = "${var.project_name}-sg-lambda-${var.environment}"
   })
 
+  # `ignore_changes = [egress, ingress]` evita que Terraform intente borrar
+  # las reglas de egress/ingress administradas via `aws_security_group_rule`
+  # en cada refresh. Sin esto, el provider AWS Terraform v5.x confunde las
+  # rules separadas con rules inline del SG y propone removerlas (drift
+  # fantasma). Las rules son manejadas por los recursos `aws_security_group_rule`
+  # de abajo y el SG solo lleva `egress = []` para neutralizar la default rule
+  # de AWS al momento de la creacion.
+  # Ref: IMPROVEMENTS.md [B12]
   lifecycle {
-    ignore_changes = [description]
+    ignore_changes = [description, ingress, egress]
   }
 }
 
@@ -248,6 +267,11 @@ resource "aws_security_group" "rds" {
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-sg-rds-${var.environment}"
   })
+
+  # Ver comentario en aws_security_group.lambda sobre ignore_changes.
+  lifecycle {
+    ignore_changes = [ingress, egress]
+  }
 }
 
 resource "aws_security_group_rule" "rds_ingress_from_lambda" {
@@ -276,6 +300,11 @@ resource "aws_security_group" "endpoints" {
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-sg-endpoints-${var.environment}"
   })
+
+  # Ver comentario en aws_security_group.lambda sobre ignore_changes.
+  lifecycle {
+    ignore_changes = [ingress, egress]
+  }
 }
 
 resource "aws_security_group_rule" "endpoints_ingress_from_lambda" {

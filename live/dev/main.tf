@@ -12,7 +12,7 @@
 #   - module "endpoints"  -> Solo S3 gateway (no interface endpoints en dev por costo)
 #
 # Fases futuras:
-#   - module "database"     -> RDS Aurora PostgreSQL Serverless v2 + pgvector
+#   - module "database"     -> RDS Aurora PostgreSQL Serverless v2 (sin pgvector; vector store en otro proveedor)
 #   - module "storage"      -> S3 buckets definitivos
 #   - module "events"       -> EventBridge bus custom + archive + DLQ
 #   - module "secrets"      -> Secrets Manager (JWT, DB credentials)

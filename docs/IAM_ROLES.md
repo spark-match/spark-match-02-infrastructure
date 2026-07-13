@@ -210,7 +210,7 @@ Trust policy: `lambda.amazonaws.com` con `SourceAccount=681526276858`.
 | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` | `arn:aws:bedrock:us-east-1:681526276858:foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0` y `anthropic.claude-haiku-4-5-20251001-v1:0` | Llamar al LLM |
 | `secretsmanager:GetSecretValue` | `arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-*` | Tavily key, LangSmith key |
 | `ssm:GetParameter`, `ssm:GetParameters` | `arn:aws:ssm:us-east-1:681526276858:parameter/spark-match/*` | Config runtime |
-| `rds-data:ExecuteStatement`, `BatchExecuteStatement` | cluster taggeado `Project=spark-match` | pgvector en Aurora |
+| `rds-data:ExecuteStatement`, `BatchExecuteStatement` | cluster taggeado `Project=spark-match` | Aurora Serverless v2 (vector store separado, ver ADR-008 superseded) |
 | `secretsmanager:CreateSecret`, `PutSecretValue` (sólo si el agente escribe per-user memory) | `arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-user-*` | Memoria cross-session |
 | `tavily` y `langsmith` vía OUTBOUND HTTPS | n/a (egress 443) | ya cubierto por SG/egress |
 

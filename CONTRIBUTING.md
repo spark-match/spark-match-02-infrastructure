@@ -15,6 +15,12 @@ proyecto Spark Match, usando Terraform modular y workflows reutilizables desde
 
 ## Workflow de cambios
 
+**REGLA DE ORO**: Todos los cambios pasan por PR. **No se permite push directo
+a `main` ni a `dev`**. El ruleset `spark-match-default-branch-protection`
+aplica `non_fast_forward` + `pull_request` rule (1 approval + code owner review
++ status checks). El bypass `pull_request` para OrganizationAdmin permite
+mergear PRs sin cumplir las reglas de review, pero NO permite push directo.
+
 1. **Crear rama desde dev** con prefijo semantico:
    - `feat/<descripcion-corta>` para nuevas features
    - `fix/<descripcion-corta>` para bugfixes
@@ -37,17 +43,22 @@ proyecto Spark Match, usando Terraform modular y workflows reutilizables desde
    terraform validate
    ```
 
-4. **Push a dev y abrir PR**:
+4. **Push a dev y abrir PR contra dev**:
    - El PR dispara `CI - Terraform Plan` automaticamente (Plan dev).
    - Resolver el review de CODEOWNERS (ver `.github/CODEOWNERS`).
    - Esperar el check `Plan (dev) / Plan (dev)` en verde.
 
 5. **Merge via squash** (unico metodo de merge permitido por ruleset).
 
-6. **Sync a main**: el autor del PR hace push directo a main via
-   `git push --force-with-lease origin chore/sync-dev-to-main-...:main`
-   solo si el cambio es una consolidacion. Para cambios de codigo, abrir
-   PR contra main con aprobacion.
+6. **Sync a main (promover cambios)**:
+   - Abrir PR de `dev` hacia `main` con titulo `chore: sync dev into main`.
+   - El PR no debe tener cambios funcionales, solo consolidar historia.
+   - Como admin, mergear con `gh pr merge --admin --squash` (bypass pull_request
+     permite saltarse las reglas de review, pero el PR sigue siendo requerido).
+   - Esto triggerea `CD - Terraform Apply` con environment=prod. Si el sync
+     no incluye cambios de infra, el plan/apply resulta en 0 changes.
+   - **Solo se requiere aprobacion manual del env `production` si hay cambios
+     reales de infra que aplicar**.
 
 ## Secrets y variables de entorno
 

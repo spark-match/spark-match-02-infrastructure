@@ -34,14 +34,17 @@
 
 | Role | Propósito | Repo autorizado en `sub` | Multi-env |
 |---|---|---|---|
-| `spark-match-terraform-plan` | `terraform plan` con permisos **read-only** | `spark-match-02-infrastructure` | Acepta `environment:dev` y `environment:production` |
-| `spark-match-terraform-apply` | `terraform apply` con permisos **write** sobre red, S3, IAM base, KMS | `spark-match-02-infrastructure` | Acepta `environment:dev` y `environment:production` |
+| `spark-match-terraform-plan-dev` | `terraform plan` con permisos **read-only** | `spark-match-02-infrastructure` | Acepta `environment:dev` y `ref:refs/heads/dev` |
+| `spark-match-terraform-apply-dev` | `terraform apply` con permisos **write** sobre red, S3, IAM base, KMS | `spark-match-02-infrastructure` | Acepta `environment:dev` y `ref:refs/heads/dev` |
+| `spark-match-terraform-plan-prod` | `terraform plan` con permisos **read-only** sobre `spark-match-tfstate-prod` | `spark-match-02-infrastructure` | Acepta `environment:production` y `ref:refs/heads/main` |
+| `spark-match-terraform-apply-prod` | `terraform apply` con permisos **write** sobre `spark-match-tfstate-prod` + EC2/KMS/IAM create + Logs prod | `spark-match-02-infrastructure` | Acepta `environment:production` y `ref:refs/heads/main` |
 
-> Ambos siguen vigentes. Su trust policy se actualizó en Fase 1 para incluir
-> `environment:dev` y `ref:refs/heads/dev` (adicionalmente a los patterns
-> existentes de prod). **No se separan por env** porque estos roles solo
-> aplican cambios a la infra (network, IAM), y el aislamiento entre envs está
-> en el state bucket separado y en los GH Environments con branch policies.
+> Los 4 roles se actualizaron en Fase 1.5 para incluir `workflow_dispatch` y
+> `pull_request` además de los patterns específicos por env. **No se
+> separan funcionalmente por env** (excepto los ARN) porque estos roles solo
+> aplican cambios a la infra (network, IAM), y el aislamiento entre envs
+> está en el state bucket separado y en los GH Environments con branch
+> policies.
 
 ---
 

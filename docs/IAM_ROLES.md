@@ -34,14 +34,17 @@
 
 | Role | Propósito | Repo autorizado en `sub` | Multi-env |
 |---|---|---|---|
-| `spark-match-terraform-plan` | `terraform plan` con permisos **read-only** | `spark-match-02-infrastructure` | Acepta `environment:dev` y `environment:production` |
-| `spark-match-terraform-apply` | `terraform apply` con permisos **write** sobre red, S3, IAM base, KMS | `spark-match-02-infrastructure` | Acepta `environment:dev` y `environment:production` |
+| `spark-match-terraform-plan-dev` | `terraform plan` con permisos **read-only** | `spark-match-02-infrastructure` | Acepta `environment:dev` y `ref:refs/heads/dev` |
+| `spark-match-terraform-apply-dev` | `terraform apply` con permisos **write** sobre red, S3, IAM base, KMS | `spark-match-02-infrastructure` | Acepta `environment:dev` y `ref:refs/heads/dev` |
+| `spark-match-terraform-plan-prod` | `terraform plan` con permisos **read-only** sobre `spark-match-tfstate-prod` | `spark-match-02-infrastructure` | Acepta `environment:production` y `ref:refs/heads/main` |
+| `spark-match-terraform-apply-prod` | `terraform apply` con permisos **write** sobre `spark-match-tfstate-prod` + EC2/KMS/IAM create + Logs prod | `spark-match-02-infrastructure` | Acepta `environment:production` y `ref:refs/heads/main` |
 
-> Ambos siguen vigentes. Su trust policy se actualizó en Fase 1 para incluir
-> `environment:dev` y `ref:refs/heads/dev` (adicionalmente a los patterns
-> existentes de prod). **No se separan por env** porque estos roles solo
-> aplican cambios a la infra (network, IAM), y el aislamiento entre envs está
-> en el state bucket separado y en los GH Environments con branch policies.
+> Los 4 roles se actualizaron en Fase 1.5 para incluir `workflow_dispatch` y
+> `pull_request` además de los patterns específicos por env. **No se
+> separan funcionalmente por env** (excepto los ARN) porque estos roles solo
+> aplican cambios a la infra (network, IAM), y el aislamiento entre envs
+> está en el state bucket separado y en los GH Environments con branch
+> policies.
 
 ---
 
@@ -207,7 +210,7 @@ Trust policy: `lambda.amazonaws.com` con `SourceAccount=681526276858`.
 | `bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream` | `arn:aws:bedrock:us-east-1:681526276858:foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0` y `anthropic.claude-haiku-4-5-20251001-v1:0` | Llamar al LLM |
 | `secretsmanager:GetSecretValue` | `arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-*` | Tavily key, LangSmith key |
 | `ssm:GetParameter`, `ssm:GetParameters` | `arn:aws:ssm:us-east-1:681526276858:parameter/spark-match/*` | Config runtime |
-| `rds-data:ExecuteStatement`, `BatchExecuteStatement` | cluster taggeado `Project=spark-match` | pgvector en Aurora |
+| `rds-data:ExecuteStatement`, `BatchExecuteStatement` | cluster taggeado `Project=spark-match` | Aurora Serverless v2 (vector store separado, ver ADR-008 superseded) |
 | `secretsmanager:CreateSecret`, `PutSecretValue` (sólo si el agente escribe per-user memory) | `arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-user-*` | Memoria cross-session |
 | `tavily` y `langsmith` vía OUTBOUND HTTPS | n/a (egress 443) | ya cubierto por SG/egress |
 

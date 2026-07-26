@@ -99,3 +99,5 @@ jobs:
       backend-bucket: ${{ matrix.backend-bucket }}
       backend-key: ${{ matrix.backend-key }}
       comment-on-pr: false   # No hay PR en workflow_dispatch
+
+# canary: ruleset-pilot-20260726

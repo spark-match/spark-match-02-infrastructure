@@ -43,3 +43,4 @@ rule "terraform_module_pinned_source" {
 rule "terraform_workspace_remote" {
   enabled = false
 }
+# canary: ruleset-pilot-20260726

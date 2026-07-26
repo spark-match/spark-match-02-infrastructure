@@ -75,12 +75,24 @@
 # sts, bedrock-runtime, ecr, ssmmessages, ec2messages) + S3 gateway endpoint.
 /modules/endpoints/                          @spark-match/devops
 
+# Modulo de notifications: SNS topics, subscriptions, event-rules y delivery
+# policies para alertas operacionales.
+/modules/notifications/                       @spark-match/devops
+
 # =============================================================================
 # Documentacion tecnica - DevOps gobierna
 # =============================================================================
 # IAM_ROLES.md documenta el diseno y las politicas IAM. Cambios estructurales
 # deben coordinarse con la implementacion en modules/security.
 /docs/IAM_ROLES.md                           @spark-match/devops
+
+# DECISIONS.md: registro de Architecture Decision Records (ADR) operativos
+# del repo de infraestructura. Cambios aqui afectan el rumbo tecnico.
+/docs/DECISIONS.md                            @spark-match/devops
+
+# OIDC-DEBUG.md: guia de troubleshooting para errores de OIDC en CI/CD.
+# Mantenido por devops (operacional, no de governance).
+/docs/OIDC-DEBUG.md                           @spark-match/devops
 
 # Politicas IAM versionadas por ambiente (4 policies x 2 envs = 8 JSON).
 # Cambios aqui DEBEN coordinarse con modules/security/main.tf (templatefile).

@@ -1,0 +1,118 @@
+---
+# =============================================================================
+# CI - Lint, Security & SonarCloud (Sprint 3 final)
+# =============================================================================
+# Pull request linter + static HCL analyzer. Calls the seven ecosystem
+# reusables from `spark-match/spark-match-01-devops/.github/workflows/...` (all
+# pinned `@main` per AGENTS.md). Each job is a thin `uses:` dispatch; source
+# of truth lives in spark-match-01-devops so all spark-match repos get the
+# same checks without drift.
+#
+# Jobs (alphabetical):
+#   - actionlint         :: GH Actions syntax
+#   - checkov            :: checkov SCA (Terraform)
+#   - gitleaks           :: secret history (v1 pin, requires GITLEAKS_LICENSE
+#                          org secret; degrades to failure today — see
+#                          INFRASTRUCTURE-UPGRADE.md Sprint 3 follow-ups)
+#   - sonar              :: SonarCloud scan (static HCL analysis with QG)
+#   - terraform-fmt      :: terraform fmt
+#   - terraform-validate :: terraform validate
+#   - tflint             :: tflint
+#   - yamllint           :: YAML lint (workflows excluded via .yamllint.yml)
+#
+# Pin: `@main`. All future recipe changes land on @main directly; callers
+# smoke-test before merge.
+#
+# Note on Terraform Plan: the existing `terraform-plan.yml` workflow is the
+# canonical "deployable plan" gate (it assumes an OIDC role and writes to a
+# remote state bucket). PR-level runs in this repo cannot satisfy that
+# because the OIDC token has no `environment:` context — that's a known
+# org-wide config gap tracked separately.
+# =============================================================================
+
+name: CI - Lint, Security & SonarCloud
+
+on:
+  pull_request:
+    branches: [main, dev]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# Cancel in-progress runs for the same ref. Saves runner minutes on rapid
+# pushes. Safe for idempotent lint jobs.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------- ecosystem reusables ------------------------------------------------
+
+  actionlint:
+    name: actionlint
+    uses: spark-match/spark-match-01-devops/.github/workflows/actionlint.yml@main
+    with:
+      environment-name: ci
+
+  gitleaks:
+    name: gitleaks
+    uses: spark-match/spark-match-01-devops/.github/workflows/gitleaks.yml@main
+    with:
+      environment-name: ci
+
+  yamllint:
+    name: yamllint
+    uses: spark-match/spark-match-01-devops/.github/workflows/yamllint.yml@main
+    with:
+      environment-name: ci
+
+  # ---------- terraform ecosystem reusables ------------------------------------
+
+  terraform-fmt:
+    name: terraform fmt
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-fmt.yml@main
+    with:
+      environment-name: ci
+      terraform-version: ${{ vars.TF_VERSION }}
+
+  terraform-validate:
+    name: terraform validate
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-validate.yml@main
+    with:
+      environment-name: ci
+      terraform-version: ${{ vars.TF_VERSION }}
+
+  tflint:
+    name: tflint
+    uses: spark-match/spark-match-01-devops/.github/workflows/tflint.yml@main
+    with:
+      environment-name: ci
+      terraform-version: ${{ vars.TF_VERSION }}
+
+  checkov:
+    name: checkov
+    uses: spark-match/spark-match-01-devops/.github/workflows/checkov.yml@main
+    with:
+      environment-name: ci
+
+  # ---------- SonarCloud --------------------------------------------------------
+
+  sonar:
+    name: SonarCloud Terraform (ci)
+    uses: spark-match/spark-match-01-devops/.github/workflows/sonar-terraform.yml@main
+    with:
+      project-key: ${{ vars.SONAR_PROJECT_KEY }}
+      project-name: ${{ vars.SONAR_PROJECT_NAME }}
+      organization: ${{ vars.SONAR_ORGANIZATION }}
+      sources: ${{ vars.SONAR_SOURCES }}
+      exclude-patterns: ${{ vars.SONAR_EXCLUDE_PATTERNS }}
+      working-directory: '.'
+      env: 'ci'
+      fail-on-quality-gate: ${{ vars.SONAR_FAIL_ON_QUALITY_GATE }}
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

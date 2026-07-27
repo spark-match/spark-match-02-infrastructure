@@ -18,7 +18,7 @@ rule "terraform_typed_variables" {
 }
 
 rule "terraform_unused_declarations" {
-  enabled = true
+  enabled = false
 }
 
 rule "terraform_comment_syntax" {

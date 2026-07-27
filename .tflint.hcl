@@ -2,6 +2,7 @@ plugin "terraform" {
   enabled = true
   source  = "github.com/terraform-linters/tflint-ruleset-terraform"
   version = "0.10.0"
+  enabled_by_default = false
 }
 
 rule "terraform_required_version" {
@@ -15,10 +16,6 @@ rule "terraform_naming_convention" {
 
 rule "terraform_typed_variables" {
   enabled = true
-}
-
-rule "terraform_unused_declarations" {
-  enabled = false
 }
 
 rule "terraform_comment_syntax" {

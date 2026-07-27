@@ -120,7 +120,7 @@ variable "flow_log_retention_days" {
   default     = 30
 
   validation {
-    condition = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.flow_log_retention_days)
+    condition     = contains([1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1827, 3653], var.flow_log_retention_days)
     error_message = "flow_log_retention_days debe estar en los valores validos de CloudWatch Logs retention."
   }
 }

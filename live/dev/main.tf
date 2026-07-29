@@ -132,20 +132,51 @@ module "oidc_github" {
 }
 
 ###############################################################################
+# Module: kms
+###############################################################################
+# CMK (Customer Managed Key) por entorno (`alias/spark-match-dev-main`) para
+# cifrar SSM/Secrets/S3/data-at-rest. CMK con `enable_key_rotation=true` y
+# `deletion_window_in_days=7` (estricto en dev).
+#
+# PR4b (Sprint 1): extraido de modules/security. Recibe `user_role_arns` cross-module
+# desde module.oidc_github.*_role_arn para que la CMK key policy pueda referenciar
+# los ARNs de los 4 roles.
+###############################################################################
+
+module "kms" {
+  source = "../../modules/kms"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  # 7 dias en dev (mas rapido si hay que borrar el key); 30 en prod.
+  deletion_window_in_days = var.kms_deletion_window_in_days
+
+  # ARNs de los 4 roles creados por oidc_github module (cross-module reference).
+  # KMS exige que los principals existan al validar la policy, por lo que Terraform
+  # resuelve automaticamente el orden de creacion (oidc_github primero, kms despues).
+  user_role_arns = [
+    module.oidc_github.sam_deploy_role_arn,
+    module.oidc_github.bedrock_deploy_role_arn,
+    module.oidc_github.lambda_runtime_role_arn,
+    module.oidc_github.agentcore_runtime_role_arn,
+  ]
+
+  # Dependencia explicita: los 4 IAM roles deben existir antes de la CMK.
+  depends_on = [module.oidc_github]
+}
+
+###############################################################################
 # Module: security
 ###############################################################################
-# Capa de seguridad perimetral y de identidad para dev (Fase 1.5):
-#   - KMS CMK por entorno (`alias/spark-match-dev-main`) para cifrar
-#     SSM/Secrets/S3/data-at-rest. CMK con `enable_key_rotation=true` y
-#     `deletion_window_in_days=7` (estricto en dev).
+# Capa de seguridad perimetral para dev (Fase 1.5):
 #   - 3 SGs: lambda (egress only), rds (ingress 5432 desde sg-lambda),
 #     endpoints (ingress 443 desde sg-lambda). Los 3 con `egress = []` inline
 #     para neutralizar el default "egress allow all 0.0.0.0/0" de AWS
 #     (IMPROVEMENTS.md A6/SEC-08).
 #
 # PR4a (Sprint 1): los 4 IAM roles fueron extraidos a modules/oidc-github.
-# Este modulo ahora recibe `kms_user_role_arns` cross-module para que la CMK
-# key policy pueda referenciar los ARNs de los 4 roles.
+# PR4b (Sprint 1): la CMK KMS fue extraida a modules/kms.
 ###############################################################################
 
 module "security" {
@@ -156,24 +187,6 @@ module "security" {
 
   vpc_id   = module.networking.vpc_id
   vpc_cidr = var.vpc_cidr
-
-  # 7 dias en dev (mas rapido si hay que borrar el key); 30 en prod.
-  kms_deletion_window_in_days = var.kms_deletion_window_in_days
-
-  # ARNs de los 4 roles creados por oidc_github module (cross-module reference).
-  # KMS exige que los principals existan al validar la policy, por lo que Terraform
-  # resuelve automaticamente el orden de creacion (oidc_github primero, security despues).
-  kms_user_role_arns = [
-    module.oidc_github.sam_deploy_role_arn,
-    module.oidc_github.bedrock_deploy_role_arn,
-    module.oidc_github.lambda_runtime_role_arn,
-    module.oidc_github.agentcore_runtime_role_arn,
-  ]
-
-  # Dependencia explicita: los 4 IAM roles deben existir antes de la CMK.
-  # Terraform infiere esto de la referencia anterior, pero lo hacemos explicito
-  # para que `terraform graph` muestre la relacion entre modules.
-  depends_on = [module.oidc_github]
 }
 
 ###############################################################################

@@ -1,25 +1,13 @@
-﻿###############################################################################
+###############################################################################
 # Module: security
 #
-# Capa de seguridad perimetral y de identidad para Spark Match (Fase 1):
-#   1. KMS CMK por entorno para cifrado de SSM/Secrets/S3/data-at-rest.
-#   2. Security groups cross-cutting (lambdas con egress libre, RDS ingress
-#      desde sg-lambda, endpoints ingress desde sg-lambda).
-#   3. Roles OIDC asumidos por GitHub Actions (uno por dominio + env):
-#      - spark-match-sam-deploy-{env}                 (reusable sam-deploy.yml desde 03-backend)
-#      - spark-match-bedrock-agentcore-deploy-{env}  (futuro reusable agentcore-deploy.yml desde 08-deep-agent)
-#   4. Execution roles cross-service:
-#      - spark-match-lambda-runtime-{env}     (asumido por Lambdas)
-#      - spark-match-agentcore-runtime-{env}  (asumido por contenedor en AgentCore)
+# Capa de seguridad perimetral para Spark Match (Fase 1):
+#   - 3 Security groups cross-cutting (lambdas con egress libre, RDS ingress
+#     desde sg-lambda, endpoints ingress desde sg-lambda).
 #
-# Estrategia multi-env: cada llamada al modulo crea 4 roles para el env
-# pasado en var.environment. Los roles OIDC solo aceptan sub claims que
-# coincidan con ese env (politica estricta por env), de modo que un token
-# de GH emitido para `environment:dev` no puede asumir el role de prod.
-#
-# Los JSON de politicas viven en ../../docs/policies/*.json (validados contra
-# AWS IAM parser en Fase 0) y se adjuntan como inline policies para evitar el
-# limite de 6 KB de customer-managed policies.
+# PR4a (Sprint 1): 4 IAM roles extraidos a modules/oidc-github.
+# PR4b (Sprint 1): KMS CMK extraida a modules/kms.
+# Este modulo ahora solo contiene los 3 Security Groups.
 ###############################################################################
 
 locals {
@@ -33,134 +21,10 @@ locals {
       Repository  = "spark-match/spark-match-02-infrastructure"
     }
   )
-
-  # Note: los 4 IAM roles (sam_deploy, bedrock_deploy, lambda_runtime, agentcore_runtime)
-  # y los policies JSON asociados fueron extraidos a modules/oidc-github en PR4a (Sprint 1).
-  # El modulo security ahora solo se encarga de KMS CMK + Security Groups.
 }
 
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
-
-###############################################################################
-# KMS - Customer Managed Key (CMK) por entorno
-###############################################################################
-
-resource "aws_kms_key" "main" {
-  description             = "Spark Match CMK for ${var.project_name}/${var.environment} (SSM, Secrets, S3 server-side, logs)"
-  is_enabled              = true
-  enable_key_rotation     = true
-  deletion_window_in_days = var.kms_deletion_window_in_days
-  multi_region            = false
-
-  # PR4a (Sprint 1): los 4 IAM roles (sam_deploy, bedrock_deploy, lambda_runtime,
-  # agentcore_runtime) se extrajeron a modules/oidc-github. Las dependencies de
-  # KMS ahora se manejan via el caller (live/*/main.tf) pasando KMS un `var.kms_role_arns`
-  # con los ARNs cross-module, y agregando `oidc_github` module como dependencia.
-  # Ref: IMPROVEMENTS.md [B12] / Sprint 1 refactor.
-
-  # Key policy explicita: separa administradores de usuarios de la key.
-  # - Administracion (kms:Create*, kms:ScheduleKeyDeletion, kms:PutKeyPolicy):
-  #   rol del account root y rol Terraform-{env} (para futuros re-keys/rotations).
-  # - Uso (kms:Encrypt, kms:Decrypt, kms:GenerateDataKey*): los 4 roles IAM
-  #   del modulo y AWS services (CloudWatch Logs, SSM, Secrets Manager, S3,
-  #   Bedrock) que cifran data-at-rest con esta CMK.
-  # Ref: IMPROVEMENTS.md [SEC-05]
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Id      = "spark-match-${var.environment}-cmk-policy"
-    Statement = [
-      {
-        Sid    = "RootAccountManage"
-        Effect = "Allow"
-        Principal = {
-          AWS = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:root"
-        }
-        Action   = "kms:*"
-        Resource = "*"
-      },
-      {
-        Sid    = "TerraformRoleManage"
-        Effect = "Allow"
-        Principal = {
-          AWS = [
-            "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/spark-match-terraform-plan-${var.environment}",
-            "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:role/spark-match-terraform-apply-${var.environment}",
-          ]
-        }
-        Action = [
-          "kms:Create*",
-          "kms:Describe*",
-          "kms:Enable*",
-          "kms:List*",
-          "kms:Put*",
-          "kms:Update*",
-          "kms:Revoke*",
-          "kms:Disable*",
-          "kms:Get*",
-          "kms:Delete*",
-          "kms:TagResource",
-          "kms:UntagResource",
-          "kms:ScheduleKeyDeletion",
-          "kms:CancelKeyDeletion",
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "IAMRolesUseCMK"
-        Effect = "Allow"
-        Principal = {
-          AWS = var.kms_user_role_arns
-        }
-        Action = [
-          "kms:Encrypt",
-          "kms:Decrypt",
-          "kms:ReEncrypt*",
-          "kms:GenerateDataKey*",
-          "kms:DescribeKey",
-        ]
-        Resource = "*"
-      },
-      {
-        Sid    = "AWSServicesUseCMK"
-        Effect = "Allow"
-        Principal = {
-          Service = [
-            "logs.${data.aws_partition.current.dns_suffix}",
-            "ssm.${data.aws_partition.current.dns_suffix}",
-            "secretsmanager.${data.aws_partition.current.dns_suffix}",
-            "s3.${data.aws_partition.current.dns_suffix}",
-            "bedrock.${data.aws_partition.current.dns_suffix}",
-          ]
-        }
-        Action = [
-          "kms:Encrypt",
-          "kms:Decrypt",
-          "kms:ReEncrypt*",
-          "kms:GenerateDataKey*",
-          "kms:DescribeKey",
-        ]
-        Resource = "*"
-        Condition = {
-          StringEquals = {
-            "kms:CallerAccount" = data.aws_caller_identity.current.account_id
-          }
-        }
-      },
-    ]
-  })
-
-  tags = local.common_tags
-
-  lifecycle {
-    prevent_destroy = true
-  }
-}
-
-resource "aws_kms_alias" "main" {
-  name          = "alias/${var.project_name}-${var.environment}-main"
-  target_key_id = aws_kms_key.main.key_id
-}
 
 ###############################################################################
 # Security groups
@@ -284,4 +148,3 @@ resource "aws_security_group_rule" "endpoints_ingress_from_lambda" {
   description              = "Allow HTTPS to VPC endpoints from Lambdas only"
   security_group_id        = aws_security_group.endpoints.id
 }
-

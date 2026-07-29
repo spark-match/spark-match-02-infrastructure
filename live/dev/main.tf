@@ -100,6 +100,38 @@ module "notifications" {
 }
 
 ###############################################################################
+# Module: oidc-github
+###############################################################################
+# OIDC provider (data source por defecto, recurso opt-in via create_oidc_provider)
+# + 4 IAM roles asumidos por GitHub Actions y AWS services:
+#   - spark-match-sam-deploy-dev          (OIDC, spark-match-03-backend)
+#   - spark-match-bedrock-agentcore-deploy-dev (OIDC, spark-match-08-deep-agent)
+#   - spark-match-lambda-runtime-dev      (Lambda service, spark-match-03-backend)
+#   - spark-match-agentcore-runtime-dev   (AgentCore service, spark-match-08-deep-agent)
+#
+# Extraido de modules/security en PR4a (Sprint 1). Patron copiado de
+# orion-infrastructure/modules/oidc-github/.
+#
+# Wire a GitHub:
+#   - spark-match-03-backend necesita `AWS_SAM_DEPLOY_ROLE_ARN_DEV` apuntando
+#     a module.oidc_github.sam_deploy_role_arn.
+#   - spark-match-08-deep-agent necesita `AWS_BEDROCK_DEPLOY_ROLE_ARN_DEV`
+#     apuntando a module.oidc_github.bedrock_deploy_role_arn.
+###############################################################################
+
+module "oidc_github" {
+  source = "../../modules/oidc-github"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  # Repos GitHub permitidos a asumir los roles OIDC.
+  # Se mantienen como variables en live/dev/variables.tf para no hardcodear.
+  sam_deploy_github_repos     = var.sam_deploy_github_repos
+  bedrock_deploy_github_repos = var.bedrock_deploy_github_repos
+}
+
+###############################################################################
 # Module: security
 ###############################################################################
 # Capa de seguridad perimetral y de identidad para dev (Fase 1.5):
@@ -110,15 +142,10 @@ module "notifications" {
 #     endpoints (ingress 443 desde sg-lambda). Los 3 con `egress = []` inline
 #     para neutralizar el default "egress allow all 0.0.0.0/0" de AWS
 #     (IMPROVEMENTS.md A6/SEC-08).
-#   - 4 roles OIDC (sam_deploy-dev, bedrock_deploy-dev, lambda_runtime-dev,
-#     agentcore_runtime-dev) consumidos por 03-backend y 08-deep-agent desde
-#     sus workflows de deploy.
 #
-# Wire a GitHub:
-#   - spark-match-03-backend necesita `AWS_SAM_DEPLOY_ROLE_ARN_DEV` apuntando
-#     a module.security.sam_deploy_role_arn.
-#   - spark-match-08-deep-agent necesita `AWS_BEDROCK_DEPLOY_ROLE_ARN_DEV`
-#     apuntando a module.security.bedrock_deploy_role_arn.
+# PR4a (Sprint 1): los 4 IAM roles fueron extraidos a modules/oidc-github.
+# Este modulo ahora recibe `kms_user_role_arns` cross-module para que la CMK
+# key policy pueda referenciar los ARNs de los 4 roles.
 ###############################################################################
 
 module "security" {
@@ -133,10 +160,20 @@ module "security" {
   # 7 dias en dev (mas rapido si hay que borrar el key); 30 en prod.
   kms_deletion_window_in_days = var.kms_deletion_window_in_days
 
-  # Repos GitHub permitidos a asumir los roles OIDC.
-  # Se mantienen como variables en live/dev/variables.tf para no hardcodear.
-  sam_deploy_github_repos     = var.sam_deploy_github_repos
-  bedrock_deploy_github_repos = var.bedrock_deploy_github_repos
+  # ARNs de los 4 roles creados por oidc_github module (cross-module reference).
+  # KMS exige que los principals existan al validar la policy, por lo que Terraform
+  # resuelve automaticamente el orden de creacion (oidc_github primero, security despues).
+  kms_user_role_arns = [
+    module.oidc_github.sam_deploy_role_arn,
+    module.oidc_github.bedrock_deploy_role_arn,
+    module.oidc_github.lambda_runtime_role_arn,
+    module.oidc_github.agentcore_runtime_role_arn,
+  ]
+
+  # Dependencia explicita: los 4 IAM roles deben existir antes de la CMK.
+  # Terraform infiere esto de la referencia anterior, pero lo hacemos explicito
+  # para que `terraform graph` muestre la relacion entre modules.
+  depends_on = [module.oidc_github]
 }
 
 ###############################################################################

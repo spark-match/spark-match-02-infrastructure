@@ -75,35 +75,13 @@ variable "kms_deletion_window_in_days" {
   }
 }
 
-variable "sam_deploy_github_repos" {
-  description = "Repos GitHub permitidos en el trust policy de spark-match-sam-deploy. Sub claim patterns se derivan automaticamente."
+variable "kms_user_role_arns" {
+  description = "ARNs de los IAM roles que pueden usar (kms:Encrypt/Decrypt/etc) la CMK creada por este modulo. Por defecto son los 4 roles extraidos a modules/oidc-github (sam_deploy, bedrock_deploy, lambda_runtime, agentcore_runtime). El caller (live/*/main.tf) pasa los ARNs cross-module desde `module.oidc_github.*_role_arn`."
   type        = list(string)
-  default     = ["spark-match/spark-match-03-backend"]
+  default     = []
 
   validation {
-    condition     = length(var.sam_deploy_github_repos) > 0
-    error_message = "sam_deploy_github_repos no puede estar vacio."
-  }
-}
-
-variable "bedrock_deploy_github_repos" {
-  description = "Repos GitHub permitidos en el trust policy de spark-match-bedrock-agentcore-deploy."
-  type        = list(string)
-  default     = ["spark-match/spark-match-08-deep-agent"]
-
-  validation {
-    condition     = length(var.bedrock_deploy_github_repos) > 0
-    error_message = "bedrock_deploy_github_repos no puede estar vacio."
-  }
-}
-
-variable "iam_role_max_session_duration" {
-  description = "Duracion maxima de la sesion (en segundos) para los 4 roles IAM creados por este modulo. Rango AWS: 3600-43200. Default 3600 (1h)."
-  type        = number
-  default     = 3600
-
-  validation {
-    condition     = var.iam_role_max_session_duration >= 3600 && var.iam_role_max_session_duration <= 43200
-    error_message = "iam_role_max_session_duration debe estar entre 3600 (1h) y 43200 (12h)."
+    condition     = length(var.kms_user_role_arns) >= 0
+    error_message = "kms_user_role_arns debe ser una lista (puede estar vacia si no hay roles)."
   }
 }

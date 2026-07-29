@@ -1,4 +1,4 @@
-###############################################################################
+﻿###############################################################################
 # Module: security
 #
 # Capa de seguridad perimetral y de identidad para Spark Match (Fase 1):
@@ -34,43 +34,13 @@ locals {
     }
   )
 
-  policies_dir = "${path.module}/policies"
-
-  # Sub claim patterns ESTRICTOS por env: el role de X-env solo acepta tokens
-  # emitidos para X-env. Asi, spark-match-sam-deploy-dev NO puede ser
-  # asumido por un workflow que apunte a environment:prod en el sub claim.
-  #
-  # Format: `repo:OWNER@USERID/REPO@REPOID:event` (formato actual de GitHub
-  # Actions con numeric IDs; ver AGENTS.md item 4 de "Reglas duras").
-  # Usamos `@*` como wildcard para los IDs numericos, lo que matchea tanto
-  # para repos privados como publicos. Sin `@*`, los tokens de GH Actions
-  # son rechazados por la trust policy.
-  #
-  # Verificado contra el sub claim emitido por GH Actions:
-  #   repo:spark-match@82984150/spark-match-03-backend@1285525572:pull_request
-  sam_deploy_sub_patterns = flatten([
-    for repo in var.sam_deploy_github_repos : [
-      "repo:${repo}@*:ref:refs/heads/dev",
-      "repo:${repo}@*:ref:refs/heads/main",
-      "repo:${repo}@*:environment:${var.environment}",
-    ]
-  ])
-
-  bedrock_deploy_sub_patterns = flatten([
-    for repo in var.bedrock_deploy_github_repos : [
-      "repo:${repo}@*:ref:refs/heads/dev",
-      "repo:${repo}@*:ref:refs/heads/main",
-      "repo:${repo}@*:environment:${var.environment}",
-    ]
-  ])
+  # Note: los 4 IAM roles (sam_deploy, bedrock_deploy, lambda_runtime, agentcore_runtime)
+  # y los policies JSON asociados fueron extraidos a modules/oidc-github en PR4a (Sprint 1).
+  # El modulo security ahora solo se encarga de KMS CMK + Security Groups.
 }
 
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
-
-locals {
-  oidc_provider_arn = "arn:${data.aws_partition.current.partition}:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
-}
 
 ###############################################################################
 # KMS - Customer Managed Key (CMK) por entorno
@@ -83,19 +53,11 @@ resource "aws_kms_key" "main" {
   deletion_window_in_days = var.kms_deletion_window_in_days
   multi_region            = false
 
-  # La key policy referencia los ARNs de los 4 IAM roles de este mismo modulo
-  # (sam_deploy, bedrock_deploy, lambda_runtime, agentcore_runtime). KMS exige
-  # que los principals existan al validar la policy, por lo que Terraform debe
-  # garantizar que los roles se creen ANTES de la key. Sin esta dependencia,
-  # KMS lanza "MalformedPolicyDocumentException: Policy contains a statement
-  # with one or more invalid principals." en el primer apply.
-  # Ref: IMPROVEMENTS.md [B12]
-  depends_on = [
-    aws_iam_role.sam_deploy,
-    aws_iam_role.bedrock_deploy,
-    aws_iam_role.lambda_runtime,
-    aws_iam_role.agentcore_runtime,
-  ]
+  # PR4a (Sprint 1): los 4 IAM roles (sam_deploy, bedrock_deploy, lambda_runtime,
+  # agentcore_runtime) se extrajeron a modules/oidc-github. Las dependencies de
+  # KMS ahora se manejan via el caller (live/*/main.tf) pasando KMS un `var.kms_role_arns`
+  # con los ARNs cross-module, y agregando `oidc_github` module como dependencia.
+  # Ref: IMPROVEMENTS.md [B12] / Sprint 1 refactor.
 
   # Key policy explicita: separa administradores de usuarios de la key.
   # - Administracion (kms:Create*, kms:ScheduleKeyDeletion, kms:PutKeyPolicy):
@@ -148,12 +110,7 @@ resource "aws_kms_key" "main" {
         Sid    = "IAMRolesUseCMK"
         Effect = "Allow"
         Principal = {
-          AWS = [
-            aws_iam_role.sam_deploy.arn,
-            aws_iam_role.bedrock_deploy.arn,
-            aws_iam_role.lambda_runtime.arn,
-            aws_iam_role.agentcore_runtime.arn,
-          ]
+          AWS = var.kms_user_role_arns
         }
         Action = [
           "kms:Encrypt",
@@ -328,205 +285,3 @@ resource "aws_security_group_rule" "endpoints_ingress_from_lambda" {
   security_group_id        = aws_security_group.endpoints.id
 }
 
-###############################################################################
-# Roles OIDC asumidos desde GitHub Actions
-###############################################################################
-#
-# Trust policy limitada por repo + branch + environment via el 'sub' claim del
-# token OIDC. Detalles completos y diagrama en docs/IAM_ROLES.md.
-#
-# Estrategia: cada role es por env. Cuando este modulo se invoca con
-# environment="dev", crea spark-match-sam-deploy-dev. Cuando se invoca con
-# environment="prod", crea spark-match-sam-deploy-prod. Asi el caller
-# (live/dev/main.tf o live/prod/main.tf) controla que role asume segun el env.
-###############################################################################
-
-# -----------------------------------------------------------------------------
-# spark-match-sam-deploy-{env} (reusable sam-deploy.yml desde 03-backend)
-# -----------------------------------------------------------------------------
-
-resource "aws_iam_role" "sam_deploy" {
-  name                 = "${var.project_name}-sam-deploy-${var.environment}"
-  description          = "Role asumido por spark-match-03-backend para deploy SAM en ${var.environment} (CloudFormation, Lambda, API GW, EventBridge). Ver docs/IAM_ROLES.md."
-  max_session_duration = var.iam_role_max_session_duration
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = local.oidc_provider_arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = local.sam_deploy_sub_patterns
-          }
-        }
-      }
-    ]
-  })
-
-  tags = local.common_tags
-}
-
-# Inline policy (~9.8 KB) -- excede limite de 6 KB de managed policy.
-# Usa templatefile() para interpolar ${environment} desde la policy por env.
-resource "aws_iam_role_policy" "sam_deploy_inline" {
-  name = "SamDeployPolicy"
-  role = aws_iam_role.sam_deploy.id
-  policy = templatefile("${local.policies_dir}/${var.environment}/spark-match-sam-deploy.json", {
-    environment = var.environment
-  })
-}
-
-# -----------------------------------------------------------------------------
-# spark-match-bedrock-agentcore-deploy-{env} (08-deep-agent)
-# -----------------------------------------------------------------------------
-
-resource "aws_iam_role" "bedrock_deploy" {
-  name                 = "${var.project_name}-bedrock-agentcore-deploy-${var.environment}"
-  description          = "Role asumido por spark-match-08-deep-agent para docker build+push a ECR y agentcore deploy en ${var.environment}. Ver docs/IAM_ROLES.md."
-  max_session_duration = var.iam_role_max_session_duration
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Principal = {
-          Federated = local.oidc_provider_arn
-        }
-        Action = "sts:AssumeRoleWithWebIdentity"
-        Condition = {
-          StringEquals = {
-            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
-          }
-          StringLike = {
-            "token.actions.githubusercontent.com:sub" = local.bedrock_deploy_sub_patterns
-          }
-        }
-      }
-    ]
-  })
-
-  tags = local.common_tags
-}
-
-resource "aws_iam_role_policy" "bedrock_deploy_inline" {
-  name = "BedrockAgentCoreDeployPolicy"
-  role = aws_iam_role.bedrock_deploy.id
-  policy = templatefile("${local.policies_dir}/${var.environment}/spark-match-bedrock-agentcore-deploy.json", {
-    environment = var.environment
-  })
-}
-
-###############################################################################
-# Execution roles (asumidos por Lambdas y por el contenedor de AgentCore)
-###############################################################################
-
-# -----------------------------------------------------------------------------
-# spark-match-lambda-runtime-{env}
-# -----------------------------------------------------------------------------
-
-data "aws_iam_policy_document" "lambda_assume_role" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "Service"
-      identifiers = ["lambda.amazonaws.com"]
-    }
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [data.aws_caller_identity.current.account_id]
-    }
-  }
-}
-
-resource "aws_iam_role" "lambda_runtime" {
-  name                 = "${var.project_name}-lambda-runtime-${var.environment}"
-  description          = "Execution role para Lambdas spark-match-backend-* en ${var.environment}. Logs + X-Ray + SSM + Secrets + Events + DDB + KMS."
-  max_session_duration = var.iam_role_max_session_duration
-  assume_role_policy   = data.aws_iam_policy_document.lambda_assume_role.json
-
-  tags = local.common_tags
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_basic_logs" {
-  role       = aws_iam_role.lambda_runtime.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_vpc_access" {
-  role       = aws_iam_role.lambda_runtime.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_xray_daemon" {
-  role       = aws_iam_role.lambda_runtime.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AWSXRayDaemonWriteAccess"
-}
-
-resource "aws_iam_role_policy" "lambda_runtime_inline" {
-  name = "LambdaRuntimePolicy"
-  role = aws_iam_role.lambda_runtime.id
-  policy = templatefile("${local.policies_dir}/${var.environment}/spark-match-lambda-runtime.json", {
-    environment = var.environment
-  })
-}
-
-# -----------------------------------------------------------------------------
-# spark-match-agentcore-runtime-{env}
-# -----------------------------------------------------------------------------
-
-data "aws_iam_policy_document" "agentcore_assume_role" {
-  statement {
-    effect  = "Allow"
-    actions = ["sts:AssumeRole"]
-    principals {
-      type = "Service"
-      identifiers = [
-        "bedrock-agentcore.amazonaws.com",
-        "ecs-tasks.amazonaws.com",
-      ]
-    }
-    condition {
-      test     = "StringEquals"
-      variable = "aws:SourceAccount"
-      values   = [data.aws_caller_identity.current.account_id]
-    }
-  }
-}
-
-resource "aws_iam_role" "agentcore_runtime" {
-  name                 = "${var.project_name}-agentcore-runtime-${var.environment}"
-  description          = "Execution role para el contenedor FastAPI del agente en Bedrock AgentCore (${var.environment}). Bedrock InvokeModel + Secrets + SSM + RDS-data + KMS."
-  max_session_duration = var.iam_role_max_session_duration
-  assume_role_policy   = data.aws_iam_policy_document.agentcore_assume_role.json
-
-  tags = local.common_tags
-}
-
-resource "aws_iam_role_policy_attachment" "agentcore_cw_agent" {
-  role       = aws_iam_role.agentcore_runtime.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/CloudWatchAgentServerPolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "agentcore_xray_daemon" {
-  role       = aws_iam_role.agentcore_runtime.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AWSXRayDaemonWriteAccess"
-}
-
-resource "aws_iam_role_policy" "agentcore_runtime_inline" {
-  name = "AgentCoreRuntimePolicy"
-  role = aws_iam_role.agentcore_runtime.id
-  policy = templatefile("${local.policies_dir}/${var.environment}/spark-match-agentcore-runtime.json", {
-    environment = var.environment
-  })
-}

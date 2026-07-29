@@ -167,20 +167,18 @@ module "kms" {
 }
 
 ###############################################################################
-# Module: security
+# Module: security-groups
 ###############################################################################
-# Capa de seguridad perimetral para dev (Fase 1.5):
-#   - 3 SGs: lambda (egress only), rds (ingress 5432 desde sg-lambda),
-#     endpoints (ingress 443 desde sg-lambda). Los 3 con `egress = []` inline
-#     para neutralizar el default "egress allow all 0.0.0.0/0" de AWS
-#     (IMPROVEMENTS.md A6/SEC-08).
+# 3 SGs cross-cutting: lambda (egress only), rds (ingress 5432 desde sg-lambda),
+# endpoints (ingress 443 desde sg-lambda). Los 3 con `egress = []` inline para
+# neutralizar el default "egress allow all 0.0.0.0/0" de AWS
+# (IMPROVEMENTS.md A6/SEC-08).
 #
-# PR4a (Sprint 1): los 4 IAM roles fueron extraidos a modules/oidc-github.
-# PR4b (Sprint 1): la CMK KMS fue extraida a modules/kms.
+# PR4c (Sprint 1): extraido de modules/security.
 ###############################################################################
 
-module "security" {
-  source = "../../modules/security"
+module "security_groups" {
+  source = "../../modules/security-groups"
 
   project_name = var.project_name
   environment  = var.environment
@@ -218,8 +216,8 @@ module "endpoints" {
   private_subnet_ids      = module.networking.private_subnet_ids
   private_route_table_ids = module.networking.private_route_table_ids
 
-  # SG de VPC endpoints (creado en module.security, con ingress 443 desde sg-lambda).
-  endpoints_security_group_id = module.security.sg_endpoints_id
+  # SG de VPC endpoints (creado en module.security_groups, con ingress 443 desde sg-lambda).
+  endpoints_security_group_id = module.security_groups.sg_endpoints_id
 
   # Decisión dev: solo S3 gateway endpoint (gratis), sin interface endpoints.
   enable_all_endpoints_by_default = var.enable_all_endpoints_by_default

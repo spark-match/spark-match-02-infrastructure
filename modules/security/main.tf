@@ -39,19 +39,28 @@ locals {
   # Sub claim patterns ESTRICTOS por env: el role de X-env solo acepta tokens
   # emitidos para X-env. Asi, spark-match-sam-deploy-dev NO puede ser
   # asumido por un workflow que apunte a environment:prod en el sub claim.
+  #
+  # Format: `repo:OWNER@USERID/REPO@REPOID:event` (formato actual de GitHub
+  # Actions con numeric IDs; ver AGENTS.md item 4 de "Reglas duras").
+  # Usamos `@*` como wildcard para los IDs numericos, lo que matchea tanto
+  # para repos privados como publicos. Sin `@*`, los tokens de GH Actions
+  # son rechazados por la trust policy.
+  #
+  # Verificado contra el sub claim emitido por GH Actions:
+  #   repo:spark-match@82984150/spark-match-03-backend@1285525572:pull_request
   sam_deploy_sub_patterns = flatten([
     for repo in var.sam_deploy_github_repos : [
-      "repo:${repo}:ref:refs/heads/dev",
-      "repo:${repo}:ref:refs/heads/main",
-      "repo:${repo}:environment:${var.environment}",
+      "repo:${repo}@*:ref:refs/heads/dev",
+      "repo:${repo}@*:ref:refs/heads/main",
+      "repo:${repo}@*:environment:${var.environment}",
     ]
   ])
 
   bedrock_deploy_sub_patterns = flatten([
     for repo in var.bedrock_deploy_github_repos : [
-      "repo:${repo}:ref:refs/heads/dev",
-      "repo:${repo}:ref:refs/heads/main",
-      "repo:${repo}:environment:${var.environment}",
+      "repo:${repo}@*:ref:refs/heads/dev",
+      "repo:${repo}@*:ref:refs/heads/main",
+      "repo:${repo}@*:environment:${var.environment}",
     ]
   ])
 }

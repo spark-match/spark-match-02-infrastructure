@@ -53,7 +53,8 @@ jobs:
             plan-role-arn-secret: AWS_PLAN_ROLE_ARN_DEV
 
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
-    secrets: inherit
+    secrets:
+      AWS_PLAN_ROLE_ARN: ${{ secrets[matrix.plan-role-arn-secret] }}
     with:
       environment: ${{ matrix.environment }}
       working-directory: ${{ matrix.working-directory }}
@@ -90,7 +91,8 @@ jobs:
             plan-role-arn-secret: AWS_PLAN_ROLE_ARN_PROD
 
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
-    secrets: inherit
+    secrets:
+      AWS_PLAN_ROLE_ARN: ${{ secrets[matrix.plan-role-arn-secret] }}
     with:
       environment: ${{ matrix.environment }}
       working-directory: ${{ matrix.working-directory }}

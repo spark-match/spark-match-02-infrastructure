@@ -38,8 +38,11 @@ jobs:
           - live/dev
           - live/prod
           - modules/security
+          - modules/security-groups   # Sprint 1: extracted SGs (has # checkov:skip for CKV2_AWS_5)
           - modules/networking
           - modules/endpoints
+          - modules/oidc-github      # Sprint 1: extracted OIDC + IAM roles
+          - modules/kms              # Sprint 1: extracted KMS CMK
 
     steps:
       - name: Checkout

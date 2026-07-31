@@ -55,6 +55,39 @@ desde `spark-match-01-devops`.
 - Ruleset activo: `spark-match-default-branch-protection` (1 approval + team
   review + status checks `Plan (dev)`, `Checkov`).
 
+## Prioridad de alertas de seguridad (regla dura)
+
+> **Regla dura**: toda alerta de seguridad reportada por Dependabot, CodeQL
+> o GitHub Advanced Security (GHAS / Code Scanning) tiene **prioridad P0**
+> (bloqueante para merge). No se mergea un PR con alertas abiertas de estas
+> herramientas.
+
+**Workflow obligatorio al encontrar una alerta:**
+
+1. **Clasificar** la alerta:
+   - `Dependabot`: vulnerabilidad en una dependencia (npm, github-actions, terraform provider).
+   - `CodeQL`: vulnerabilidad de código (SQL injection, XSS, hardcoded secrets, etc.).
+   - `GHAS / Code Scanning`: SARIF subido por checkov u otra herramienta de análisis estático.
+2. **Para alertas de Dependabot**: mergear el PR que Dependabot abre (auto-fix) O actualizar manualmente.
+3. **Para alertas de CodeQL**: arreglar el código o suprimir inline con `// lgtm[query-id]` + justificación.
+4. **Para alertas de GHAS / Code Scanning**:
+   - **Real**: arreglar el código (regla `# checkov:skip=ID:reason` con justificación válida, o refactor del recurso).
+   - **False positive**: dismissar con razón específica (`won't fix`, `false positive`, `used in tests`).
+5. **Verificar** con `gh api /repos/{owner}/{repo}/code-scanning/alerts` o
+   `gh api /repos/{owner}/{repo}/dependabot/alerts` que el count de open alerts = 0 antes de mergear.
+6. **Documentar** la acción en la bitácora del PR o en un task `/tasks/infra/`.
+
+**Anti-pattern**: dismissar alertas masivamente sin justificación, ocultar
+alertas, o marcarlas como wont_fix sin documentación. Esto oculta vulnerabilidades
+reales y bloquea la capacidad del equipo de auditar.
+
+**Excepción**: alertas duplicadas o de runs anteriores (mismo recurso, mismo SHA
+anterior) que ya fueron resueltas en el último push. Estas se pueden dejar
+que GH las auto-resuelva al pushear el fix.
+
+Referencia: política adoptada el 2026-07-31 tras cleanup de PR #65 (14 commits
++ 6 Code Scanning alerts dismissed + 1 PR fusionado con plan/dev limpio).
+
 ## Secrets y GH Env (estado actual)
 
 - **GitHub Secrets (4, per env)**:

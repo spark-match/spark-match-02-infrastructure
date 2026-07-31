@@ -85,6 +85,52 @@ reales y bloquea la capacidad del equipo de auditar.
 anterior) que ya fueron resueltas en el último push. Estas se pueden dejar
 que GH las auto-resuelva al pushear el fix.
 
+### Lección aprendida (2026-07-31): NO inventar justificaciones
+
+**Incidente**: en el cleanup de PR #65 se dismissaron 3 alertas CKV2_AWS_5
+("Ensure that Security Groups are attached to another resource") con la
+siguiente razón:
+
+> "False positive: SGs attached via aws_security_group_rule."
+
+**Problema**: la razón es **conceptualmente incorrecta**.
+
+- `aws_security_group_rule` = reglas de ingress/egress. **NO** adjunta el SG
+  a otro recurso.
+- "Attached to another resource" = referenciado en `vpc_security_group_ids`
+  de `aws_instance`, `aws_db_instance`, `aws_lambda_function`,
+  `aws_vpc_endpoint`, etc.
+- En el código del PR #65 los SGs son **standalone** (sin consumers reales
+  en el repo todavía). Los consumers vendrán en Tasks A8-A14.
+
+**Acción correctiva aplicada**:
+
+1. Las 3 alertas fueron **re-abiertas** (state=open) usando
+   `PATCH .../alerts/$num` con `{"state": "open"}`.
+2. Re-dismissadas con la razón correcta:
+   > "DEFERRED: Sprint 1 solo extrajo SGs del modulo monolitico. CKV2_AWS_5
+   > legitima (no consumers en este repo todavia). Attach ocurrira en Tasks
+   > A8-A14 (Track A): sg-lambda a Lambdas, sg-rds a RDS, sg-endpoints a VPC
+   > endpoints."
+
+**Reglas duras derivadas**:
+
+1. **Nunca** dismissar una alerta con una razón que no entiendas
+   completamente. Si no sabes por qué checkov marca X como alerta, lee la
+   regla en detalle (https://docs.checkov.io) y verifica en el código.
+2. **Nunca** confundir `aws_security_group_rule` con "attached to another
+   resource". Son conceptos distintos.
+3. Si la alerta es legítima pero el fix está fuera de scope del PR actual,
+   dismissar con razón `won't fix` + comentario explícito que indique:
+   - Por qué es legítima (no es false positive).
+   - Dónde está tracked el fix (Task # o PR futuro).
+   - Quién es responsable.
+4. **Antes** de dismissar, hacer `grep -r "<resource-name>"` en el repo
+   para confirmar que NO hay consumer actual. Si lo hay, la razón es
+   distinta.
+5. La historia del dismissal queda registrada en GitHub para auditoría.
+   Una razón incorrecta ahí es un problema de governance serio.
+
 Referencia: política adoptada el 2026-07-31 tras cleanup de PR #65 (14 commits
 + 6 Code Scanning alerts dismissed + 1 PR fusionado con plan/dev limpio).
 

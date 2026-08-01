@@ -90,17 +90,24 @@ desde `spark-match-01-devops`.
 >
 > - **Branch names**: `feat/sprint-N-*`, `fix/sprint-N-*`, `chore/sprint-N-*`
 >   (NO usar `feat/impl-N-*` ni `feat/prod-N-*`).
-> - **Task files** (estructura de sprints):
->   - `tasks/infra/pending/2026-MM-DD-sprint-N-overview.md` — 1 archivo
->     overview por Sprint (contexto, scope, acceptance criteria sprint-level,
->     lista de subtasks).
->   - `tasks/infra/pending/2026-MM-DD-sprint-N-NN-{name}.md` — N archivos
->     subtask numerados (01, 02, ...) por Sprint, donde NN es el orden de
->     ejecución y `{name}` es kebab-case descriptivo.
->   - Trackings cross-cutting: `2026-MM-DD-sprint-N-99-{name}-tracking.md`
+> - **Task files** (estructura de sprints con carpetas):
+>   - **Carpetas**: `tasks/infra/pending/sprint-N/` (activas) o
+>     `tasks/infra/archive/sprint-N/` (cerradas). La carpeta provee el
+>     contexto del sprint.
+>   - **Filenames**: SIN fecha, SIN prefijo `sprint-N`. Solo `overview.md`,
+>     `NN-{name}.md`, o `99-{name}-tracking.md`.
+>   - **Overview**: `tasks/infra/pending/sprint-N/overview.md` — 1 archivo
+>     por Sprint (contexto, scope, acceptance criteria sprint-level, lista
+>     de subtasks).
+>   - **Subtask**: `tasks/infra/pending/sprint-N/NN-{name}.md` — N archivos
+>     numerados (01, 02, ...) por Sprint, donde NN es el orden de ejecución
+>     y `{name}` es kebab-case descriptivo.
+>   - **Tracking cross-cutting**: `tasks/infra/pending/sprint-N/99-{name}-tracking.md`
 >     (NN alto reservado para tracking, no es PR real).
->   - NO usar `preflight-NN-*`, `track-a-*`, `impl-N-*`, ni archivos
->     "umbrella" sin numerar (reemplazados por `*-overview.md`).
+>   - **Metadatos** (fecha, sprint, pr_number) van DENTRO del markdown en
+>     frontmatter — NO en el filename.
+>   - NO usar `preflight-NN-*`, `track-a-*`, `impl-N-*`, ni nombres con
+>     fecha (`2026-MM-DD-*`).
 > - **PR labels**: `sprint-3-6` (NO `track-A` ni `impl-N`).
 > - **Doc headers**: `### Sprint 3-6`, `## Sprint 7-12` (NO `### Track A`).
 >

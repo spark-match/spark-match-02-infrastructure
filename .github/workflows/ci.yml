@@ -91,7 +91,6 @@ jobs:
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     with:
-      environment-name: dev
       project-key: "spark-match-02-infrastructure"
       project-name: "Spark Match Infrastructure"
       organization: "ahincho"

@@ -16,11 +16,19 @@
 #   - backend S3: spark-match-tfstate-{env}
 #   - OIDC role secret: AWS_APPLY_ROLE_ARN_{DEV,PROD} (cada uno apunta a un
 #     IAM role con trust policy restringido al env especifico).
-#   - GH Environment: dev (sin reviewers) vs production (con reviewers).
+#   - `environment: {dev,prod}` (input logico al reusable workflow)
+#   - `gh-environment: {dev,production}` (GH Environment real, alias legacy)
+#
+# NOTA sobre naming: el repo usa `prod` consistentemente (var.environment,
+# IAM role name, S3 bucket, working dir) excepto la GH Environment que se
+# llama `production` (alias legacy creado al inicio del proyecto).
+# El campo `gh-environment` permite mapear el nombre logico al real.
+# Renombrar la GH Environment a `prod` requiere accion manual via GitHub UI
+# (borrar `production`, crear `prod` con misma branch protection + reviewers).
 #
 # Secrets requeridos (ya configurados):
 #   AWS_APPLY_ROLE_ARN_DEV   = arn:aws:iam::...:role/spark-match-terraform-apply-dev
-#   AWS_APPLY_ROLE_ARN_PROD  = arn:aws:iam::...:role/spark-match-terraform-apply
+#   AWS_APPLY_ROLE_ARN_PROD  = arn:aws:iam::...:role/spark-match-terraform-apply-prod
 # =============================================================================
 
 name: CD - Terraform Apply

@@ -25,12 +25,6 @@ variable "tags" {
   default     = {}
 }
 
-variable "aws_region" {
-  description = "Region AWS. Necesaria para componer los service_name de los VPC endpoints."
-  type        = string
-  default     = "us-east-1"
-}
-
 variable "vpc_cidr" {
   description = "CIDR principal de la VPC."
   type        = string

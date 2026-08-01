@@ -1,0 +1,92 @@
+# =============================================================================
+# CI - Quality gates (stub for Sprint 2-01)
+# =============================================================================
+# Sprint 2-01 initial goal: agregar ci.yml con 4 jobs invocando reusables
+# de spark-match-01-devops (terraform-validate, tflint, gitleaks, sonar).
+#
+# Estado actual: el reusable terraform-validate falla con
+# "Failed to query available provider packages" porque algunos
+# `.terraform.lock.hcl` tienen hashes de providers que no resuelven en el
+# registry actual. Esto requiere regenerar los lockfiles (Task A3-04
+# first-terraform-apply lo hara como side effect).
+#
+# Por ahora este workflow es un stub que corre solo tflint (que no requiere
+# provider download). Los demas jobs se habilitaran despues de regenerar
+# los lockfiles.
+#
+# Ref: tasks/infra/pending/sprint-2/01-add-ci-workflows.md (acceptance criteria
+# parcialmente cumplido - structure creada, full reusables pendientes).
+# =============================================================================
+
+name: CI - Quality Gates
+
+on:
+  pull_request:
+    branches: [main, dev]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - ".tflint.hcl"
+      - ".github/workflows/**"
+      - ".pre-commit-config.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  id-token: write       # requerido por algunos reusables
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: tflint (no requiere provider download)
+  # ---------------------------------------------------------------------------
+  tflint:
+    name: tflint
+    uses: spark-match/spark-match-01-devops/.github/workflows/tflint.yml@main
+    with:
+      environment-name: dev
+      terraform-version: "1.10.0"
+      working-directory: "."
+
+  # ---------------------------------------------------------------------------
+  # Job 2: gitleaks (secret scanning)
+  # Requiere: GITLEAKS_LICENSE en org secrets (auto-forwarded via env del runner).
+  # ---------------------------------------------------------------------------
+  gitleaks:
+    name: gitleaks
+    uses: spark-match/spark-match-01-devops/.github/workflows/gitleaks.yml@main
+    with:
+      environment-name: dev
+
+  # ---------------------------------------------------------------------------
+  # Job 3: terraform-validate (requiere regenerar .terraform.lock.hcl primero)
+  # Habilitar despues de Task A4-04 (first-terraform-apply).
+  # ---------------------------------------------------------------------------
+  # terraform-validate:
+  #   name: terraform validate
+  #   uses: spark-match/spark-match-01-devops/.github/workflows/terraform-validate.yml@main
+  #   with:
+  #     environment-name: dev
+  #     terraform-version: "1.10.0"
+  #     working-directory: "."
+
+  # ---------------------------------------------------------------------------
+  # Job 4: sonar-terraform (SonarCloud quality gate)
+  # Requiere: SONAR_TOKEN + SonarCloud project "spark-match_02-infrastructure".
+  # ---------------------------------------------------------------------------
+  # sonar-terraform:
+  #   name: sonar-terraform
+  #   uses: spark-match/spark-match-01-devops/.github/workflows/sonar-terraform.yml@main
+  #   secrets:
+  #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #   with:
+  #     environment-name: dev
+  #     project-key: "spark-match_02-infrastructure"
+  #     project-name: "Spark Match Infrastructure"
+  #     organization: "spark-match"
+  #     sources: "live,modules"
+  #     exclude-patterns: "**/.terraform/**,**/node_modules/**,**/*.md"
+  #     working-directory: "."
+  #     env: "dev"
+  #     fail-on-quality-gate: "false"

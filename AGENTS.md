@@ -55,6 +55,63 @@ desde `spark-match-01-devops`.
 - Ruleset activo: `spark-match-default-branch-protection` (1 approval + team
   review + status checks `Plan (dev)`, `Checkov`).
 
+## Terminología unificada: solo "Sprint N" (regla dura)
+
+> **Regla dura**: a partir del 2026-07-31, toda referencia a fases, tracks o
+> implementation phases se hace **exclusivamente** como **"Sprint N"** (con N
+> entero, sin prefijos ni sufijos). NO se usan los siguientes términos en
+> código, docs, tasks, commits, branch names, labels, ni PR descriptions:
+>
+> - ❌ `Track A`, `Track B`, `track-A`, `track-B`
+> - ❌ `Impl-2`, `Impl-3`, `Impl-4`, `Impl-5`, `impl-2`, `impl-3`, `impl-4`, `impl-5`
+> - ❌ `Prod-1` a `Prod-6`, `prod-1` a `prod-6`
+> - ❌ `preflight`, `Preflight` (como categoría independiente)
+> - ❌ `A1`-`A30`, `B1`-`B6` (sin contexto de sprint)
+>
+> **Equivalencias canónicas** (usar siempre estas):
+>
+> | Concepto antiguo | Término unificado |
+> | ---------------- | ----------------- |
+> | Sprint 1 RECREATE | **Sprint 1** |
+> | preflight 01-08 (8 quality gates) | **Sprint 2** (sub-items: `Sprint 2-NN`) |
+> | Track A, Impl-2, foundation | **Sprint 3** |
+> | Track A, Impl-3, database/observability | **Sprint 4** |
+> | Track A, Impl-4, deploy automation | **Sprint 5** |
+> | Track A, Impl-5, hardening | **Sprint 6** |
+> | Track B, Prod-1 a Prod-6, production | **Sprint 7 a Sprint 12** |
+> | Sprint 7 (Prod-1) | **Sprint 7** |
+> | Sprint 8 (Prod-2) | **Sprint 8** |
+> | Sprint 9 (Prod-3) | **Sprint 9** |
+> | Sprint 10 (Prod-4) | **Sprint 10** |
+> | Sprint 11 (Prod-5) | **Sprint 11** |
+> | Sprint 12 (Prod-6) | **Sprint 12** |
+>
+> **Convenciones de naming derivadas**:
+>
+> - **Branch names**: `feat/sprint-N-*`, `fix/sprint-N-*`, `chore/sprint-N-*`
+>   (NO usar `feat/impl-N-*` ni `feat/prod-N-*`).
+> - **Task files**: `tasks/infra/pending/2026-MM-DD-sprint-N-*.md`
+>   (NO usar `preflight-NN-*`, `track-a-*`, `impl-N-*`).
+> - **PR labels**: `sprint-3-6` (NO `track-A` ni `impl-N`).
+> - **Doc headers**: `### Sprint 3-6`, `## Sprint 7-12` (NO `### Track A`).
+>
+> **Migración histórica**: el 2026-07-31 se hizo un sweep completo de tasks,
+> BACKEND-DEPLOY.md, INFRA-PREFLIGHT-CHECKLIST.md (renombrado a
+> INFRA-SPRINT-2-CHECKLIST.md) y AGENTS.md para unificar la terminología.
+> Cualquier referencia residual a "Track A/B", "Impl-N", "Prod-N" o
+> "preflight" debe corregirse al editar el archivo.
+>
+> **Excepción documentada**: si un término externo (ej: nombre de branch
+> upstream, referencia en código histórico) usa la nomenclatura antigua,
+> agregar entre paréntesis la equivalencia nueva SOLO en el primer comment
+> del archivo. Ej: `# antes: feat/impl-2-storage-modules (ahora: feat/sprint-3-storage-modules)`.
+> Después, usar solo la nueva.
+>
+> **Razón**: la mezcla de "Sprint", "Track", "Impl-N", "Prod-N" y
+> "preflight" generaba confusión mental para el owner (@ahincho) y para
+> cualquier revisor. Una sola dimensión de naming (Sprint N) elimina la
+> ambigüedad y facilita grep/búsqueda.
+
 ## Prioridad de alertas de seguridad (regla dura)
 
 > **Regla dura**: toda alerta de seguridad reportada por Dependabot, CodeQL

@@ -10,6 +10,10 @@
 #   - workflow_dispatch: corre Plan (dev) y Plan (prod) para que el equipo
 #     valide cambios contra prod antes de mergear a main.
 #
+# Naming convention: el repo usa `prod` consistentemente (var.environment,
+# IAM role, S3 bucket, working dir). La GH Environment real se llama
+# `production` (alias legacy). Ver terraform-apply.yml para detalle.
+#
 # Para agregar un nuevo env (ej. staging):
 #   1. Agregar entrada en la matrix.
 #   2. Crear el GH Secret AWS_PLAN_ROLE_ARN_<ENV>.

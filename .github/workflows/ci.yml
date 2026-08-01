@@ -1,28 +1,23 @@
 # =============================================================================
 # CI - Quality gates (validate, tflint, gitleaks, sonar)
 # =============================================================================
-# Workflow agregado de CI para terraform-02-infrastructure. Invoca 4 reusables
+# Workflow agregado de CI para terraform-02-infrastructure. Invoca reusables
 # de spark-match-01-devops en paralelo:
 #
 #   1. terraform-validate (terraform init -backend=false + terraform validate)
 #   2. tflint               (terraform linter con .tflint.hcl)
 #   3. gitleaks             (secret scanning; requiere GITLEAKS_LICENSE org secret)
-#   4. sonar-terraform      (SonarCloud quality gate; requiere SONAR_TOKEN + project)
+#
+# SonarCloud quality gate (sonar-terraform.yml) requiere SONAR_TOKEN + project
+# que aun no estan configurados. Habilitar cuando esten listos (ver #76).
 #
 # Trigger: pull_request contra dev/main cuando se modifican:
 #   - **.tf / **.tfvars     (cambios Terraform)
 #   - .tflint.hcl           (cambios config linter)
 #   - .github/workflows/**  (cambios workflows)
 #
-# Pre-conditions (deben existir antes del primer run):
-#   [ ] SONAR_TOKEN configurado (repo o org level secret)
-#   [ ] SONAR_TOKEN tiene scope "Execute Analysis" en SonarCloud
-#   [ ] GITLEAKS_LICENSE configurado (org level secret, requerido por gitleaks v3)
-#   [ ] SonarCloud project "spark-match_02-infrastructure" existe
-#       (crear via SonarCloud UI: https://sonarcloud.io/projects/create)
-#
-# Cada job corre el reusable con `secrets: inherit` o `secrets: SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}`
-# segun corresponda (ver reusable workflow docs).
+# Pre-conditions:
+#   [ ] GITLEAKS_LICENSE configurado (org level secret) - requerido por gitleaks v3
 # =============================================================================
 
 name: CI - Quality Gates
@@ -60,7 +55,7 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 2: tflint
-  # Reusable: spark-match-01-devops/.github/workflows/tflint.yml
+  # Reusable: spark-match/spark-match-01-devops/.github/workflows/tflint.yml
   # Cross-owner safe: no AWS calls, no secrets.
   # ---------------------------------------------------------------------------
   tflint:
@@ -85,25 +80,24 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 4: sonar-terraform (SonarCloud quality gate)
-  # Reusable: spark-match/spark-match-01-devops/.github/workflows/sonar-terraform.yml
+  # DESHABILITADO hasta que SONAR_TOKEN y SonarCloud project esten configurados.
   # Requiere:
   #   - SONAR_TOKEN (repo o org level) con scope "Execute Analysis"
   #   - SonarCloud project "spark-match_02-infrastructure" existe
-  # El token se pasa explicitamente (cross-owner inheritance blocked por GH).
+  # Habilitar descomentando y configurando SONAR_TOKEN como secret.
   # ---------------------------------------------------------------------------
-  sonar-terraform:
-    name: sonar-terraform
-    if: ${{ vars.SONAR_ENABLED == 'true' }}   # disabled por default; enable cuando SONAR_TOKEN + project listos
-    uses: spark-match/spark-match-01-devops/.github/workflows/sonar-terraform.yml@main
-    secrets:
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    with:
-      environment-name: dev
-      project-key: "spark-match_02-infrastructure"
-      project-name: "Spark Match Infrastructure"
-      organization: "spark-match"
-      sources: "live,modules"
-      exclude-patterns: "**/.terraform/**,**/node_modules/**,**/*.md"
-      working-directory: "."
-      env: "dev"
-      fail-on-quality-gate: "false"
+  # sonar-terraform:
+  #   name: sonar-terraform
+  #   uses: spark-match/spark-match-01-devops/.github/workflows/sonar-terraform.yml@main
+  #   secrets:
+  #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #   with:
+  #     environment-name: dev
+  #     project-key: "spark-match_02-infrastructure"
+  #     project-name: "Spark Match Infrastructure"
+  #     organization: "spark-match"
+  #     sources: "live,modules"
+  #     exclude-patterns: "**/.terraform/**,**/node_modules/**,**/*.md"
+  #     working-directory: "."
+  #     env: "dev"
+  #     fail-on-quality-gate: "false"

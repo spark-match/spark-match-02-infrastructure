@@ -222,6 +222,56 @@ Referencia: política adoptada el 2026-07-31 tras cleanup de PR #65 (14 commits
   - `dev` — branch policy = `dev`, sin reviewers, auto-approve=true.
   - `production` — branch policy = `main`, required reviewers = @spark-match/devops.
 
+## Admin bypass policy
+
+> **Regla dura** (adoptada 2026-08-01 tras PR #200 devops + PR #77/#78/#79
+> del repo infra que bypasearon tflint via admin-bypass). Define cuando es
+> aceptable usar `--admin` en `gh pr merge` para forzar un merge contra las
+> required checks del ruleset `spark-match-default-branch-protection`.
+
+**Admin bypass SOLO permitido cuando se cumplen TODAS estas condiciones:**
+
+1. TODOS los required checks en SUCCESS (Plan dev, Checkov, tflint, gitleaks,
+   sonar-terraform), Y
+2. No hay reviewer disponible (nocturno, urgencia operativa, sin quorum de
+   CODEOWNERS), Y
+3. Queda documentado en la PR description + commit message con razon
+   explicita (no "fix urgente" generico, sino contexto operativo concreto).
+
+**Admin bypass NO permitido cuando:**
+
+- Cualquier required check en FAILURE (incluyendo tflint, gitleaks,
+  sonar-terraform).
+- Alertas CodeQL / Dependabot / GHAS OPEN (regla dura ya existente, ver
+  seccion "Prioridad de alertas de seguridad").
+- Coverage gap.
+- "Solo para mergear rapido" sin justificacion operativa documentada.
+
+**Workflow al usar admin-bypass:**
+
+1. Abrir PR normalmente.
+2. Esperar a que TODOS los required checks pasen en verde.
+3. Si no hay reviewer en el CODEOWNERS team disponible, documentar en la
+   PR description:
+   - Que se intenta admin-bypass.
+   - Por que no hay reviewer (contexto operativo).
+   - Que el autor del PR (@ahincho) se hace responsable.
+4. `gh pr merge --admin --squash --delete-branch`.
+5. El commit de merge debe llevar en el body la justificacion operativa.
+6. Documentar el bypass en la bitacora de la task correspondiente
+   (`tasks/infra/pending/sprint-N/`).
+
+**Anti-pattern**: usar admin-bypass para "saltarse" checks en rojo.
+Esto oculta fallas de tooling / cobertura / seguridad y bloquea la
+capacidad del equipo de auditar. Si un check falla, se arregla el problema
+raíz, no se bypasea.
+
+Referencia: PR #200 (spark-match-01-devops) actualizo el ruleset 18893016
+agregando tflint/gitleaks/sonar-terraform como required checks. Antes de
+este PR, era posible (aunque no recomendado) admin-bypass con checks en
+rojo. A partir de 2026-08-01 eso esta formalmente prohibido por esta
+politica.
+
 ## Reglas duras (no negociables)
 
 1. **Nunca** pegar AKIA / ASIA / access keys literales en archivos

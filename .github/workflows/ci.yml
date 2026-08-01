@@ -77,20 +77,26 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 4: sonar-terraform (SonarCloud quality gate)
-  # Requiere: SONAR_TOKEN + SonarCloud project "spark-match_02-infrastructure".
+  # Requiere: SONAR_TOKEN (org secret, visibility=all) + SonarCloud project
+  # "spark-match-02-infrastructure" bajo la org personal "ahincho" (verificado
+  # via SonarCloud API el 2026-08-01 durante pickup devops del task #02).
+  #
+  # La org personal "ahincho" se usa intencionalmente porque spark-match NO
+  # existe como organization en SonarCloud. Migracion a org spark-match
+  # queda deferida a Sprint futuro (requiere setup billing + re-migrar 6 proyectos).
   # ---------------------------------------------------------------------------
-  # sonar-terraform:
-  #   name: sonar-terraform
-  #   uses: spark-match/spark-match-01-devops/.github/workflows/sonar-terraform.yml@main
-  #   secrets:
-  #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-  #   with:
-  #     environment-name: dev
-  #     project-key: "spark-match_02-infrastructure"
-  #     project-name: "Spark Match Infrastructure"
-  #     organization: "spark-match"
-  #     sources: "live,modules"
-  #     exclude-patterns: "**/.terraform/**,**/node_modules/**,**/*.md"
-  #     working-directory: "."
-  #     env: "dev"
-  #     fail-on-quality-gate: "false"
+  sonar-terraform:
+    name: sonar-terraform
+    uses: spark-match/spark-match-01-devops/.github/workflows/sonar-terraform.yml@main
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    with:
+      environment-name: dev
+      project-key: "spark-match-02-infrastructure"
+      project-name: "Spark Match Infrastructure"
+      organization: "ahincho"
+      sources: "live,modules"
+      exclude-patterns: "**/.terraform/**,**/node_modules/**,**/*.md"
+      working-directory: "."
+      env: "dev"
+      fail-on-quality-gate: "false"

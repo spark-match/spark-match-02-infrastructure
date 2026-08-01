@@ -65,6 +65,8 @@
 # =============================================================================
 # Modulo de seguridad: IAM roles, OIDC trust policies, KMS CMK, Security Groups,
 # politicas IAM parametrizadas por ambiente.
+# DEPRECATED: split into oidc-github/kms/security-groups in Sprint 1 (#65).
+# Mantener solo para referencia historica; no agregar nuevos recursos.
 /modules/security/                           @spark-match/devops
 
 # Modulo de networking: VPC, subnets, route tables, NAT Gateway, internet gateway,
@@ -78,6 +80,19 @@
 # Modulo de notifications: SNS topics, subscriptions, event-rules y delivery
 # policies para alertas operacionales.
 /modules/notifications/                       @spark-match/devops
+
+# Sprint 1 RECREATE (#65): modulos extraidos del monolito security/.
+# Modulo OIDC + IAM: trust policies para roles asumibles por GitHub Actions
+# (terraform-plan, terraform-apply, sam-deploy, lambda-runtime, etc.).
+/modules/oidc-github/                        @spark-match/devops
+
+# Modulo KMS: Customer Managed Keys (CMK) con aliases por ambiente para
+# encryption-at-rest de recursos AWS (RDS, S3, EBS, etc.).
+/modules/kms/                                @spark-match/devops
+
+# Modulo Security Groups: SGs cross-cutting (sg-lambda, sg-rds, sg-endpoints)
+# parametrizados por ambiente, separados del modulo security deprecado.
+/modules/security-groups/                    @spark-match/devops
 
 # =============================================================================
 # Documentacion tecnica - DevOps gobierna

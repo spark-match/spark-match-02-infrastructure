@@ -90,8 +90,17 @@ desde `spark-match-01-devops`.
 >
 > - **Branch names**: `feat/sprint-N-*`, `fix/sprint-N-*`, `chore/sprint-N-*`
 >   (NO usar `feat/impl-N-*` ni `feat/prod-N-*`).
-> - **Task files**: `tasks/infra/pending/2026-MM-DD-sprint-N-*.md`
->   (NO usar `preflight-NN-*`, `track-a-*`, `impl-N-*`).
+> - **Task files** (estructura de sprints):
+>   - `tasks/infra/pending/2026-MM-DD-sprint-N-overview.md` — 1 archivo
+>     overview por Sprint (contexto, scope, acceptance criteria sprint-level,
+>     lista de subtasks).
+>   - `tasks/infra/pending/2026-MM-DD-sprint-N-NN-{name}.md` — N archivos
+>     subtask numerados (01, 02, ...) por Sprint, donde NN es el orden de
+>     ejecución y `{name}` es kebab-case descriptivo.
+>   - Trackings cross-cutting: `2026-MM-DD-sprint-N-99-{name}-tracking.md`
+>     (NN alto reservado para tracking, no es PR real).
+>   - NO usar `preflight-NN-*`, `track-a-*`, `impl-N-*`, ni archivos
+>     "umbrella" sin numerar (reemplazados por `*-overview.md`).
 > - **PR labels**: `sprint-3-6` (NO `track-A` ni `impl-N`).
 > - **Doc headers**: `### Sprint 3-6`, `## Sprint 7-12` (NO `### Track A`).
 >

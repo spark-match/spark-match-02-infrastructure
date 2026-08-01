@@ -26,9 +26,23 @@
 # Renombrar la GH Environment a `prod` requiere accion manual via GitHub UI
 # (borrar `production`, crear `prod` con misma branch protection + reviewers).
 #
-# Secrets requeridos (ya configurados):
-#   AWS_APPLY_ROLE_ARN_DEV   = arn:aws:iam::...:role/spark-match-terraform-apply-dev
-#   AWS_APPLY_ROLE_ARN_PROD  = arn:aws:iam::...:role/spark-match-terraform-apply-prod
+# Secrets requeridos (ya configurados en GitHub Secrets, audit 2026-08-01):
+#   AWS_APPLY_ROLE_ARN_DEV   = arn:aws:iam::681526276858:role/spark-match-terraform-apply-dev
+#   AWS_APPLY_ROLE_ARN_PROD  = arn:aws:iam::681526276858:role/spark-match-terraform-apply-prod
+#
+# Convencion de IAM role naming:
+#   spark-match-terraform-{plan|apply}-{dev|prod}
+#   ^^^^^^^^ ^^^^^^^^^^^  ^^^^^ ^^^^  ^^^^  ^^^^
+#   |        |            |     |     |     |
+#   |        |            |     |     |     +-- env (dev | prod)
+#   |        |            |     |     +-- tipo (apply tiene permisos write)
+#   |        |            |     +-- tipo (plan tiene permisos read-only)
+#   |        +-- proyecto (spark-match)
+#   +-- prefijo "spark-match" (nombre del programa)
+#
+# Los roles usan trust policy OIDC restringido al repo spark-match-02-infrastructure
+# con sub claim format: repo:OWNER/REPO:REF_TYPE (PR) o repo:OWNER/REPO@*:ref:... (push).
+# Cada role tiene permisos scopeados por env (arn:aws:iam::681526276858:role/spark-match-terraform-{plan,apply}-{env}).
 # =============================================================================
 
 name: CD - Terraform Apply

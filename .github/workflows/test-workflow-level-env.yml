@@ -1,0 +1,17 @@
+name: Test workflow-level env
+on:
+  workflow_dispatch:
+environment: dev
+permissions:
+  contents: read
+  id-token: write
+jobs:
+  test:
+    name: Test
+    uses: spark-match/spark-match-01-devops/.github/workflows/tflint.yml@main
+    with:
+      environment-name: dev
+      terraform-version: "1.10.0"
+      working-directory: "."
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}

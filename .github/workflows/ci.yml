@@ -51,13 +51,17 @@ jobs:
 
   # ---------------------------------------------------------------------------
   # Job 2: gitleaks (secret scanning)
-  # Requiere: GITLEAKS_LICENSE en org secrets (auto-forwarded via env del runner).
+  # Requiere: GITLEAKS_LICENSE en org secrets. Forward explicito al reusable
+  # cross-owner (no auto-heredado por GitHub Actions). Tracking en
+  # tasks/infra/pending/sprint-2/09-forward-gitleaks-license-in-ci-yml.md.
   # ---------------------------------------------------------------------------
   gitleaks:
     name: gitleaks
     uses: spark-match/spark-match-01-devops/.github/workflows/gitleaks.yml@main
     with:
       environment-name: dev
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
   # ---------------------------------------------------------------------------
   # Job 3: terraform-validate (requiere regenerar .terraform.lock.hcl primero)

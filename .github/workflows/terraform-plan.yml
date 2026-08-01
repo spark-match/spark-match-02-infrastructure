@@ -50,20 +50,22 @@ jobs:
         include:
           - environment: dev
             working-directory: live/dev
-            backend-bucket: spark-match-tfstate-dev
-            backend-key: dev/terraform.tfstate
             plan-role-arn-secret: AWS_PLAN_ROLE_ARN_DEV
 
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
-    secrets: inherit
+    secrets:
+      AWS_PLAN_ROLE_ARN: ${{ secrets[matrix.plan-role-arn-secret] }}
     with:
       environment: ${{ matrix.environment }}
       working-directory: ${{ matrix.working-directory }}
       aws-region: us-east-1
       plan-role-arn-secret: ${{ matrix.plan-role-arn-secret }}
       terraform-version: '1.10.0'
-      backend-bucket: ${{ matrix.backend-bucket }}
-      backend-key: ${{ matrix.backend-key }}
+      # backend-bucket NOT passed for PR plans: the state bucket doesn't exist
+      # yet (terraform apply hasn't run). The reusable workflow falls back to
+      # -backend=false when backend-bucket is empty, which is what we want for
+      # a fresh project. Full state integration will be enabled after the
+      # first apply (Track A Impl-2 or later).
       comment-on-pr: true
 
   # ---------------------------------------------------------------------------
@@ -89,7 +91,8 @@ jobs:
             plan-role-arn-secret: AWS_PLAN_ROLE_ARN_PROD
 
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
-    secrets: inherit
+    secrets:
+      AWS_PLAN_ROLE_ARN: ${{ secrets[matrix.plan-role-arn-secret] }}
     with:
       environment: ${{ matrix.environment }}
       working-directory: ${{ matrix.working-directory }}

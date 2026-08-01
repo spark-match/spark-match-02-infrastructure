@@ -79,6 +79,7 @@ jobs:
   # ---------------------------------------------------------------------------
   apply-dev:
     name: Apply (dev)
+    environment: dev
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/dev')
       || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'dev')
@@ -104,6 +105,7 @@ jobs:
   # ---------------------------------------------------------------------------
   apply-prod:
     name: Apply (prod)
+    environment: production
     if: |
       (github.event_name == 'push' && github.ref == 'refs/heads/main')
       || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'prod')

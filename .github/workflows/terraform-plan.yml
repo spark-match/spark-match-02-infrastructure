@@ -46,13 +46,15 @@ jobs:
   # Today: dev only. Add staging here if you create it later.
   # ---------------------------------------------------------------------------
   plan-pr:
-    name: Plan (${{ matrix.environment }})
+    name: Plan (PR - ${{ matrix.environment }})
+    environment: ${{ matrix.environment }}
     if: github.event_name == 'pull_request'
     strategy:
       fail-fast: false
       matrix:
         include:
           - environment: dev
+            gh-environment: dev
             working-directory: live/dev
             plan-role-arn-secret: AWS_PLAN_ROLE_ARN_DEV
 
@@ -61,6 +63,7 @@ jobs:
       AWS_PLAN_ROLE_ARN: ${{ secrets[matrix.plan-role-arn-secret] }}
     with:
       environment: ${{ matrix.environment }}
+      gh-environment: ${{ matrix.gh-environment }}
       working-directory: ${{ matrix.working-directory }}
       aws-region: us-east-1
       plan-role-arn-secret: ${{ matrix.plan-role-arn-secret }}
@@ -77,18 +80,20 @@ jobs:
   # trigger). Today: prod only.
   # ---------------------------------------------------------------------------
   plan-dispatch:
-    name: Plan (${{ matrix.environment }})
+    name: Plan (Dispatch - ${{ matrix.environment }})
     if: github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
         include:
           - environment: dev
+            gh-environment: dev
             working-directory: live/dev
             backend-bucket: spark-match-tfstate-dev
             backend-key: dev/terraform.tfstate
             plan-role-arn-secret: AWS_PLAN_ROLE_ARN_DEV
           - environment: prod
+            gh-environment: production
             working-directory: live/prod
             backend-bucket: spark-match-tfstate-prod
             backend-key: prod/terraform.tfstate
@@ -99,6 +104,7 @@ jobs:
       AWS_PLAN_ROLE_ARN: ${{ secrets[matrix.plan-role-arn-secret] }}
     with:
       environment: ${{ matrix.environment }}
+      gh-environment: ${{ matrix.gh-environment }}
       working-directory: ${{ matrix.working-directory }}
       aws-region: us-east-1
       plan-role-arn-secret: ${{ matrix.plan-role-arn-secret }}

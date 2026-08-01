@@ -15,7 +15,6 @@
 
 plugin "terraform" {
   enabled = true
-  version = "0.10.0"
 }
 
 plugin "aws" {

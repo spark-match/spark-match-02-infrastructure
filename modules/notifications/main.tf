@@ -154,9 +154,6 @@ resource "aws_sns_topic" "budget_alerts" {
 # Budgets no podria mandar mensajes al topic. Nadie mas puede publicar.
 ###############################################################################
 
-data "aws_partition" "current" {}
-data "aws_region" "current" {}
-
 resource "aws_sns_topic_policy" "budget_alerts" {
   arn = aws_sns_topic.budget_alerts.arn
 

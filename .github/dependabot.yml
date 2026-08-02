@@ -47,9 +47,6 @@ updates:
       - "/modules/networking"
       - "/modules/endpoints"
       - "/modules/notifications"
-      # DEPRECATED: /modules/security (split en Sprint 1). Mantener para
-      # historico pero no aparecera nuevo lock file porque el modulo no
-      # tiene versiones.tf activo.
     schedule:
       interval: "weekly"
       day: "monday"

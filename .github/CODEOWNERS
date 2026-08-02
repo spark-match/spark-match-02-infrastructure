@@ -35,8 +35,9 @@
 # =============================================================================
 # Paths tecnicos - DevOps gobierna
 # =============================================================================
-# CI/CD callers (terraform-apply.yml, terraform-plan.yml), CODEOWNERS, branch
-# protection, secrets/environments.
+# CI/CD workflows (terraform-{plan,apply}-{dev,prod}.yml, ci.yml,
+# terraform-security-scan.yml), CODEOWNERS, branch protection,
+# secrets/environments.
 /.github/                                    @spark-match/devops
 
 # Scripts auxiliares (apply.sh, destroy.sh, plan.sh, bootstrap-backend.sh,

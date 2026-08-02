@@ -39,17 +39,16 @@ permissions:
 jobs:
   apply-prod:
     name: Apply (prod)
-    environment: production
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@main
     secrets:
-      AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN }}
+      AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN_PROD }}
     with:
       environment: prod
       gh-environment: production
-      working-directory: ${{ vars.WORKING_DIRECTORY }}
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
       apply-role-arn-secret: AWS_APPLY_ROLE_ARN_PROD
       terraform-version: ${{ vars.TF_VERSION }}
-      backend-bucket: ${{ vars.BACKEND_BUCKET }}
-      backend-key: ${{ vars.BACKEND_KEY }}
+      backend-bucket: spark-match-tfstate-prod
+      backend-key: prod/terraform.tfstate
       auto-approve: false

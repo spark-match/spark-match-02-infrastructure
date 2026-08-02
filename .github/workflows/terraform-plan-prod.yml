@@ -25,16 +25,15 @@ permissions:
 jobs:
   plan-prod:
     name: Plan (prod)
-    environment: production
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
     secrets:
-      AWS_PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN }}
+      AWS_PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN_PROD }}
     with:
       environment: prod
-      working-directory: ${{ vars.WORKING_DIRECTORY }}
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
       plan-role-arn-secret: AWS_PLAN_ROLE_ARN_PROD
       terraform-version: ${{ vars.TF_VERSION }}
-      backend-bucket: ${{ vars.BACKEND_BUCKET }}
-      backend-key: ${{ vars.BACKEND_KEY }}
+      backend-bucket: spark-match-tfstate-prod
+      backend-key: prod/terraform.tfstate
       comment-on-pr: false

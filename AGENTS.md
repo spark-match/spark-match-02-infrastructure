@@ -35,9 +35,9 @@ desde `spark-match-01-devops`.
   `APPLY_ROLE_ARN`, `BACKEND_BUCKET`, etc. per env.
 - **Resto de inputs** (environment, working-directory, aws-region, backend-bucket,
   backend-key, comment-on-pr, auto-approve) viven **hardcoded** en los
-  workflows `terraform-plan.yml` y `terraform-apply.yml` por la limitacion
-  de GitHub Actions: un job que invoca un reusable workflow via `uses:` no
-  puede declarar `environment:` (regla de GH Actions, actionlint lo detecta),
+  workflows `terraform-plan-{env}.yml` y `terraform-apply-{env}.yml` por la
+  limitacion de GitHub Actions: un job que invoca un reusable workflow via
+  `uses:` no puede declarar `environment:` (regla de GH Actions, actionlint lo detecta),
   y por tanto no puede acceder a GH Environment variables desde ese contexto.
   La unica var accesible son las repo-scoped.
 

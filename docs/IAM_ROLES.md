@@ -374,7 +374,7 @@ Los trust policies de `spark-match-sam-deploy-{env}` y
 
 **Por que NO removemos los patterns `ref:refs/heads/*` y dejamos solo `environment:*`:**
 
-El workflow `terraform-plan.yml` (caller de `02-infrastructure`) corre en
+El workflow `terraform-plan-dev.yml` (caller de `02-infrastructure`) corre en
 `pull_request` contra `dev` o `main`. Ese job NO se asocia a un GH Environment,
 por lo que el token OIDC emitido por GitHub Actions **no contiene** el claim
 `environment:`. Solo contiene `ref:refs/heads/<branch>` y `pull_request`.
@@ -394,8 +394,8 @@ un PR antes de mergear).
 
 **Alternativa futura:** si el equipo decide endurecer mas, se podria crear
 un GH Environment "plan-dev" y "plan-prod" sin required reviewers, y mover
-el caller `terraform-plan.yml` para usar `environment: plan-dev` en el job
-`plan-pr`. Esto permitiria remover los patterns `ref:refs/heads/*`. Pero
+el caller `terraform-plan-dev.yml` para usar `environment: plan-dev` en el job
+`plan-dev`. Esto permitiria remover los patterns `ref:refs/heads/*`. Pero
 es un cambio de workflow que requiere decision explicita del equipo.
 
 **Conclusion:** mantenemos los 3 patterns. La decision queda registrada en

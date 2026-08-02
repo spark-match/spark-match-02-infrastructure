@@ -35,7 +35,7 @@ jobs:
       terraform-version: ${{ vars.TF_VERSION }}
       working-directory: "."
   # ---------------------------------------------------------------------------
-  # Job 2: Git Leaks (secret scanning)
+  # Job 2: Git Leaks (Secret Scanning)
   # ---------------------------------------------------------------------------
   gitleaks:
     name: gitleaks
@@ -44,7 +44,6 @@ jobs:
       environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
     secrets:
       GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
-
   # ---------------------------------------------------------------------------
   # Job 3: Terraform Validate
   # ---------------------------------------------------------------------------
@@ -55,7 +54,6 @@ jobs:
       environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
       terraform-version: ${{ vars.TF_VERSION }}
       working-directory: "."
-
   # ---------------------------------------------------------------------------
   # Job 4: SonarCloud Quality Gate
   # ---------------------------------------------------------------------------

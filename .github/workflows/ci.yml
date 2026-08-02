@@ -1,18 +1,4 @@
-# =============================================================================
-# CI - Quality gates
-# =============================================================================
-# Workflow de calidad que corre en cada PR contra dev/main y en dispatch
-# manual. Invoca 3 reusables de spark-match-01-devops:
-#   - tflint.yml: lint recursivo de Terraform
-#   - gitleaks.yml: escaneo de secretos en el historial completo del repo
-#   - sonar-terraform.yml: SonarCloud quality gate sobre live/ + modules/
-#
-# terraform-validate queda deshabilitado hasta regenerar los lockfiles
-# (algunos hashes de providers no resuelven en el registry actual). Tracking
-# en tasks/infra/pending/sprint-2/01-add-ci-workflows.md.
-# =============================================================================
-
-name: CI - Quality Gates
+name: Continuous Integration (CI)
 
 on:
   pull_request:
@@ -33,15 +19,13 @@ permissions:
   contents: read
   pull-requests: read
 
-# Cancela runs anteriores del mismo PR cuando llega un push nuevo.
-# Evita gastar runner minutes en tflint/gitleaks redundantes.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Job 1: tflint (no requiere provider download)
+  # Job 1: Terraform Linting
   # ---------------------------------------------------------------------------
   tflint:
     name: tflint
@@ -50,11 +34,8 @@ jobs:
       environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
       terraform-version: ${{ vars.TF_VERSION }}
       working-directory: "."
-
   # ---------------------------------------------------------------------------
-  # Job 2: gitleaks (secret scanning)
-  # Requiere: GITLEAKS_LICENSE en org secrets. Forward explicito al reusable
-  # cross-owner (no auto-heredado por GitHub Actions).
+  # Job 2: Git Leaks (secret scanning)
   # ---------------------------------------------------------------------------
   gitleaks:
     name: gitleaks
@@ -65,30 +46,18 @@ jobs:
       GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 
   # ---------------------------------------------------------------------------
-  # Job 3: terraform-validate (requiere regenerar .terraform.lock.hcl primero)
-  # Habilitar despues de regenerar los lockfiles.
+  # Job 3: Terraform Validate
   # ---------------------------------------------------------------------------
-  # terraform-validate:
-  #   name: terraform validate
-  #   uses: spark-match/spark-match-01-devops/.github/workflows/terraform-validate.yml@main
-  #   with:
-  #     environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
-  #     terraform-version: ${{ vars.TF_VERSION }}
-  #     working-directory: "."
+  terraform-validate:
+    name: terraform validate
+    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-validate.yml@main
+    with:
+      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      terraform-version: ${{ vars.TF_VERSION }}
+      working-directory: "."
 
   # ---------------------------------------------------------------------------
-  # Job 4: sonar-terraform (SonarCloud quality gate)
-  # Requiere: SONAR_TOKEN (org secret, visibility=all) + SonarCloud project
-  # "spark-match-02-infrastructure" bajo la org personal "ahincho" (verificado
-  # via SonarCloud API el 2026-08-01 durante pickup devops del task #02).
-  #
-  # La org personal "ahincho" se usa intencionalmente porque spark-match NO
-  # existe como organization en SonarCloud. Migracion a org spark-match
-  # queda deferida a futuro (requiere setup billing + re-migrar 6 proyectos).
-  #
-  # Todos los parametros vienen de vars/secrets para mantener una unica
-  # fuente de verdad (SONAR_* repo vars + SONAR_TOKEN org secret +
-  # SONAR_FAIL_ON_QUALITY_GATE org var).
+  # Job 4: SonarCloud Quality Gate
   # ---------------------------------------------------------------------------
   sonar-terraform:
     name: sonar-terraform

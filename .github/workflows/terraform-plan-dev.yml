@@ -39,15 +39,16 @@ permissions:
 jobs:
   plan-dev:
     name: Plan (dev)
+    environment: dev
     uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
     secrets:
-      AWS_PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN_DEV }}
+      AWS_PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN }}
     with:
       environment: dev
-      working-directory: live/dev
-      aws-region: us-east-1
+      working-directory: ${{ vars.WORKING_DIRECTORY }}
+      aws-region: ${{ vars.AWS_REGION }}
       plan-role-arn-secret: AWS_PLAN_ROLE_ARN_DEV
-      terraform-version: '1.10.0'
-      backend-bucket: ${{ github.event_name == 'workflow_dispatch' && 'spark-match-tfstate-dev' || '' }}
-      backend-key: ${{ github.event_name == 'workflow_dispatch' && 'dev/terraform.tfstate' || '' }}
+      terraform-version: ${{ vars.TF_VERSION }}
+      backend-bucket: ${{ github.event_name == 'workflow_dispatch' && vars.BACKEND_BUCKET || '' }}
+      backend-key: ${{ github.event_name == 'workflow_dispatch' && vars.BACKEND_KEY || '' }}
       comment-on-pr: ${{ github.event_name == 'pull_request' }}

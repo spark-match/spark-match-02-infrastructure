@@ -39,10 +39,10 @@ jobs:
     with:
       environment: dev
       gh-environment: dev
-      working-directory: live/dev
-      aws-region: us-east-1
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
+      aws-region: ${{ vars.AWS_REGION }}
       apply-role-arn-secret: AWS_APPLY_ROLE_ARN_DEV
-      terraform-version: '1.10.0'
+      terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-dev
       backend-key: dev/terraform.tfstate
       auto-approve: true

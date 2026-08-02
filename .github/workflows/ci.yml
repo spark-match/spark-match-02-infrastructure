@@ -45,8 +45,8 @@ jobs:
     name: tflint
     uses: spark-match/spark-match-01-devops/.github/workflows/tflint.yml@main
     with:
-      environment-name: dev
-      terraform-version: "1.10.0"
+      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      terraform-version: ${{ vars.TF_VERSION }}
       working-directory: "."
 
   # ---------------------------------------------------------------------------
@@ -59,7 +59,7 @@ jobs:
     name: gitleaks
     uses: spark-match/spark-match-01-devops/.github/workflows/gitleaks.yml@main
     with:
-      environment-name: dev
+      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
     secrets:
       GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
 

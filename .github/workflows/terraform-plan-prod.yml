@@ -30,10 +30,10 @@ jobs:
       AWS_PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN_PROD }}
     with:
       environment: prod
-      working-directory: live/prod
-      aws-region: us-east-1
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
+      aws-region: ${{ vars.AWS_REGION }}
       plan-role-arn-secret: AWS_PLAN_ROLE_ARN_PROD
-      terraform-version: '1.10.0'
+      terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate
       comment-on-pr: false

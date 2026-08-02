@@ -45,10 +45,10 @@ jobs:
     with:
       environment: prod
       gh-environment: production
-      working-directory: live/prod
-      aws-region: us-east-1
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
+      aws-region: ${{ vars.AWS_REGION }}
       apply-role-arn-secret: AWS_APPLY_ROLE_ARN_PROD
-      terraform-version: '1.10.0'
+      terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate
       auto-approve: false

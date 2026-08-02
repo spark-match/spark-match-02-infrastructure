@@ -33,7 +33,7 @@
 # arquitectonica Opcion A, IMPROVEMENTS.md A4/NET-01).
 # Flow logs desactivados en dev para minimizar costo (default false).
 #
-# Outputs consumidos por modules/security y modules/endpoints (Fase 1.5):
+# Outputs consumidos por modules/networking y modules/endpoints (Fase 1.5):
 #   - vpc_id, public_subnet_ids, private_subnet_ids, private_route_table_ids
 ###############################################################################
 
@@ -108,7 +108,7 @@ module "notifications" {
 #   - spark-match-lambda-runtime-dev      (Lambda service, spark-match-03-backend)
 #   - spark-match-agentcore-runtime-dev   (AgentCore service, spark-match-08-deep-agent)
 #
-# Extraido de modules/security en PR4a (Sprint 1). Patron copiado de
+# Extraido de modules/security-groups en PR4a (Sprint 1). Patron copiado de
 # orion-infrastructure/modules/oidc-github/.
 #
 # Wire a GitHub:
@@ -137,7 +137,7 @@ module "oidc_github" {
 # cifrar SSM/Secrets/S3/data-at-rest. CMK con `enable_key_rotation=true` y
 # `deletion_window_in_days=7` (estricto en dev).
 #
-# PR4b (Sprint 1): extraido de modules/security. Recibe `user_role_arns` cross-module
+# PR4b (Sprint 1): extraido de modules/security-groups. Recibe `user_role_arns` cross-module
 # desde module.oidc_github.*_role_arn para que la CMK key policy pueda referenciar
 # los ARNs de los 4 roles.
 ###############################################################################
@@ -173,7 +173,7 @@ module "kms" {
 # neutralizar el default "egress allow all 0.0.0.0/0" de AWS
 # (IMPROVEMENTS.md A6/SEC-08).
 #
-# PR4c (Sprint 1): extraido de modules/security.
+# PR4c (Sprint 1): extraido de modules/security-groups.
 ###############################################################################
 
 module "security_groups" {

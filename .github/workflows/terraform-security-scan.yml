@@ -48,7 +48,6 @@ jobs:
         path:
           - live/dev
           - live/prod
-          - modules/security          # DEPRECATED: split en Sprint 1
           - modules/security-groups   # Sprint 1: extracted SGs (has # checkov:skip for CKV2_AWS_5)
           - modules/networking
           - modules/endpoints

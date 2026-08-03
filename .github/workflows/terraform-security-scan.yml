@@ -39,7 +39,7 @@ permissions:
 
 jobs:
   checkov:
-    name: checkov (${{ matrix.path }})
+    name: checkov-${{ matrix.path }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -54,18 +54,18 @@ jobs:
           - modules/kms              # Sprint 1: extracted KMS CMK
 
     steps:
-      - name: Checkout
+      - name: checkout
         uses: actions/checkout@v7
 
-      - name: Set up Python
+      - name: set-up-python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Install checkov (pinned 3.2.415, aligned with devops reusable)
+      - name: install-checkov-pinned
         run: pip install --quiet "checkov==3.2.415"
 
-      - name: Run checkov (soft-fail)
+      - name: run-checkov
         working-directory: ${{ matrix.path }}
         run: |
           # soft-fail permite que el job continue aunque haya findings; el SARIF
@@ -80,7 +80,7 @@ jobs:
             --soft-fail \
             || true
 
-      - name: Upload SARIF to code scanning
+      - name: upload-sarif-to-code-scanning
         if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
@@ -88,7 +88,7 @@ jobs:
           category: checkov-${{ matrix.path }}
         continue-on-error: true
 
-      - name: Upload raw logs as artifact
+      - name: upload-raw-logs-as-artifact
         if: always()
         uses: actions/upload-artifact@v7
         with:

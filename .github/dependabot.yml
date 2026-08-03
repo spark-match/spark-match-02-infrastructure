@@ -13,6 +13,9 @@ updates:
   # GitHub Actions: escanea workflows y reusable workflows
   - package-ecosystem: "github-actions"
     directory: "/"
+    # Apuntar a `dev` (regla del repo: PRs contra dev primero, main via sync).
+    # Por default dependabot usa el default branch (main), que es anti-pattern.
+    target-branch: dev
     schedule:
       interval: "weekly"
       day: "monday"

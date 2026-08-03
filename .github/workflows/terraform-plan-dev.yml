@@ -10,7 +10,7 @@
 # (verifica contra state real).
 #
 # Reusable workflow origen:
-#   spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml
 #
 # Para agregar staging:
 #   1. cp terraform-plan-dev.yml terraform-plan-staging.yml
@@ -39,7 +39,7 @@ permissions:
 jobs:
   plan-dev:
     name: Plan (dev)
-    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
     secrets:
       AWS_PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN_DEV }}
     with:

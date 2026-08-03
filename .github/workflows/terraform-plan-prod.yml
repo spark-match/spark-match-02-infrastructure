@@ -36,7 +36,7 @@ jobs:
     name: plan-prod
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
     with:
-      environment: ${{ github.event_name == 'pull_request' ? '' : 'production' }}
+      environment: ${{ github.event_name != 'pull_request' && 'production' || '' }}
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
       plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN }}

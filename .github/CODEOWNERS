@@ -46,9 +46,14 @@
 
 # Configuracion tecnica de lint, git ignores y atributos.
 /.pre-commit-config.yaml                   @spark-match/devops
+/.pre-commit-hooks/                          @spark-match/devops
+/.commitlintrc.json                          @spark-match/devops
 /.tflint.hcl                                 @spark-match/devops
 /.gitignore                                  @spark-match/devops
 /.gitattributes                              @spark-match/devops
+
+# Tests bats (commitlint-config.bats + helpers).
+/tests/                                      @spark-match/devops
 
 # =============================================================================
 # Terraform - root modules por ambiente

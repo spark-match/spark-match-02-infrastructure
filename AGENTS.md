@@ -330,6 +330,15 @@ politica.
    jobs y steps, inputs/outputs de reusables, y templates embebidas
    (`name: checkov-${{ matrix.path }}`, NO `name: checkov (${{ matrix.path }})`).
 
+8. **Conventional Commits enforcer**: todo commit debe seguir Conventional
+   Commits 1.0.0 con type-enum y scope-enum definidos en `.commitlintrc.json`.
+   El enforcer corre en local (`.pre-commit-hooks/commit-msg.sh` via
+   `pre-commit install`) y en CI (`.github/workflows/commitlint.yml`
+   consumiendo el reusable de `01-devops`). Scope enum y regex del hook
+   local deben estar sincronizados (los bats tests en
+   `tests/bats/commitlint-config.bats` lo verifican). Para añadir un
+   scope nuevo ver la sección "Convenciones de Commits" arriba.
+
 ## Convenciones Terraform
 
 - **Provider**: AWS `~> 6.0` (fijo en `live/dev/versions.tf`,
@@ -390,6 +399,90 @@ descripciones de inputs o mensajes):
 esta repo introduce reusable workflows propios, ya van a kebab-case y no
 hay que renombrarlos después. El renombre posterior rompe links a
 workflow runs antiguos y complica búsquedas en GitHub UI.
+
+## Convenciones de Commits (Conventional Commits 1.0.0)
+
+> **Regla dura**: todo commit en este repo DEBE seguir Conventional Commits
+> 1.0.0. El enforcer corre en **dos puntos**:
+>
+> 1. **Local (commit-time)**: el hook `.pre-commit-hooks/commit-msg.sh`
+>    se invoca desde el pre-commit framework Python via el hook
+>    `commit-msg-conventional` declarado en `.pre-commit-config.yaml`.
+>    Es un script POSIX shell puro (sin Node, sin `npm install`).
+>    Duplica un subset de la reglas del CI para dar feedback inmediato
+>    antes de que el commit sea creado.
+>
+> 2. **CI (PR-time)**: el workflow `.github/workflows/commitlint.yml`
+>    consume el reusable `spark-match-01-devops/.github/workflows/
+>    reusable-commitlint.yml@v0.1.16`, que corre
+>    `wagoid/commitlint-github-action@v6` con la config local
+>    `.commitlintrc.json`. Si el hook local skipea un commit que CI
+>    rechaza, los bats tests en
+>    `tests/bats/commitlint-config.bats` (drift detector) lo detectan
+>    antes de CI.
+
+### Scope enum (20 infra scopes)
+
+Los scopes permitidos viven en `.commitlintrc.json` bajo `scope-enum` Y
+en `.pre-commit-hooks/commit-msg.sh` (regex). Deben estar sincronizados
+(los bats tests verifican esto). Lista actual:
+
+| Capa | Scopes |
+|---|---|
+| **Módulos** (componentes Terraform) | `oidc`, `networking`, `security`, `endpoints`, `kms`, `notifications`, `iam`, `observability`, `rds`, `lambda`, `budget` |
+| **Capas Terraform** | `live`, `modules`, `terraform` |
+| **Generales** | `ci`, `deps`, `docs`, `governance`, `scripts`, `repo` |
+
+El scope es **opcional** (`scope-empty: 0`). Los sync commits entre
+ramas usan `chore: sync dev into main` (sin scope) y son válidos.
+
+### Tipos permitidos (10)
+
+`feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `ci`,
+`perf`, `revert`. Heredados de `@commitlint/config-conventional`.
+
+### Reglas de subject
+
+- **lowercase**: sin letras mayúsculas en el subject.
+- **sin punto final**: el subject NO termina con `.`.
+- **header ≤ 100 chars**: validación sobre el FULL first line del commit
+  (incluye el prefijo `<type>(<scope>): `), NO solo el subject.
+
+### Exenciones
+
+Los siguientes prefijos pasan sin validación (heredan el patrón de
+01-devops):
+
+- `Merge ...`
+- `Revert "..."`
+- `fixup! ...`, `squash! ...`, `amend! ...`
+
+### Cómo añadir un scope nuevo
+
+1. Editar `.commitlintrc.json` `scope-enum` (lista en `rules.scope-enum[2]`).
+2. Editar `.pre-commit-hooks/commit-msg.sh` `SCOPE_RE` (regex ampliado).
+3. Actualizar la tabla en este AGENTS.md.
+4. Correr `bats tests/bats/commitlint-config.bats` localmente; los tests
+   de drift detectan cualquier desincronización.
+5. PR con `chore(governance): add <new-scope> to conventional commits scope-enum`.
+
+### Instalación local del hook
+
+```bash
+pip install pre-commit
+pre-commit install
+# Si quieres verificar archivos ya existentes:
+pre-commit run commit-msg-conventional --all-files
+```
+
+Si `pre-commit` no está disponible, `git commit` igual funciona pero
+sin el check local — el CI actúa como red de seguridad.
+
+### Referencia
+
+Catálogo de CI/CD compartido: [`spark-match-01-devops/AGENTS.md`](https://github.com/spark-match/spark-match-01-devops/blob/main/AGENTS.md)
+(§3 Conventional Commits, §5.1 kebab-case). Esta sección refleja la
+misma convención adaptada al scope enum de infra.
 
 ## Antes del primer apply
 

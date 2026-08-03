@@ -1,0 +1,54 @@
+{
+  "extends": ["@commitlint/config-conventional"],
+  "rules": {
+    "type-enum": [
+      2,
+      "always",
+      [
+        "feat",
+        "fix",
+        "chore",
+        "docs",
+        "refactor",
+        "test",
+        "build",
+        "ci",
+        "perf",
+        "revert"
+      ]
+    ],
+    "scope-empty": [0],
+    "scope-enum": [
+      2,
+      "always",
+      [
+        "oidc",
+        "networking",
+        "security",
+        "endpoints",
+        "kms",
+        "notifications",
+        "iam",
+        "observability",
+        "rds",
+        "lambda",
+        "budget",
+        "live",
+        "modules",
+        "terraform",
+        "ci",
+        "deps",
+        "docs",
+        "governance",
+        "scripts",
+        "repo"
+      ]
+    ],
+    "scope-case": [2, "always", "lower-case"],
+    "subject-case": [2, "always", "lower-case"],
+    "subject-full-stop": [2, "never", "."],
+    "header-max-length": [2, "always", 100],
+    "body-max-line-length": [0]
+  },
+  "helpUrl": "https://github.com/spark-match/spark-match-02-infrastructure/blob/main/AGENTS.md"
+}

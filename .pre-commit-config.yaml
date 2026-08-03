@@ -25,3 +25,19 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
       - id: detect-private-key
+
+  # Conventional Commits enforcement (mirrors the CI-side commitlint
+  # check defined in .commitlintrc.json). Lives in .pre-commit-hooks/
+  # so it is versioned alongside the repo. The hook script is a
+  # pure-bash + grep implementation; it duplicates the minimum subset
+  # of the CI rules so contributors get fast feedback at commit time
+  # without needing node + npm install to run commitlint locally.
+  - repo: local
+    hooks:
+      - id: commit-msg-conventional
+        name: conventional-commits-commit-msg
+        description: Validate commit message follows Conventional Commits (mirror of CI commitlint)
+        entry: ./.pre-commit-hooks/commit-msg.sh
+        language: script
+        stages: [commit-msg]
+        always_run: true

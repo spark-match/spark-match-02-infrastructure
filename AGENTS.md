@@ -330,6 +330,22 @@ politica.
    jobs y steps, inputs/outputs de reusables, y templates embebidas
    (`name: checkov-${{ matrix.path }}`, NO `name: checkov (${{ matrix.path }})`).
 
+8. **Conventional Commits enforcer**: todo commit debe seguir Conventional
+   Commits 1.0.0 con type-enum y scope-enum definidos en `.commitlintrc.json`.
+   El enforcer corre en local (`.pre-commit-hooks/commit-msg.sh` via
+   `pre-commit install`) y en CI (`.github/workflows/commitlint.yml`
+   consumiendo el reusable de `01-devops`). Scope enum y regex del hook
+   local deben estar sincronizados (los bats tests en
+   `tests/bats/commitlint-config.bats` lo verifican). Para añadir un
+   scope nuevo ver la sección "Convenciones de Commits" arriba.
+
+9. **Release-please + sync commits**: el flujo `dev` → `main` usa merge
+   commits (`chore: sync dev into main`). Estos commits NO bumpean version
+   en release-please porque `chore:` no es release-trigger. Solo `feat:`
+   o `fix:` (o commits con `BREAKING CHANGE:` footer) generan releases.
+   Esto es por diseño, NO requiere workarounds. Ver la sección "Releases"
+   arriba para el flujo completo.
+
 ## Convenciones Terraform
 
 - **Provider**: AWS `~> 6.0` (fijo en `live/dev/versions.tf`,
@@ -391,6 +407,90 @@ esta repo introduce reusable workflows propios, ya van a kebab-case y no
 hay que renombrarlos después. El renombre posterior rompe links a
 workflow runs antiguos y complica búsquedas en GitHub UI.
 
+## Convenciones de Commits (Conventional Commits 1.0.0)
+
+> **Regla dura**: todo commit en este repo DEBE seguir Conventional Commits
+> 1.0.0. El enforcer corre en **dos puntos**:
+>
+> 1. **Local (commit-time)**: el hook `.pre-commit-hooks/commit-msg.sh`
+>    se invoca desde el pre-commit framework Python via el hook
+>    `commit-msg-conventional` declarado en `.pre-commit-config.yaml`.
+>    Es un script POSIX shell puro (sin Node, sin `npm install`).
+>    Duplica un subset de la reglas del CI para dar feedback inmediato
+>    antes de que el commit sea creado.
+>
+> 2. **CI (PR-time)**: el workflow `.github/workflows/commitlint.yml`
+>    consume el reusable `spark-match-01-devops/.github/workflows/
+>    reusable-commitlint.yml@v0.1.16`, que corre
+>    `wagoid/commitlint-github-action@v6` con la config local
+>    `.commitlintrc.json`. Si el hook local skipea un commit que CI
+>    rechaza, los bats tests en
+>    `tests/bats/commitlint-config.bats` (drift detector) lo detectan
+>    antes de CI.
+
+### Scope enum (20 infra scopes)
+
+Los scopes permitidos viven en `.commitlintrc.json` bajo `scope-enum` Y
+en `.pre-commit-hooks/commit-msg.sh` (regex). Deben estar sincronizados
+(los bats tests verifican esto). Lista actual:
+
+| Capa | Scopes |
+|---|---|
+| **Módulos** (componentes Terraform) | `oidc`, `networking`, `security`, `endpoints`, `kms`, `notifications`, `iam`, `observability`, `rds`, `lambda`, `budget` |
+| **Capas Terraform** | `live`, `modules`, `terraform` |
+| **Generales** | `ci`, `deps`, `docs`, `governance`, `scripts`, `repo` |
+
+El scope es **opcional** (`scope-empty: 0`). Los sync commits entre
+ramas usan `chore: sync dev into main` (sin scope) y son válidos.
+
+### Tipos permitidos (10)
+
+`feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `build`, `ci`,
+`perf`, `revert`. Heredados de `@commitlint/config-conventional`.
+
+### Reglas de subject
+
+- **lowercase**: sin letras mayúsculas en el subject.
+- **sin punto final**: el subject NO termina con `.`.
+- **header ≤ 100 chars**: validación sobre el FULL first line del commit
+  (incluye el prefijo `<type>(<scope>): `), NO solo el subject.
+
+### Exenciones
+
+Los siguientes prefijos pasan sin validación (heredan el patrón de
+01-devops):
+
+- `Merge ...`
+- `Revert "..."`
+- `fixup! ...`, `squash! ...`, `amend! ...`
+
+### Cómo añadir un scope nuevo
+
+1. Editar `.commitlintrc.json` `scope-enum` (lista en `rules.scope-enum[2]`).
+2. Editar `.pre-commit-hooks/commit-msg.sh` `SCOPE_RE` (regex ampliado).
+3. Actualizar la tabla en este AGENTS.md.
+4. Correr `bats tests/bats/commitlint-config.bats` localmente; los tests
+   de drift detectan cualquier desincronización.
+5. PR con `chore(governance): add <new-scope> to conventional commits scope-enum`.
+
+### Instalación local del hook
+
+```bash
+pip install pre-commit
+pre-commit install
+# Si quieres verificar archivos ya existentes:
+pre-commit run commit-msg-conventional --all-files
+```
+
+Si `pre-commit` no está disponible, `git commit` igual funciona pero
+sin el check local — el CI actúa como red de seguridad.
+
+### Referencia
+
+Catálogo de CI/CD compartido: [`spark-match-01-devops/AGENTS.md`](https://github.com/spark-match/spark-match-01-devops/blob/main/AGENTS.md)
+(§3 Conventional Commits, §5.1 kebab-case). Esta sección refleja la
+misma convención adaptada al scope enum de infra.
+
 ## Antes del primer apply
 
 1. Decidir cuenta AWS y region (default `us-east-1`).
@@ -402,6 +502,65 @@ workflow runs antiguos y complica búsquedas en GitHub UI.
 5. `cd live/dev && terraform init && terraform plan`.
 
 Si el primer apply falla, ver [`docs/runbook-tfstate-recovery.md`](docs/runbook-tfstate-recovery.md).
+
+## Releases — release-please automatico
+
+`.github/workflows/release-please.yml` se dispara en cada push a `main`
+y consume el reusable compartido `spark-match-01-devops/.github/
+workflows/reusable-release-please.yml@v0.1.16`. Configuracion local:
+
+- `.github/release-please-config.json` — `release-type: simple`,
+  `tag-separator: @`, `package-name: spark-match-02-infrastructure`.
+- `.release-please-manifest.json` — `{ ".": "0.1.0" }` (semver actual).
+- Tag format: `v0.1.0@spark-match-02-infrastructure`.
+
+El flujo es:
+
+1. Push a `main` dispara `release-please`.
+2. release-please mira los commits desde el ultimo tag y determina el
+   bump (feat → minor, fix → patch, breaking change → major).
+3. Si hay bump, abre un PR `release <version>` con CHANGELOG.md
+   actualizado.
+4. Merge del PR → tag + GitHub Release + bump del manifest.
+
+**Importante**: los commits `chore: sync dev into main` NO bumpean
+(chore no es release-trigger). Solo `feat:` y `fix:` (o commits con
+`BREAKING CHANGE:` footer) generan releases.
+
+### Bootstrap de GitHub App secrets
+
+El workflow requiere 2 secrets en GitHub Actions (repo or org level):
+
+- `RELEASE_PLEASE_APP_ID` — ID del GitHub App.
+- `RELEASE_PLEASE_APP_PRIVATE_KEY` — Llave privada (PEM) del App.
+
+Estos secrets se reutilizan de la misma GitHub App que `spark-match-01-devops`
+usa (mismo org owner). Si no estan configurados, el workflow falla con:
+
+  Error: The 'client-id' (or deprecated 'app-id') input must be set to
+  a non-empty string.
+
+**Setup**:
+
+1. Settings → Secrets and variables → Actions → New repository secret.
+2. Name: `RELEASE_PLEASE_APP_ID`, Value: el ID numerico del App.
+3. Name: `RELEASE_PLEASE_APP_PRIVATE_KEY`, Value: el contenido del
+   archivo `.pem` (con saltos de linea, copiar literal).
+4. Asegurarse que el App este instalado en el repo `spark-match-02-infrastructure`
+   con permisos: Contents (write), Pull requests (write), Metadata (read).
+
+### Sync dev → main
+
+Este repo usa el patron `dev` → `main` con merge commits (`chore: sync dev into main`).
+El workflow `release-please` dispara en cada push a `main`, así que
+los sync commits entre dev y main también disparan el workflow, pero
+como el sync commit es `chore:`, no se bump-ea version. Los `feat:`
+y `fix:` reales (mergeados a dev primero) sí son detectados por
+release-please cuando se sync-ean a main.
+
+**Override**: si necesitas bumpear manualmente o evitar un release,
+usa `[skip release]` en el footer del commit o mergea el release PR
+manualmente con la version deseada.
 
 ## Cleanup de infraestructura (convencion pipeline-only)
 

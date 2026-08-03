@@ -1,0 +1,22 @@
+name: commitlint
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: commitlint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint-commits:
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-commitlint.yml@v0.1.16
+    with:
+      config-file: .commitlintrc.json
+      help-url: "https://github.com/spark-match/spark-match-02-infrastructure/blob/dev/AGENTS.md"
+      skip-release-please: true

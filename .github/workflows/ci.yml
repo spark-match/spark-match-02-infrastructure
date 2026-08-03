@@ -10,6 +10,9 @@ on:
       - ".tflint.hcl"
       - ".github/workflows/**"
       - ".pre-commit-config.yaml"
+      - ".commitlintrc.json"
+      - ".pre-commit-hooks/**"
+      - "tests/bats/**"
       - "docs/**"
       - "AGENTS.md"
       - "README.md"
@@ -71,3 +74,23 @@ jobs:
       working-directory: "."
       env: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
       fail-on-quality-gate: ${{ vars.SONAR_FAIL_ON_QUALITY_GATE }}
+
+  # ---------------------------------------------------------------------------
+  # Job 5: Bats (regression guards for .commitlintrc.json + the
+  # local commit-msg hook). Runs only when files under .commitlintrc.json,
+  # .pre-commit-hooks/, tests/bats/ change. Mirrors the convention in
+  # spark-match-01-devops (one bats job per consumer repo).
+  # ---------------------------------------------------------------------------
+  quality-bats:
+    name: quality / bats
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: checkout-repository
+        uses: actions/checkout@v7
+      - name: install-bats
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bats
+      - name: run-bats
+        run: bats tests/bats/

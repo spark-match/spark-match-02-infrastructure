@@ -26,13 +26,11 @@ jobs:
   plan-prod:
     name: Plan (prod)
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
-    secrets:
-      AWS_PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN_PROD }}
     with:
       environment: prod
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
-      plan-role-arn-secret: AWS_PLAN_ROLE_ARN_PROD
+      plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN_PROD }}
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate

@@ -34,14 +34,12 @@ jobs:
   apply-dev:
     name: Apply (dev)
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml@main
-    secrets:
-      AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN_DEV }}
     with:
       environment: dev
       gh-environment: dev
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
       aws-region: ${{ vars.AWS_REGION }}
-      apply-role-arn-secret: AWS_APPLY_ROLE_ARN_DEV
+      apply-role-arn: ${{ vars.AWS_APPLY_ROLE_ARN_DEV }}
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-dev
       backend-key: dev/terraform.tfstate

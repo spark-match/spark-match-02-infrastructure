@@ -322,6 +322,14 @@ politica.
    que intente usar el default SG falla porque no hay reglas. SIEMPRE
    declarar SGs dedicados en los modulos.
 
+7. **kebab-case en `name:` de workflows / jobs / steps**: prohibido Title
+   Case, CamelCase, snake_case, ni paréntesis con espacios. Display
+   names como `Apply (dev)` son un anti-pattern; usar `apply-dev`. El
+   catálogo de [`spark-match-01-devops/AGENTS.md` §5.1](https://github.com/spark-match/spark-match-01-devops/blob/main/AGENTS.md)
+   es la fuente de verdad. Esta convención se aplica también a `id:` de
+   jobs y steps, inputs/outputs de reusables, y templates embebidas
+   (`name: checkov-${{ matrix.path }}`, NO `name: checkov (${{ matrix.path }})`).
+
 ## Convenciones Terraform
 
 - **Provider**: AWS `~> 6.0` (fijo en `live/dev/versions.tf`,
@@ -337,6 +345,51 @@ politica.
   (`project_name` kebab-case, `environment` in `["dev","staging","prod"]`).
 - **Outputs**: exponer ARNs de IAM y bucket name para wiring desde otros
   repos spark-match via `github_actions_secret` (futuro).
+
+## Convenciones de GitHub Actions YAML
+
+Esta repo consume reusable workflows desde
+[`spark-match-01-devops`](https://github.com/spark-match/spark-match-01-devops)
+y también define workflows internos en `.github/workflows/`. Ambos tipos
+deben seguir la convención **kebab-case** para identificadores, definida
+en
+[`spark-match-01-devops/AGENTS.md` §5.1](https://github.com/spark-match/spark-match-01-devops/blob/main/AGENTS.md)
+(sección "Naming convention - kebab-case obligatorio").
+
+Aplica a:
+
+- **`name:`** de workflow (top-level), de job y de step.
+- **`id:`** de job y de step.
+- **Inputs / outputs** (cuando se introduzcan reusables locales).
+- **Templates** embebidas en `name:`: concatenar con `-`, nunca con
+  espacio. Ejemplo: `name: checkov-${{ matrix.path }}`, NO
+  `name: checkov (${{ matrix.path }})`.
+
+**Excepciones** (no kebab):
+
+- URLs externas (`https://github.com/...`).
+- Nombres de actions de terceros (`actions/checkout`,
+  `aws-actions/configure-aws-credentials`).
+- Nombres de eventos de GitHub (`pull_request`, `push`,
+  `workflow_dispatch`).
+- GH Environment names (`dev`, `production`).
+- Branch names literales referenciados en scripts.
+
+**Brand mapping** (referencias a marcas/herramientas en `name:`,
+descripciones de inputs o mensajes):
+
+| Marca | Kebab |
+|---|---|
+| `Terraform` | `terraform` |
+| `TFLint` | `tflint` |
+| `Checkov` | `checkov` |
+| `CodeQL` | `codeql` |
+| `SonarCloud` | `sonar-cloud` |
+
+**Por qué**: consistencia con el catálogo de `01-devops`. Si en el futuro
+esta repo introduce reusable workflows propios, ya van a kebab-case y no
+hay que renombrarlos después. El renombre posterior rompe links a
+workflow runs antiguos y complica búsquedas en GitHub UI.
 
 ## Antes del primer apply
 

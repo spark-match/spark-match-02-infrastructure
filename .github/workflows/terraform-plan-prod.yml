@@ -24,7 +24,7 @@ permissions:
 
 jobs:
   plan-prod:
-    name: Plan (prod)
+    name: plan-prod
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
     with:
       environment: prod

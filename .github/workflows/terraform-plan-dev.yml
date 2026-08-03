@@ -44,7 +44,7 @@ jobs:
       environment: dev
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
       aws-region: ${{ vars.AWS_REGION }}
-      plan-role-arn-secret: AWS_PLAN_ROLE_ARN_DEV
+      plan-role-arn-secret: AWS_PLAN_ROLE_ARN
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: ${{ github.event_name == 'workflow_dispatch' && 'spark-match-tfstate-dev' || '' }}
       backend-key: ${{ github.event_name == 'workflow_dispatch' && 'dev/terraform.tfstate' || '' }}

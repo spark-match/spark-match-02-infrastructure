@@ -30,6 +30,8 @@
 - [ ] `pre-commit run --all-files` corre sin errores
 - [ ] `tflint` corre sin errores
 - [ ] `checkov` corre y revisé los findings (justificar los aceptados)
+- [ ] Los commits siguen Conventional Commits (ver AGENTS.md "Convenciones de Commits")
+- [ ] Si agregue un scope nuevo a `.commitlintrc.json`, tambien actualice la regex en `.pre-commit-hooks/commit-msg.sh` y la tabla en AGENTS.md
 - [ ] Documente cambios en `README.md` / `docs/IAM_ROLES.md` si aplica
 - [ ] Si agregue un path nuevo al repo, lo liste en `.github/CODEOWNERS`
 - [ ] Si toque politicas IAM, verifique que el bucket de tfstate del ambiente correcto esta parametrizado

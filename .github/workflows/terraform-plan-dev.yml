@@ -5,17 +5,21 @@
 #   - pull_request a dev o main (solo plan dev, evita exponer prod state).
 #   - workflow_dispatch (manual, con S3 backend).
 #
+# Por diseño (Sprint 12 / PR #262 en 01-devops) este caller NO bind a env.
+# Esto es porque el ref `refs/pull/N/merge` no esta en la branch policy del
+# env `dev`, y bindear provocaria `runner_id: 0` (rechazo del deployment
+# antes de asignar runner). Sin bind, el job corre limpio.
+#
+# El role ARN se pasa como string (no secret) via repo-wide var
+# `AWS_PLAN_ROLE_ARN`. ARNs son identifiers, no credentials, por lo que
+# estan bien como repo-wide var sin sufijos _DEV/_PROD.
+#
 # Para PR omite backend-bucket -> el reusable workflow usa -backend=false
 # (state bucket no existe para project fresh). Para dispatch incluye backend
 # (verifica contra state real).
 #
 # Reusable workflow origen:
 #   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml
-#
-# Para agregar staging:
-#   1. cp terraform-plan-dev.yml terraform-plan-staging.yml
-#   2. Cambiar `environment` y `working-directory`
-#   3. Crear AWS_PLAN_ROLE_ARN_STAGING secret + IAM role + bucket.
 # =============================================================================
 
 name: continuous-integration-terraform-plan-dev
@@ -41,10 +45,10 @@ jobs:
     name: plan-dev
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
     with:
-      environment: dev
+      # environment: OMITTED -> no env binding, no branch policy check
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
       aws-region: ${{ vars.AWS_REGION }}
-      plan-role-arn-secret: AWS_PLAN_ROLE_ARN
+      plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN }}
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: ${{ github.event_name == 'workflow_dispatch' && 'spark-match-tfstate-dev' || '' }}
       backend-key: ${{ github.event_name == 'workflow_dispatch' && 'dev/terraform.tfstate' || '' }}

@@ -36,9 +36,13 @@
 # Paths tecnicos - DevOps gobierna
 # =============================================================================
 # CI/CD workflows (terraform-{plan,apply}-{dev,prod}.yml, ci.yml,
-# terraform-security-scan.yml), CODEOWNERS, branch protection,
-# secrets/environments.
+# commitlint.yml, release-please.yml, terraform-security-scan.yml),
+# CODEOWNERS, branch protection, secrets/environments.
 /.github/                                    @spark-match/devops
+
+# release-please config + manifest (release automation).
+/.github/release-please-config.json          @spark-match/devops
+/.release-please-manifest.json               @spark-match/devops
 
 # Scripts auxiliares (apply.sh, destroy.sh, plan.sh, bootstrap-backend.sh,
 # generate-policies.ps1).
@@ -46,9 +50,14 @@
 
 # Configuracion tecnica de lint, git ignores y atributos.
 /.pre-commit-config.yaml                   @spark-match/devops
+/.pre-commit-hooks/                          @spark-match/devops
+/.commitlintrc.json                          @spark-match/devops
 /.tflint.hcl                                 @spark-match/devops
 /.gitignore                                  @spark-match/devops
 /.gitattributes                              @spark-match/devops
+
+# Tests bats (commitlint-config.bats + helpers).
+/tests/                                      @spark-match/devops
 
 # =============================================================================
 # Terraform - root modules por ambiente

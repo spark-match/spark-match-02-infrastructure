@@ -15,10 +15,10 @@
 # logico al real.
 #
 # Reusable workflow origen:
-#   spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml
 # =============================================================================
 
-name: CD - Terraform Apply (prod)
+name: continuous-deployment-terraform-apply-prod
 
 on:
   push:

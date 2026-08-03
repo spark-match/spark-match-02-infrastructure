@@ -10,7 +10,7 @@
 # (verifica contra state real).
 #
 # Reusable workflow origen:
-#   spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml
 #
 # Para agregar staging:
 #   1. cp terraform-plan-dev.yml terraform-plan-staging.yml
@@ -18,7 +18,7 @@
 #   3. Crear AWS_PLAN_ROLE_ARN_STAGING secret + IAM role + bucket.
 # =============================================================================
 
-name: CI - Terraform Plan (dev)
+name: continuous-integration-terraform-plan-dev
 
 on:
   pull_request:

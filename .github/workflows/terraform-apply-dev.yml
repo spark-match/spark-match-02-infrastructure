@@ -8,6 +8,10 @@
 # GH Environment `dev`: sin required reviewers, auto-approve=true.
 # IAM role: `spark-match-terraform-apply-dev` (write, scope dev).
 #
+# Binding to env `dev` (no condicional): apply corre en push a dev (ref = dev)
+# o workflow_dispatch (ref = dev). Ambos pasan la branch policy del env.
+# `vars.AWS_APPLY_ROLE_ARN` resuelve al env-scoped var (dev ARN).
+#
 # Reusable workflow origen:
 #   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml
 # =============================================================================
@@ -39,7 +43,7 @@ jobs:
       gh-environment: dev
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
       aws-region: ${{ vars.AWS_REGION }}
-      apply-role-arn-secret: AWS_APPLY_ROLE_ARN
+      apply-role-arn: ${{ vars.AWS_APPLY_ROLE_ARN }}
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-dev
       backend-key: dev/terraform.tfstate

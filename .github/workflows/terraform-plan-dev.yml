@@ -5,14 +5,20 @@
 #   - pull_request a dev o main (solo plan dev, evita exponer prod state).
 #   - workflow_dispatch (manual, con S3 backend).
 #
-# Por diseño (Sprint 12 / PR #262 en 01-devops) este caller NO bind a env.
-# Esto es porque el ref `refs/pull/N/merge` no esta en la branch policy del
-# env `dev`, y bindear provocaria `runner_id: 0` (rechazo del deployment
-# antes de asignar runner). Sin bind, el job corre limpio.
+# Binding de env CONDICIONAL via `${{}}`:
+#   - pull_request: environment = '' (no binding, sin branch policy check).
+#     Esto evita `runner_id: 0` que ocurre cuando el ref `refs/pull/N/merge`
+#     no esta en la branch policy del env `dev`. Para PRs, `vars.AWS_PLAN_ROLE_ARN`
+#     resuelve al repo-wide var (fallback).
+#   - workflow_dispatch: environment = 'dev' (bind to env con branch policy,
+#     OK porque el ref = `dev`). `vars.AWS_PLAN_ROLE_ARN` resuelve al env-scoped
+#     var (dev ARN) - precedence sobre repo-wide.
 #
-# El role ARN se pasa como string (no secret) via repo-wide var
-# `AWS_PLAN_ROLE_ARN`. ARNs son identifiers, no credentials, por lo que
-# estan bien como repo-wide var sin sufijos _DEV/_PROD.
+# Precedence de vars (GitHub Actions):
+#   - Si el job bindea a env X y existe `vars.X` como env-scoped, usa env-scoped.
+#   - Si no bindea (o env-scoped no existe), usa repo-wide var.
+# Esto permite tener 4 roles distintos (plan-dev, plan-prod, apply-dev, apply-prod)
+# sin _DEV/_PROD suffix en los nombres - el env hace el scoping.
 #
 # Para PR omite backend-bucket -> el reusable workflow usa -backend=false
 # (state bucket no existe para project fresh). Para dispatch incluye backend
@@ -45,7 +51,7 @@ jobs:
     name: plan-dev
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
     with:
-      # environment: OMITTED -> no env binding, no branch policy check
+      environment: ${{ github.event_name == 'pull_request' ? '' : 'dev' }}
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
       aws-region: ${{ vars.AWS_REGION }}
       plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN }}

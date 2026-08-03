@@ -339,6 +339,13 @@ politica.
    `tests/bats/commitlint-config.bats` lo verifican). Para añadir un
    scope nuevo ver la sección "Convenciones de Commits" arriba.
 
+9. **Release-please + sync commits**: el flujo `dev` → `main` usa merge
+   commits (`chore: sync dev into main`). Estos commits NO bumpean version
+   en release-please porque `chore:` no es release-trigger. Solo `feat:`
+   o `fix:` (o commits con `BREAKING CHANGE:` footer) generan releases.
+   Esto es por diseño, NO requiere workarounds. Ver la sección "Releases"
+   arriba para el flujo completo.
+
 ## Convenciones Terraform
 
 - **Provider**: AWS `~> 6.0` (fijo en `live/dev/versions.tf`,
@@ -495,6 +502,65 @@ misma convención adaptada al scope enum de infra.
 5. `cd live/dev && terraform init && terraform plan`.
 
 Si el primer apply falla, ver [`docs/runbook-tfstate-recovery.md`](docs/runbook-tfstate-recovery.md).
+
+## Releases — release-please automatico
+
+`.github/workflows/release-please.yml` se dispara en cada push a `main`
+y consume el reusable compartido `spark-match-01-devops/.github/
+workflows/reusable-release-please.yml@v0.1.16`. Configuracion local:
+
+- `.github/release-please-config.json` — `release-type: simple`,
+  `tag-separator: @`, `package-name: spark-match-02-infrastructure`.
+- `.release-please-manifest.json` — `{ ".": "0.1.0" }` (semver actual).
+- Tag format: `v0.1.0@spark-match-02-infrastructure`.
+
+El flujo es:
+
+1. Push a `main` dispara `release-please`.
+2. release-please mira los commits desde el ultimo tag y determina el
+   bump (feat → minor, fix → patch, breaking change → major).
+3. Si hay bump, abre un PR `release <version>` con CHANGELOG.md
+   actualizado.
+4. Merge del PR → tag + GitHub Release + bump del manifest.
+
+**Importante**: los commits `chore: sync dev into main` NO bumpean
+(chore no es release-trigger). Solo `feat:` y `fix:` (o commits con
+`BREAKING CHANGE:` footer) generan releases.
+
+### Bootstrap de GitHub App secrets
+
+El workflow requiere 2 secrets en GitHub Actions (repo or org level):
+
+- `RELEASE_PLEASE_APP_ID` — ID del GitHub App.
+- `RELEASE_PLEASE_APP_PRIVATE_KEY` — Llave privada (PEM) del App.
+
+Estos secrets se reutilizan de la misma GitHub App que `spark-match-01-devops`
+usa (mismo org owner). Si no estan configurados, el workflow falla con:
+
+  Error: The 'client-id' (or deprecated 'app-id') input must be set to
+  a non-empty string.
+
+**Setup**:
+
+1. Settings → Secrets and variables → Actions → New repository secret.
+2. Name: `RELEASE_PLEASE_APP_ID`, Value: el ID numerico del App.
+3. Name: `RELEASE_PLEASE_APP_PRIVATE_KEY`, Value: el contenido del
+   archivo `.pem` (con saltos de linea, copiar literal).
+4. Asegurarse que el App este instalado en el repo `spark-match-02-infrastructure`
+   con permisos: Contents (write), Pull requests (write), Metadata (read).
+
+### Sync dev → main
+
+Este repo usa el patron `dev` → `main` con merge commits (`chore: sync dev into main`).
+El workflow `release-please` dispara en cada push a `main`, así que
+los sync commits entre dev y main también disparan el workflow, pero
+como el sync commit es `chore:`, no se bump-ea version. Los `feat:`
+y `fix:` reales (mergeados a dev primero) sí son detectados por
+release-please cuando se sync-ean a main.
+
+**Override**: si necesitas bumpear manualmente o evitar un release,
+usa `[skip release]` en el footer del commit o mergea el release PR
+manualmente con la version deseada.
 
 ## Cleanup de infraestructura (convencion pipeline-only)
 

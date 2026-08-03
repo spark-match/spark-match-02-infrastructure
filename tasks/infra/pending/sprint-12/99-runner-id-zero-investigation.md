@@ -1,11 +1,22 @@
 ---
 sprint: 12
 date: 2026-08-03
-pr_number: null
-status: pending-investigation
+pr_number: 104
+status: resolved
 ---
 
 # Investigation: Plan (dev) falla con runner_id=0 en todos los PRs
+
+## Status
+
+**RESUELTO** (Sprint 12) mediante:
+- PR #262 en `spark-match-01-devops`: simplifica el binding de env en
+  `reusable-terraform-plan.yml` a un solo input `environment` (sin
+  cascade `environment-name || environment || working-directory`).
+- PR #104 (este) en `spark-match-02-infrastructure`: callers
+  `terraform-plan-dev.yml` y `terraform-plan-prod.yml` ahora omite
+  `environment:` (no bind) y pasa el role ARN via repo-wide var
+  `AWS_PLAN_ROLE_ARN` (string, no secret).
 
 ## Resumen
 

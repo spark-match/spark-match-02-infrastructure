@@ -123,3 +123,25 @@ sin migracion.
 
 - Slack: `#spark-match-infra`
 - Code owners: ver `.github/CODEOWNERS`
+
+## Required GitHub Secrets
+
+Los workflows Terraform Plan/Apply usan OIDC para asumir roles IAM en AWS. Los GitHub Secrets almacenan los ARNs de los roles.
+
+| Secret | Env | Propósito | Última rotación |
+|---|---|---|---|
+| `AWS_PLAN_ROLE_ARN_DEV` | dev | ARN del IAM role `spark-match-terraform-plan-dev` (read-only) | 2026-07-11 |
+| `AWS_PLAN_ROLE_ARN_PROD` | prod | ARN del IAM role `spark-match-terraform-plan-prod` (read-only) | 2026-07-11 |
+| `AWS_APPLY_ROLE_ARN_DEV` | dev | ARN del IAM role `spark-match-terraform-apply-dev` (write) | 2026-07-11 |
+| `AWS_APPLY_ROLE_ARN_PROD` | prod | ARN del IAM role `spark-match-terraform-apply-prod` (write) | 2026-07-13 |
+
+**Rotación**: los secrets NO contienen credenciales rotativas (los roles usan OIDC). El ARN es estable. Si AWS recrea el role (ej: disaster recovery), el secret debe actualizarse via:
+
+```bash
+gh secret set AWS_PLAN_ROLE_ARN_DEV --repo spark-match/spark-match-02-infrastructure
+# pegar el nuevo ARN cuando lo pida
+```
+
+**Auditoría**: `gh secret list --repo spark-match/spark-match-02-infrastructure` muestra la fecha de última actualización de cada secret.
+
+**GH Environments requeridas**: `dev` y `production`. Los workflows referencian `environment: dev` o `environment: production` para branch protection y required reviewers.

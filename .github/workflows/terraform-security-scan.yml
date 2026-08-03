@@ -4,13 +4,23 @@
 # Escaneo estatico de seguridad sobre el codigo Terraform usando checkov.
 # Detecta: SGs con ingress 0.0.0.0/0, S3 sin cifrado, IAM con Action="*"
 # sobre Resource="*", KMS sin key policy, etc.
-# Ref: IMPROVEMENTS.md [B7] [TF-05]
+#
+# Version: checkov==3.2.415 (alineado con spark-match-01-devops reusable
+# workflow checkov.yml default). Mismas reglas detectadas en ambos repos.
+#
+# Nota: este workflow NO usa el reusable de devops porque necesitamos:
+#   - SARIF upload a GitHub code scanning (reusable no expone este output)
+#   - Soft-fail (no bloquea el job si hay findings; SARIF igual se sube)
+#   - Matrix multi-path (escanea varios modules en paralelo)
+# El reusable checkov.yml es para scans atomicos en 1 path. Si en el futuro
+# se quiere consolidar, se puede extraer la logica comun al reusable y
+# parametrizar SARIF upload via action outputs.
 #
 # trigger: pull_request contra dev/main, y workflow_dispatch manual.
 # output: SARIF subido a GitHub code scanning (no bloquea merge por default).
 ###############################################################################
 
-name: CI - Terraform Security Scan
+name: continuous-integration-terraform-security-scan
 
 on:
   pull_request:
@@ -37,21 +47,23 @@ jobs:
         path:
           - live/dev
           - live/prod
-          - modules/security
+          - modules/security-groups   # Sprint 1: extracted SGs (has # checkov:skip for CKV2_AWS_5)
           - modules/networking
           - modules/endpoints
+          - modules/oidc-github      # Sprint 1: extracted OIDC + IAM roles
+          - modules/kms              # Sprint 1: extracted KMS CMK
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
-      - name: Install checkov
-        run: pip install --quiet "checkov==3.2.40"
+      - name: Install checkov (pinned 3.2.415, aligned with devops reusable)
+        run: pip install --quiet "checkov==3.2.415"
 
       - name: Run checkov (soft-fail)
         working-directory: ${{ matrix.path }}

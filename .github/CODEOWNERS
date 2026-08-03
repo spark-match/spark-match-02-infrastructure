@@ -35,8 +35,9 @@
 # =============================================================================
 # Paths tecnicos - DevOps gobierna
 # =============================================================================
-# CI/CD callers (terraform-apply.yml, terraform-plan.yml), CODEOWNERS, branch
-# protection, secrets/environments.
+# CI/CD workflows (terraform-{plan,apply}-{dev,prod}.yml, ci.yml,
+# terraform-security-scan.yml), CODEOWNERS, branch protection,
+# secrets/environments.
 /.github/                                    @spark-match/devops
 
 # Scripts auxiliares (apply.sh, destroy.sh, plan.sh, bootstrap-backend.sh,
@@ -63,10 +64,6 @@
 # =============================================================================
 # Terraform - modulos reusables
 # =============================================================================
-# Modulo de seguridad: IAM roles, OIDC trust policies, KMS CMK, Security Groups,
-# politicas IAM parametrizadas por ambiente.
-/modules/security/                           @spark-match/devops
-
 # Modulo de networking: VPC, subnets, route tables, NAT Gateway, internet gateway,
 # Elastic IPs.
 /modules/networking/                         @spark-match/devops
@@ -79,11 +76,24 @@
 # policies para alertas operacionales.
 /modules/notifications/                       @spark-match/devops
 
+# Sprint 1 RECREATE (#65): modulos extraidos del monolito security/.
+# Modulo OIDC + IAM: trust policies para roles asumibles por GitHub Actions
+# (terraform-plan, terraform-apply, sam-deploy, lambda-runtime, etc.).
+/modules/oidc-github/                        @spark-match/devops
+
+# Modulo KMS: Customer Managed Keys (CMK) con aliases por ambiente para
+# encryption-at-rest de recursos AWS (RDS, S3, EBS, etc.).
+/modules/kms/                                @spark-match/devops
+
+# Modulo Security Groups: SGs cross-cutting (sg-lambda, sg-rds, sg-endpoints)
+# parametrizados por ambiente, separados del modulo security deprecado.
+/modules/security-groups/                    @spark-match/devops
+
 # =============================================================================
 # Documentacion tecnica - DevOps gobierna
 # =============================================================================
 # IAM_ROLES.md documenta el diseno y las politicas IAM. Cambios estructurales
-# deben coordinarse con la implementacion en modules/security.
+# deben coordinarse con la implementacion en modules/security-groups/ y modulos relacionados.
 /docs/IAM_ROLES.md                           @spark-match/devops
 
 # DECISIONS.md: registro de Architecture Decision Records (ADR) operativos
@@ -95,7 +105,7 @@
 /docs/OIDC-DEBUG.md                           @spark-match/devops
 
 # Politicas IAM versionadas por ambiente (4 policies x 2 envs = 8 JSON).
-# Cambios aqui DEBEN coordinarse con modules/security/main.tf (templatefile).
+# Cambios aqui DEBEN coordinarse con modules/security-groups/ y modulos IAM activos.
 /docs/policies/                              @spark-match/devops
 
 # =============================================================================

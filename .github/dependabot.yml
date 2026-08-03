@@ -39,9 +39,14 @@ updates:
     directories:
       - "/live/dev"
       - "/live/prod"
-      - "/modules/security"
+      # Sprint 1 RECREATE (#65): nuevos modules extraidos del monolito security/
+      - "/modules/oidc-github"
+      - "/modules/kms"
+      - "/modules/security-groups"
+      # Modules originales
       - "/modules/networking"
       - "/modules/endpoints"
+      - "/modules/notifications"
     schedule:
       interval: "weekly"
       day: "monday"

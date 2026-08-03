@@ -1,0 +1,52 @@
+# =============================================================================
+# CD - Terraform Apply (prod)
+# =============================================================================
+# Apply al ambiente `prod`. Se dispara en:
+#   - push a `main` (automatico post-sync desde dev).
+#   - workflow_dispatch (manual, con input `reason`).
+#
+# GH Environment `production`: con required reviewers `@spark-match/devops`,
+# auto-approve=false. Requiere aprobacion humana en la GH Environment.
+#
+# IAM role: `spark-match-terraform-apply-prod` (write, scope prod).
+# Naming: el repo usa `prod` consistentemente (var.environment, IAM role,
+# S3 bucket, working dir). La GH Environment real se llama `production`
+# (alias legacy). El input `gh-environment` permite mapear el nombre
+# logico al real.
+#
+# Reusable workflow origen:
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml
+# =============================================================================
+
+name: continuous-deployment-terraform-apply-prod
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual apply"
+        type: string
+        required: false
+        default: "manual trigger"
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  apply-prod:
+    name: Apply (prod)
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml@main
+    with:
+      environment: prod
+      gh-environment: production
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
+      aws-region: ${{ vars.AWS_REGION }}
+      apply-role-arn-secret: AWS_APPLY_ROLE_ARN
+      terraform-version: ${{ vars.TF_VERSION }}
+      backend-bucket: spark-match-tfstate-prod
+      backend-key: prod/terraform.tfstate
+      auto-approve: false

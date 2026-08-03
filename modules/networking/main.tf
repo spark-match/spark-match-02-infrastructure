@@ -80,13 +80,14 @@ resource "aws_default_security_group" "default" {
 ###############################################################################
 
 # Subnets publicas (1 por AZ) - con auto public IP para NAT.
+# checkov:skip=CKV_AWS_130:subnets flag public IP on launch by design (NAT gateways + potential ALB targets live here; toggle var.map_public_ip_on_launch_disableable if you need a quiet subnet).
 resource "aws_subnet" "public" {
   count = length(var.azs)
 
   vpc_id                  = aws_vpc.main.id
   availability_zone       = var.azs[count.index]
   cidr_block              = var.public_subnet_cidrs[count.index]
-  map_public_ip_on_launch = true
+  map_public_ip_on_launch = true # checkov:skip=CKV_AWS_130:Public subnets host NAT gateways and ALB targets; auto-assign public IP is intentional.
 
   tags = merge(local.common_tags, {
     Name = "${var.project_name}-${var.environment}-public-${var.azs[count.index]}"

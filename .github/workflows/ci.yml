@@ -1,0 +1,73 @@
+name: Continuous Integration (CI)
+
+on:
+  pull_request:
+    branches: [main, dev]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - ".tflint.hcl"
+      - ".github/workflows/**"
+      - ".pre-commit-config.yaml"
+      - "docs/**"
+      - "AGENTS.md"
+      - "README.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1: Terraform Linting
+  # ---------------------------------------------------------------------------
+  tflint:
+    name: tflint
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-tflint.yml@main
+    with:
+      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      terraform-version: ${{ vars.TF_VERSION }}
+      working-directory: "."
+  # ---------------------------------------------------------------------------
+  # Job 2: Git Leaks (Secret Scanning)
+  # ---------------------------------------------------------------------------
+  gitleaks:
+    name: gitleaks
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-gitleaks.yml@main
+    with:
+      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+    secrets:
+      GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+  # ---------------------------------------------------------------------------
+  # Job 3: Terraform Validate
+  # ---------------------------------------------------------------------------
+  terraform-validate:
+    name: terraform validate
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-validate.yml@main
+    with:
+      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      terraform-version: ${{ vars.TF_VERSION }}
+      working-directory: "."
+  # ---------------------------------------------------------------------------
+  # Job 4: SonarCloud Quality Gate
+  # ---------------------------------------------------------------------------
+  sonar-terraform:
+    name: sonar-terraform
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-sonar-terraform.yml@main
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+    with:
+      project-key: ${{ vars.SONAR_PROJECT_KEY }}
+      project-name: ${{ vars.SONAR_PROJECT_NAME }}
+      organization: ${{ vars.SONAR_ORGANIZATION }}
+      sources: ${{ vars.SONAR_SOURCES }}
+      exclude-patterns: ${{ vars.SONAR_EXCLUDE_PATTERNS }}
+      working-directory: "."
+      env: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      fail-on-quality-gate: ${{ vars.SONAR_FAIL_ON_QUALITY_GATE }}

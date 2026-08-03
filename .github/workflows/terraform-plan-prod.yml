@@ -25,7 +25,7 @@ permissions:
 jobs:
   plan-prod:
     name: Plan (prod)
-    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
     secrets:
       AWS_PLAN_ROLE_ARN: ${{ secrets.AWS_PLAN_ROLE_ARN_PROD }}
     with:

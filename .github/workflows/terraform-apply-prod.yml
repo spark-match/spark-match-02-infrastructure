@@ -39,7 +39,7 @@ permissions:
 jobs:
   apply-prod:
     name: Apply (prod)
-    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml@main
     secrets:
       AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN_PROD }}
     with:

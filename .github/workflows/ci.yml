@@ -1,4 +1,4 @@
-name: Continuous Integration (CI)
+name: continuous-integration-ci
 
 on:
   pull_request:
@@ -48,7 +48,7 @@ jobs:
   # Job 3: Terraform Validate
   # ---------------------------------------------------------------------------
   terraform-validate:
-    name: terraform validate
+    name: terraform-validate
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-validate.yml@main
     with:
       environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}

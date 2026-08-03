@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   plan-dev:
-    name: Plan (dev)
+    name: plan-dev
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
     with:
       environment: dev

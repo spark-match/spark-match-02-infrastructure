@@ -33,7 +33,7 @@
 # arquitectonica Opcion A, IMPROVEMENTS.md A4/NET-01).
 # Flow logs desactivados en dev para minimizar costo (default false).
 #
-# Outputs consumidos por modules/security y modules/endpoints (Fase 1.5):
+# Outputs consumidos por modules/networking y modules/endpoints (Fase 1.5):
 #   - vpc_id, public_subnet_ids, private_subnet_ids, private_route_table_ids
 ###############################################################################
 
@@ -42,7 +42,6 @@ module "networking" {
 
   project_name = var.project_name
   environment  = var.environment
-  aws_region   = var.aws_region
 
   vpc_cidr             = var.vpc_cidr
   azs                  = var.azs
@@ -100,43 +99,91 @@ module "notifications" {
 }
 
 ###############################################################################
-# Module: security
+# Module: oidc-github
 ###############################################################################
-# Capa de seguridad perimetral y de identidad para dev (Fase 1.5):
-#   - KMS CMK por entorno (`alias/spark-match-dev-main`) para cifrar
-#     SSM/Secrets/S3/data-at-rest. CMK con `enable_key_rotation=true` y
-#     `deletion_window_in_days=7` (estricto en dev).
-#   - 3 SGs: lambda (egress only), rds (ingress 5432 desde sg-lambda),
-#     endpoints (ingress 443 desde sg-lambda). Los 3 con `egress = []` inline
-#     para neutralizar el default "egress allow all 0.0.0.0/0" de AWS
-#     (IMPROVEMENTS.md A6/SEC-08).
-#   - 4 roles OIDC (sam_deploy-dev, bedrock_deploy-dev, lambda_runtime-dev,
-#     agentcore_runtime-dev) consumidos por 03-backend y 08-deep-agent desde
-#     sus workflows de deploy.
+# OIDC provider (data source por defecto, recurso opt-in via create_oidc_provider)
+# + 4 IAM roles asumidos por GitHub Actions y AWS services:
+#   - spark-match-sam-deploy-dev          (OIDC, spark-match-03-backend)
+#   - spark-match-bedrock-agentcore-deploy-dev (OIDC, spark-match-08-deep-agent)
+#   - spark-match-lambda-runtime-dev      (Lambda service, spark-match-03-backend)
+#   - spark-match-agentcore-runtime-dev   (AgentCore service, spark-match-08-deep-agent)
+#
+# Extraido de modules/security-groups en PR4a (Sprint 1). Patron copiado de
+# orion-infrastructure/modules/oidc-github/.
 #
 # Wire a GitHub:
 #   - spark-match-03-backend necesita `AWS_SAM_DEPLOY_ROLE_ARN_DEV` apuntando
-#     a module.security.sam_deploy_role_arn.
+#     a module.oidc_github.sam_deploy_role_arn.
 #   - spark-match-08-deep-agent necesita `AWS_BEDROCK_DEPLOY_ROLE_ARN_DEV`
-#     apuntando a module.security.bedrock_deploy_role_arn.
+#     apuntando a module.oidc_github.bedrock_deploy_role_arn.
 ###############################################################################
 
-module "security" {
-  source = "../../modules/security"
+module "oidc_github" {
+  source = "../../modules/oidc-github"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  # Repos GitHub permitidos a asumir los roles OIDC.
+  # Se mantienen como variables en live/dev/variables.tf para no hardcodear.
+  sam_deploy_github_repos     = var.sam_deploy_github_repos
+  bedrock_deploy_github_repos = var.bedrock_deploy_github_repos
+}
+
+###############################################################################
+# Module: kms
+###############################################################################
+# CMK (Customer Managed Key) por entorno (`alias/spark-match-dev-main`) para
+# cifrar SSM/Secrets/S3/data-at-rest. CMK con `enable_key_rotation=true` y
+# `deletion_window_in_days=7` (estricto en dev).
+#
+# PR4b (Sprint 1): extraido de modules/security-groups. Recibe `user_role_arns` cross-module
+# desde module.oidc_github.*_role_arn para que la CMK key policy pueda referenciar
+# los ARNs de los 4 roles.
+###############################################################################
+
+module "kms" {
+  source = "../../modules/kms"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  # 7 dias en dev (mas rapido si hay que borrar el key); 30 en prod.
+  deletion_window_in_days = var.kms_deletion_window_in_days
+
+  # ARNs de los 4 roles creados por oidc_github module (cross-module reference).
+  # KMS exige que los principals existan al validar la policy, por lo que Terraform
+  # resuelve automaticamente el orden de creacion (oidc_github primero, kms despues).
+  user_role_arns = [
+    module.oidc_github.sam_deploy_role_arn,
+    module.oidc_github.bedrock_deploy_role_arn,
+    module.oidc_github.lambda_runtime_role_arn,
+    module.oidc_github.agentcore_runtime_role_arn,
+  ]
+
+  # Dependencia explicita: los 4 IAM roles deben existir antes de la CMK.
+  depends_on = [module.oidc_github]
+}
+
+###############################################################################
+# Module: security-groups
+###############################################################################
+# 3 SGs cross-cutting: lambda (egress only), rds (ingress 5432 desde sg-lambda),
+# endpoints (ingress 443 desde sg-lambda). Los 3 con `egress = []` inline para
+# neutralizar el default "egress allow all 0.0.0.0/0" de AWS
+# (IMPROVEMENTS.md A6/SEC-08).
+#
+# PR4c (Sprint 1): extraido de modules/security-groups.
+###############################################################################
+
+module "security_groups" {
+  source = "../../modules/security-groups"
 
   project_name = var.project_name
   environment  = var.environment
 
   vpc_id   = module.networking.vpc_id
   vpc_cidr = var.vpc_cidr
-
-  # 7 dias en dev (mas rapido si hay que borrar el key); 30 en prod.
-  kms_deletion_window_in_days = var.kms_deletion_window_in_days
-
-  # Repos GitHub permitidos a asumir los roles OIDC.
-  # Se mantienen como variables en live/dev/variables.tf para no hardcodear.
-  sam_deploy_github_repos     = var.sam_deploy_github_repos
-  bedrock_deploy_github_repos = var.bedrock_deploy_github_repos
 }
 
 ###############################################################################
@@ -168,8 +215,8 @@ module "endpoints" {
   private_subnet_ids      = module.networking.private_subnet_ids
   private_route_table_ids = module.networking.private_route_table_ids
 
-  # SG de VPC endpoints (creado en module.security, con ingress 443 desde sg-lambda).
-  endpoints_security_group_id = module.security.sg_endpoints_id
+  # SG de VPC endpoints (creado en module.security_groups, con ingress 443 desde sg-lambda).
+  endpoints_security_group_id = module.security_groups.sg_endpoints_id
 
   # Decisión dev: solo S3 gateway endpoint (gratis), sin interface endpoints.
   enable_all_endpoints_by_default = var.enable_all_endpoints_by_default

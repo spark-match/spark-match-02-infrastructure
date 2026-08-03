@@ -1,0 +1,37 @@
+# =============================================================================
+# CI - Terraform Plan (prod)
+# =============================================================================
+# Plan para el ambiente `prod`. SOLO corre en `workflow_dispatch` (manual).
+# No se triggera en PR para evitar exponer state de prod a contribuidores.
+#
+# Si el repo luego crece y se quiere plan prod en PR a `main` solamente
+# (repo admins), se puede agregar el trigger `pull_request` con un check
+# del actor. Hoy la convencion es: prod plan = manual only.
+#
+# Reusable workflow origen:
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml
+# =============================================================================
+
+name: continuous-integration-terraform-plan-prod
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  plan-prod:
+    name: Plan (prod)
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
+    with:
+      environment: prod
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
+      aws-region: ${{ vars.AWS_REGION }}
+      plan-role-arn-secret: AWS_PLAN_ROLE_ARN
+      terraform-version: ${{ vars.TF_VERSION }}
+      backend-bucket: spark-match-tfstate-prod
+      backend-key: prod/terraform.tfstate
+      comment-on-pr: false

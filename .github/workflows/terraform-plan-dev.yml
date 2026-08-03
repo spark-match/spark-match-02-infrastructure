@@ -1,0 +1,51 @@
+# =============================================================================
+# CI - Terraform Plan (dev)
+# =============================================================================
+# Plan para el ambiente `dev`. Se dispara en:
+#   - pull_request a dev o main (solo plan dev, evita exponer prod state).
+#   - workflow_dispatch (manual, con S3 backend).
+#
+# Para PR omite backend-bucket -> el reusable workflow usa -backend=false
+# (state bucket no existe para project fresh). Para dispatch incluye backend
+# (verifica contra state real).
+#
+# Reusable workflow origen:
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml
+#
+# Para agregar staging:
+#   1. cp terraform-plan-dev.yml terraform-plan-staging.yml
+#   2. Cambiar `environment` y `working-directory`
+#   3. Crear AWS_PLAN_ROLE_ARN_STAGING secret + IAM role + bucket.
+# =============================================================================
+
+name: continuous-integration-terraform-plan-dev
+
+on:
+  pull_request:
+    branches: [main, dev]
+    types: [opened, synchronize, reopened]
+    paths:
+      - "**.tf"
+      - "**.tfvars"
+      - ".github/workflows/**"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  plan-dev:
+    name: Plan (dev)
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
+    with:
+      environment: dev
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
+      aws-region: ${{ vars.AWS_REGION }}
+      plan-role-arn-secret: AWS_PLAN_ROLE_ARN
+      terraform-version: ${{ vars.TF_VERSION }}
+      backend-bucket: ${{ github.event_name == 'workflow_dispatch' && 'spark-match-tfstate-dev' || '' }}
+      backend-key: ${{ github.event_name == 'workflow_dispatch' && 'dev/terraform.tfstate' || '' }}
+      comment-on-pr: ${{ github.event_name == 'pull_request' }}

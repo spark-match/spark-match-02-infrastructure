@@ -1,0 +1,46 @@
+# =============================================================================
+# CD - Terraform Apply (dev)
+# =============================================================================
+# Apply al ambiente `dev`. Se dispara en:
+#   - push a `dev` (automatico post-merge).
+#   - workflow_dispatch (manual, con input `reason`).
+#
+# GH Environment `dev`: sin required reviewers, auto-approve=true.
+# IAM role: `spark-match-terraform-apply-dev` (write, scope dev).
+#
+# Reusable workflow origen:
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml
+# =============================================================================
+
+name: continuous-deployment-terraform-apply-dev
+
+on:
+  push:
+    branches: [dev]
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Reason for manual apply"
+        type: string
+        required: false
+        default: "manual trigger"
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+jobs:
+  apply-dev:
+    name: Apply (dev)
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml@main
+    with:
+      environment: dev
+      gh-environment: dev
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
+      aws-region: ${{ vars.AWS_REGION }}
+      apply-role-arn-secret: AWS_APPLY_ROLE_ARN
+      terraform-version: ${{ vars.TF_VERSION }}
+      backend-bucket: spark-match-tfstate-dev
+      backend-key: dev/terraform.tfstate
+      auto-approve: true

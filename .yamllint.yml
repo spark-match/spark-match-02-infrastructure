@@ -1,0 +1,25 @@
+extends: default
+
+# orion-infrastructure PR #97 consolidation: workflow YAML is verified by
+# actionlint (which understands GH Actions semantics) and not by yamllint
+# (which doesn't know that `on:` is a valid GH Actions key). Linting workflows
+# with yamllint produces spurious `truthy` warnings on `on:` and other
+# GH-Actions-specific constructs.
+#
+# We lint everything that is NOT a workflow, with relaxed line-length
+# (160 chars) and permissives for the YAML 1.1 truthy shorthand.
+ignore: |
+  .git/
+  .terraform/
+  node_modules/
+  .github/workflows/
+
+rules:
+  line-length:
+    max: 160
+
+  document-start: disable
+
+  truthy:
+    allowed-values: ['true', 'false', 'on', 'off']
+    check-keys: false

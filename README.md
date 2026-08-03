@@ -49,17 +49,16 @@ Cuenta `681526276858`, región `us-east-1`. Estado validado contra AWS:
 
 ```
 PR abierto contra main o dev
-  └─> terraform-plan.yml corre matrix [dev, prod]
-      ├─> Plan dev: working-dir=live/dev, bucket=spark-match-tfstate-dev
-      └─> Plan prod: working-dir=live/prod, bucket=spark-match-tfstate-prod
-  └─> Comment sticky en PR con tabla de cambios por env
+  └─> terraform-plan-dev.yml (job: Plan (dev))
+      └─> Plan dev: working-dir=live/dev, bucket=spark-match-tfstate-dev (dispatch)
+  └─> Plan prod NO corre en PR (manual dispatch only)
 
 Merge a dev branch
-  └─> terraform-apply.yml -> apply-dev
+  └─> terraform-apply-dev.yml (job: Apply (dev))
       └─> GH Environment "dev" (auto, sin reviewers)
 
 Merge a main branch
-  └─> terraform-apply.yml -> apply-prod
+  └─> terraform-apply-prod.yml (job: Apply (prod))
       └─> GH Environment "production" (requiere aprobacion de @spark-match/devops)
 ```
 
@@ -111,8 +110,10 @@ spark-match-02-infrastructure/
 |       |-- spark-match-lambda-runtime.json
 |       |-- spark-match-agentcore-runtime.json
 |-- .github/workflows/
-|   |-- terraform-plan.yml        # Caller de reusable (matrix dev + prod)
-|   |-- terraform-apply.yml       # Caller de reusable (2 jobs: apply-dev, apply-prod)
+|   |-- terraform-plan-dev.yml    # Caller de reusable (1 job: dev, PR + dispatch)
+|   |-- terraform-plan-prod.yml   # Caller de reusable (1 job: prod, dispatch only)
+|   |-- terraform-apply-dev.yml   # Caller de reusable (1 job: dev, push + dispatch)
+|   |-- terraform-apply-prod.yml  # Caller de reusable (1 job: prod, push + dispatch)
 |-- .tflint.hcl
 |-- .pre-commit-config.yaml
 |-- LICENSE
@@ -224,7 +225,7 @@ terraform plan
 1. Crear rama: `git checkout -b feat/<modulo>-<descripcion>` (desde `dev` o `main`)
 2. Editar o agregar módulos en `modules/`
 3. Consumir desde `live/dev/main.tf` y/o `live/prod/main.tf`
-4. Abrir PR hacia `dev` o `main` → el workflow `terraform-plan.yml` corre matrix [dev, prod] y postea resumen en el PR
+4. Abrir PR hacia `dev` o `main` → el workflow `terraform-plan-dev.yml` corre (Plan dev) y postea resumen en el PR. Plan prod se corre con dispatch manual.
 5. CODEOWNERS requiere aprobación de `@spark-match/devops`
 6. Merge a `dev` → `apply-dev` corre (sin approval, GH env `dev`).
 7. Merge a `main` → `apply-prod` corre con approval gate (GH env `production` requiere reviewers).
@@ -290,7 +291,7 @@ GitHub Actions runner
 
 **¿Por qué separar por env (4 roles)?** Si las credenciales OIDC de dev se filtran, el atacante puede tocar dev pero NO prod (el role de dev no tiene permisos para los recursos de prod).
 
-> Nota: el caller `terraform-plan.yml` usa `-lock=false` porque el S3 lockfile de Terraform 1.6+ requiere `PutObject`, que es write. El plan es read-only por naturaleza, no necesita lock real.
+> Nota: el caller `terraform-plan-{env}.yml` usa `-lock=false` porque el S3 lockfile de Terraform 1.6+ requiere `PutObject`, que es write. El plan es read-only por naturaleza, no necesita lock real.
 
 ### GitHub Secrets en este repo (estado actual)
 
@@ -452,7 +453,7 @@ aws --profile spark-match --region us-east-1 s3api list-object-versions \
 
 # 2. Identificar la version "buena" (la ultima que se sabe que funciono)
 #    Tip: comparar timestamps con el ultimo apply exitoso en GitHub Actions
-#    (gh run list --workflow=terraform-apply.yml --status=success)
+#    (gh run list --workflow=terraform-apply-dev.yml --workflow=terraform-apply-prod.yml --status=success)
 
 # 3. Restaurar a esa version
 aws --profile spark-match --region us-east-1 s3api get-object \
@@ -551,7 +552,7 @@ terraform state list
 Después de cualquier incidente con el state:
 
 - [ ] Verificar que `terraform plan` no muestra deltas inesperados
-- [ ] Confirmar que el run más reciente de `terraform-apply.yml` pasó
+- [ ] Confirmar que el run más reciente de `terraform-apply-{env}.yml` pasó
 - [ ] Documentar el incidente en `D:\UNI\Spark\POSTMORTEMS.md` (raíz del proyecto)
 - [ ] Si fue por error humano, evaluar agregar más validaciones o gates
 - [ ] Si fue por bug de Terraform/provider, evaluar pin de versión

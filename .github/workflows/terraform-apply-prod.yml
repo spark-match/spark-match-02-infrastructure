@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   apply-prod:
-    name: Apply (prod)
+    name: apply-prod
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml@main
     with:
       environment: prod

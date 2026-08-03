@@ -1,56 +1,11 @@
 ###############################################################################
-# Outputs de modules/security
-#
-# Convencion: los outputs apuntan al ARN (para IAM) o al ID/KeyId (para KMS/SG).
-# Los consumers (live/prod, otros modulos downstream) deben importarlos con
-# `data "aws_ssm_parameter"` cruzando la frontera a repos externos.
+# Outputs de modules/oidc-github
 ###############################################################################
 
-# -- KMS --
-output "kms_key_arn" {
-  description = "ARN de la CMK de Spark Match para este entorno."
-  value       = aws_kms_key.main.arn
-}
-
-output "kms_key_id" {
-  description = "KeyId de la CMK (util para policies que esperan key id, no arn)."
-  value       = aws_kms_key.main.key_id
-}
-
-output "kms_alias_arn" {
-  description = "ARN del alias CMK."
-  value       = aws_kms_alias.main.arn
-}
-
-# -- Security groups --
-output "sg_lambda_id" {
-  description = "ID del SG para Lambdas."
-  value       = aws_security_group.lambda.id
-}
-
-output "sg_lambda_arn" {
-  description = "ARN del SG para Lambdas."
-  value       = aws_security_group.lambda.arn
-}
-
-output "sg_rds_id" {
-  description = "ID del SG para RDS/Aurora."
-  value       = aws_security_group.rds.id
-}
-
-output "sg_rds_arn" {
-  description = "ARN del SG para RDS/Aurora."
-  value       = aws_security_group.rds.arn
-}
-
-output "sg_endpoints_id" {
-  description = "ID del SG para VPC endpoints."
-  value       = aws_security_group.endpoints.id
-}
-
-output "sg_endpoints_arn" {
-  description = "ARN del SG para VPC endpoints."
-  value       = aws_security_group.endpoints.arn
+# -- OIDC provider --
+output "oidc_provider_arn" {
+  description = "ARN del OIDC provider para GitHub Actions. SINGLETON a nivel de cuenta AWS."
+  value       = local.oidc_provider_arn
 }
 
 # -- IAM OIDC roles --

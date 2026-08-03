@@ -4,6 +4,13 @@
 # Plan para el ambiente `prod`. SOLO corre en `workflow_dispatch` (manual).
 # No se triggera en PR para evitar exponer state de prod a contribuidores.
 #
+# Por diseño (Sprint 12 / PR #262 en 01-devops) este caller NO bind a env.
+# Manual dispatch no es un PR ref, asi que bindear seria seguro, pero por
+# consistencia con plan-dev y simplicidad operativa, se omite el binding.
+#
+# El role ARN se pasa como string (no secret) via repo-wide var
+# `AWS_PLAN_ROLE_ARN`. ARNs son identifiers, no credentials.
+#
 # Si el repo luego crece y se quiere plan prod en PR a `main` solamente
 # (repo admins), se puede agregar el trigger `pull_request` con un check
 # del actor. Hoy la convencion es: prod plan = manual only.
@@ -27,10 +34,10 @@ jobs:
     name: plan-prod
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml@main
     with:
-      environment: prod
+      # environment: OMITTED -> no env binding (manual dispatch, no PR ref)
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
-      plan-role-arn-secret: AWS_PLAN_ROLE_ARN
+      plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN }}
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate

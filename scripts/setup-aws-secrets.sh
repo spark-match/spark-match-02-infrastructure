@@ -4,9 +4,13 @@ set -euo pipefail
 # setup-aws-secrets.sh
 # =============================================================================
 # Idempotent setup of the 4 AWS secrets consumed by the 4 terraform-{plan,
-# apply}-{dev,prod}.yml callers in spark-match-02-infrastructure. Each secret
-# is set at the GH Environment that matches the env the secret name is
-# suffixed with. Caller convention (unchanged in this PR):
+# apply}-{dev,prod}.yml callers in spark-match-02-infrastructure. Secrets are
+# set at REPO level (not env-level) because the caller jobs cannot bind
+# `environment:` (actionlint forbids it on jobs that call reusable workflows).
+# Repo-level secrets are accessible to all workflows in the repo without
+# requiring env binding.
+#
+# Caller convention:
 #
 #   plan-dev.yml   uses plan-role-arn-secret:  AWS_PLAN_ROLE_ARN_DEV
 #   plan-prod.yml  uses plan-role-arn-secret:  AWS_PLAN_ROLE_ARN_PROD
@@ -16,8 +20,6 @@ set -euo pipefail
 # Flags (all optional):
 #   --repo OWNER/REPO       Default: spark-match/spark-match-02-infrastructure
 #   --aws-account ID        Default: 681526276858
-#   --env-dev NAME          Default: dev
-#   --env-prod NAME         Default: production
 #   --role-suffix-dev       Default: -dev
 #   --role-suffix-prod      Default: -prod
 #   --dry-run               Print gh secret set commands without applying
@@ -28,8 +30,6 @@ set -euo pipefail
 
 REPO="spark-match/spark-match-02-infrastructure"
 AWS_ACCOUNT="681526276858"
-ENV_DEV="dev"
-ENV_PROD="production"
 SUFFIX_DEV="-dev"
 SUFFIX_PROD="-prod"
 DRY_RUN="false"
@@ -43,8 +43,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --repo)                REPO="$2"; shift 2 ;;
     --aws-account)         AWS_ACCOUNT="$2"; shift 2 ;;
-    --env-dev)             ENV_DEV="$2"; shift 2 ;;
-    --env-prod)            ENV_PROD="$2"; shift 2 ;;
     --role-suffix-dev)     SUFFIX_DEV="$2"; shift 2 ;;
     --role-suffix-prod)    SUFFIX_PROD="$2"; shift 2 ;;
     --dry-run)             DRY_RUN="true"; shift ;;
@@ -63,29 +61,29 @@ APPLY_ARN_DEV="arn:aws:iam::${AWS_ACCOUNT}:role/spark-match-terraform-apply${SUF
 APPLY_ARN_PROD="arn:aws:iam::${AWS_ACCOUNT}:role/spark-match-terraform-apply${SUFFIX_PROD}"
 
 declare -a TARGETS=(
-  "${ENV_DEV} AWS_PLAN_ROLE_ARN_DEV ${PLAN_ARN_DEV}"
-  "${ENV_DEV} AWS_APPLY_ROLE_ARN_DEV ${APPLY_ARN_DEV}"
-  "${ENV_PROD} AWS_PLAN_ROLE_ARN_PROD ${PLAN_ARN_PROD}"
-  "${ENV_PROD} AWS_APPLY_ROLE_ARN_PROD ${APPLY_ARN_PROD}"
+  "AWS_PLAN_ROLE_ARN_DEV ${PLAN_ARN_DEV}"
+  "AWS_APPLY_ROLE_ARN_DEV ${APPLY_ARN_DEV}"
+  "AWS_PLAN_ROLE_ARN_PROD ${PLAN_ARN_PROD}"
+  "AWS_APPLY_ROLE_ARN_PROD ${APPLY_ARN_PROD}"
 )
 
 set_secret() {
-  local env="$1" name="$2" value="$3"
+  local name="$1" value="$2"
   if [[ "${DRY_RUN}" == "true" ]]; then
-    echo "[dry-run] gh secret set \"${name}\" --repo \"${REPO}\" --env \"${env}\" --body \"${value}\""
+    echo "[dry-run] gh secret set \"${name}\" --repo \"${REPO}\" --body \"${value}\""
     return 0
   fi
-  echo "$value" | gh secret set "$name" --repo "$REPO" --env "$env" --body - >/dev/null
-  echo "[ok] ${env} :: ${name} (value masked, length=${#value})"
+  echo "$value" | gh secret set "$name" --repo "$REPO" --body - >/dev/null
+  echo "[ok] repo :: ${name} (value masked, length=${#value})"
 }
 
 check_secret() {
-  local env="$1" name="$2"
-  if gh secret list --repo "$REPO" --env "$env" 2>/dev/null | grep -q "^${name}\b"; then
-    echo "[ok] ${env} :: ${name} present"
+  local name="$1"
+  if gh secret list --repo "$REPO" 2>/dev/null | grep -q "^${name}\b"; then
+    echo "[ok] repo :: ${name} present"
     return 0
   fi
-  echo "[missing] ${env} :: ${name}"
+  echo "[missing] repo :: ${name}"
   return 1
 }
 
@@ -93,8 +91,8 @@ if [[ "${CHECK_ONLY}" == "true" ]]; then
   echo "Checking 4 secrets in repo ${REPO}..."
   missing=0
   for entry in "${TARGETS[@]}"; do
-    read -r env name value <<<"$entry"
-    if ! check_secret "$env" "$name"; then
+    read -r name value <<<"$entry"
+    if ! check_secret "$name"; then
       missing=$((missing + 1))
     fi
   done
@@ -108,7 +106,7 @@ fi
 
 echo "Setting 4 secrets in repo ${REPO} (aws account ${AWS_ACCOUNT})..."
 for entry in "${TARGETS[@]}"; do
-  read -r env name value <<<"$entry"
-  set_secret "$env" "$name" "$value"
+  read -r name value <<<"$entry"
+  set_secret "$name" "$value"
 done
 echo "Done. Verify with: $0 --check"

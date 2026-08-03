@@ -9,10 +9,10 @@
 # IAM role: `spark-match-terraform-apply-dev` (write, scope dev).
 #
 # Reusable workflow origen:
-#   spark-match/spark-match-01-devops/.github/workflows/terraform-apply.yml
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml
 # =============================================================================
 
-name: CD - Terraform Apply (dev)
+name: continuous-deployment-terraform-apply-dev
 
 on:
   push:

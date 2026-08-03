@@ -9,10 +9,10 @@
 # del actor. Hoy la convencion es: prod plan = manual only.
 #
 # Reusable workflow origen:
-#   spark-match/spark-match-01-devops/.github/workflows/terraform-plan.yml
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml
 # =============================================================================
 
-name: CI - Terraform Plan (prod)
+name: continuous-integration-terraform-plan-prod
 
 on:
   workflow_dispatch:

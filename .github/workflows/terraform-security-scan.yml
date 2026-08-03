@@ -4,7 +4,6 @@
 # Escaneo estatico de seguridad sobre el codigo Terraform usando checkov.
 # Detecta: SGs con ingress 0.0.0.0/0, S3 sin cifrado, IAM con Action="*"
 # sobre Resource="*", KMS sin key policy, etc.
-# Ref: IMPROVEMENTS.md [B7] [TF-05]
 #
 # Version: checkov==3.2.415 (alineado con spark-match-01-devops reusable
 # workflow checkov.yml default). Mismas reglas detectadas en ambos repos.
@@ -21,7 +20,7 @@
 # output: SARIF subido a GitHub code scanning (no bloquea merge por default).
 ###############################################################################
 
-name: CI - Terraform Security Scan
+name: continuous-integration-terraform-security-scan
 
 on:
   pull_request:
@@ -56,7 +55,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6

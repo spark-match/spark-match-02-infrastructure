@@ -55,6 +55,83 @@ desde `spark-match-01-devops`.
 - Ruleset activo: `spark-match-default-branch-protection` (1 approval + team
   review + status checks `Plan (dev)`, `Checkov`).
 
+## Sync process (branch -> dev -> main) — regla operacional
+
+> **Regla operacional**: el flujo canonico de un cambio cualquiera es
+> `branch -> dev -> main`, en ese orden estricto. Nunca se commitea directo
+> a `dev` o `main`. Nunca se mergea un feature branch directamente a `main`.
+
+### 1. Branch feature (work local)
+
+```bash
+git checkout dev
+git pull --ff-only
+git checkout -b feat/sprint-N-{name}   # o fix/sprint-N-{name} / chore/sprint-N-{name}
+git push -u origin feat/sprint-N-{name}
+# crear PRs incrementales desde esta branch contra dev
+```
+
+### 2. PR a `dev` (work integration)
+
+- PR target: `dev`.
+- Squash merge (regla del repo).
+- Branch deletion on merge (regla del repo).
+- En este momento `dev` ya contiene el cambio, pero `main` no.
+
+### 3. Sync a `main` (release a produccion)
+
+- PR target: `main`.
+- Squash merge con titulo `chore: sync dev into main (sprint N - <resumen>)`.
+- Branch deletion on merge.
+- Frecuencia recomendada: cuando se cierra un sprint o cuando se necesita
+  un release a produccion. No es necesario sincronizar despues de cada PR
+  a dev.
+
+### 4. Verificacion post-sync (OBLIGATORIA)
+
+Despues de CADA sync a `main`, verificar que el contenido es identico:
+
+```bash
+git fetch origin
+git diff --stat origin/main origin/dev
+# output esperado: (vacio, sin lineas)
+```
+
+Si el diff NO esta vacio, significa que main perdio cambios de dev. NO
+avanzar hasta reconciliar (abrir PR de sync correctivo).
+
+### 5. Por que `git log` muestra divergencia aunque el contenido sea igual
+
+El sync a `main` usa `git merge --squash origin/dev`. Esto crea UN commit
+en `main` que NO tiene como ancestros a los commits originales de `dev`.
+
+Consecuencia:
+
+```bash
+git log origin/main..origin/dev   # 30+ commits (esperado, no es bug)
+git log origin/dev..origin/main   # 0..1 commits (sync commit)
+```
+
+**Esto es esperado** y NO indica desactualizacion. La verificacion de
+sincronizacion real es el paso 4: `git diff --stat origin/main origin/dev`
+(espera vacio).
+
+### Anti-patterns
+
+- **Sincronizar main <- dev con `git merge --no-ff`**: deja un merge commit
+  con dos parents, complica la lectura del historial. Use siempre
+  `--squash` para sync PRs.
+- **Sincronizar dev <- main (`git merge origin/main` en dev)**: rompe el
+  flujo canonico. Solo valido en emergencias operativas documentadas.
+- **Asumir que `git log` divergente = desactualizacion**: falso. Validar
+  siempre con `git diff --stat`.
+
+### Workflow automatizado (futuro Sprint 13)
+
+Pendiente: crear workflow `.github/workflows/check-sync.yml` que corra en
+cron semanal (`schedule: cron: '0 0 * * 0'`) y falle si el `git diff`
+NO esta vacio. Notifica via Slack o abre issue automatica.
+
 ## Terminología unificada: solo "Sprint N" (regla dura)
 
 > **Regla dura**: a partir del 2026-07-31, toda referencia a fases, tracks o

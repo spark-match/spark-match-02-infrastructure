@@ -1,4 +1,4 @@
-name: Continuous Integration (CI)
+name: continuous-integration
 
 on:
   pull_request:
@@ -29,7 +29,7 @@ jobs:
   # ---------------------------------------------------------------------------
   tflint:
     name: tflint
-    uses: spark-match/spark-match-01-devops/.github/workflows/tflint.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-tflint.yml@main
     with:
       environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
       terraform-version: ${{ vars.TF_VERSION }}
@@ -39,7 +39,7 @@ jobs:
   # ---------------------------------------------------------------------------
   gitleaks:
     name: gitleaks
-    uses: spark-match/spark-match-01-devops/.github/workflows/gitleaks.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-gitleaks.yml@main
     with:
       environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
     secrets:
@@ -49,7 +49,7 @@ jobs:
   # ---------------------------------------------------------------------------
   terraform-validate:
     name: terraform validate
-    uses: spark-match/spark-match-01-devops/.github/workflows/terraform-validate.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-validate.yml@main
     with:
       environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
       terraform-version: ${{ vars.TF_VERSION }}
@@ -59,7 +59,7 @@ jobs:
   # ---------------------------------------------------------------------------
   sonar-terraform:
     name: sonar-terraform
-    uses: spark-match/spark-match-01-devops/.github/workflows/sonar-terraform.yml@main
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-sonar-terraform.yml@main
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     with:

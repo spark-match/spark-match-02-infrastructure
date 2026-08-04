@@ -154,6 +154,17 @@ variable "cors_allowed_origins" {
   default     = "*"
 }
 
+variable "rds_backup_retention_period_days" {
+  description = "Dias de retencion de backups automaticos de RDS. 0 en dev: la cuenta AWS 681526276858 tiene guardrails de 'Free Tier account' que rechazan CreateDBInstance (FreeTierRestrictionError) si este valor es > 0. Prod debe usar >= 7."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.rds_backup_retention_period_days >= 0 && var.rds_backup_retention_period_days <= 35
+    error_message = "rds_backup_retention_period_days debe estar entre 0 y 35."
+  }
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

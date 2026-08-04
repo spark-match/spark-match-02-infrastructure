@@ -86,3 +86,10 @@ secrets_recovery_window_in_days = 0
 # '*' en dev: el frontend local (Vite, distintos puertos) necesita CORS abierto.
 # En prod esto debe ser una lista explicita de dominios.
 cors_allowed_origins = "*"
+
+# 0 en dev: la cuenta AWS 681526276858 tiene guardrails de "Free Tier account"
+# (distinto del free-tier clasico) que rechazan CreateDBInstance con
+# FreeTierRestrictionError si backup_retention_period > 0. Confirmado en el
+# primer apply real (2026-08-04): un valor de 7 dias fue rechazado por la API
+# de RDS. Prod debe usar >= 7 en su propio terraform.tfvars.
+rds_backup_retention_period_days = 0

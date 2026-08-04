@@ -114,13 +114,13 @@ variable "multi_az" {
 }
 
 variable "backup_retention_period_days" {
-  description = "Dias de retencion de backups automaticos."
+  description = "Dias de retencion de backups automaticos. 0 desactiva backups automaticos por completo -- necesario en cuentas AWS con guardrails de 'Free Tier account' que rechazan CreateDBInstance con FreeTierRestrictionError si backup_retention_period > 0 (confirmado en cuenta 681526276858 al intentar 7 dias)."
   type        = number
   default     = 7
 
   validation {
-    condition     = var.backup_retention_period_days >= 1 && var.backup_retention_period_days <= 35
-    error_message = "backup_retention_period_days debe estar entre 1 y 35."
+    condition     = var.backup_retention_period_days >= 0 && var.backup_retention_period_days <= 35
+    error_message = "backup_retention_period_days debe estar entre 0 y 35."
   }
 }
 

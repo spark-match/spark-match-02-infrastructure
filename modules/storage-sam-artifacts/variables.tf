@@ -52,3 +52,14 @@ variable "force_destroy" {
   type        = bool
   default     = false
 }
+
+variable "access_logs_retention_days" {
+  description = "Dias antes de expirar los server access logs del bucket de artefactos."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = var.access_logs_retention_days >= 1
+    error_message = "access_logs_retention_days debe ser >= 1."
+  }
+}

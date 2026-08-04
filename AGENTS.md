@@ -541,6 +541,34 @@ Los siguientes prefijos pasan sin validación (heredan el patrón de
 - `Revert "..."`
 - `fixup! ...`, `squash! ...`, `amend! ...`
 
+### Pitfall: amend local no actualiza el PR title (squash merge)
+
+Cuando se hace `git commit --amend` localmente para corregir el subject
+(scope, uppercase, etc.) antes de merge, el **PR title en GitHub NO se
+actualiza automáticamente**. Si el PR se mergea con `--squash`, GitHub
+usa el **PR title** como subject del squash commit — NO el commit
+message local. Resultado: el commit en `main`/`dev` queda con el
+subject viejo y fail commitlint post-merge.
+
+**Fix**: tras un amend, también actualizar el PR title:
+
+```bash
+gh pr edit <num> --title "<nuevo subject>"
+```
+
+Si el merge ya ocurrió con el subject malo, hay dos opciones:
+
+1. **Fix forward** (recomendado): nuevo PR que añade 1-2 commits con
+   scope/subject válidos. `commit-depth: 2` del reusable-commitlint
+   evalúa solo los últimos 2 commits — los nuevos válidos tapan el
+   malo antiguo.
+2. **Reset + force-push**: solo si el branch no está protegido o si
+   se tiene admin bypass. Riesgo de historial inconsistente.
+
+Lecciones aprendidas en este repo: PR #114 (scope `workflows` no
+válido en 02-infra) y PR #115 (`PR` mayúscula, sujeto al rule
+`subject-case: lower-case`). Ambos requirieron fix forward.
+
 ### Cómo añadir un scope nuevo
 
 1. Editar `.commitlintrc.json` `scope-enum` (lista en `rules.scope-enum[2]`).

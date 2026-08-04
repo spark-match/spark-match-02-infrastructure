@@ -93,3 +93,15 @@ cors_allowed_origins = "*"
 # primer apply real (2026-08-04): un valor de 7 dias fue rechazado por la API
 # de RDS. Prod debe usar >= 7 en su propio terraform.tfvars.
 rds_backup_retention_period_days = 0
+
+###############################################################################
+# Frontend hosting (modules/frontend-hosting + modules/oidc-frontend)
+###############################################################################
+
+# true en dev: permite `terraform destroy` sin vaciar el bucket frontend a mano
+# mientras iteramos en la build estatico de 04-frontend.
+frontend_force_destroy = true
+
+# 30 en dev: rotacion rapida de los CloudFront access logs.
+frontend_access_logs_retention_days         = 30
+frontend_noncurrent_version_expiration_days = 30

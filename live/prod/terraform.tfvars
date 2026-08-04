@@ -94,3 +94,14 @@ rds_backup_retention_period_days = 0
 # (db.t4g.micro, 1GiB) sin sobre-aprovisionar antes de tener datos reales de
 # carga. Ajustar segun metricas post-launch.
 db_instance_class = "db.t4g.small"
+
+###############################################################################
+# Frontend hosting (modules/frontend-hosting + modules/oidc-frontend)
+###############################################################################
+
+# false en prod: protege los assets de deploy vigentes contra borrado accidental.
+frontend_force_destroy = false
+
+# 90 en prod: retencion extendida para auditoria de cambios en el frontend.
+frontend_access_logs_retention_days         = 90
+frontend_noncurrent_version_expiration_days = 90

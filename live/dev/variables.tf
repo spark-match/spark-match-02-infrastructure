@@ -165,6 +165,38 @@ variable "rds_backup_retention_period_days" {
   }
 }
 
+###############################################################################
+# Variables para modules/frontend-hosting + modules/oidc-frontend
+###############################################################################
+
+variable "frontend_force_destroy" {
+  description = "Si permitir que terraform destroy borre el bucket frontend aunque tenga objetos. true en dev para iterar rapido; false en prod (proteger deploys vigentes)."
+  type        = bool
+  default     = true
+}
+
+variable "frontend_access_logs_retention_days" {
+  description = "Dias antes de expirar los CloudFront access logs en el bucket access-logs del frontend. 30 en dev, 90 en prod."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.frontend_access_logs_retention_days >= 1
+    error_message = "frontend_access_logs_retention_days debe ser >= 1."
+  }
+}
+
+variable "frontend_noncurrent_version_expiration_days" {
+  description = "Dias antes de expirar versiones no-actuales del bucket frontend. 30 en dev, 90 en prod."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.frontend_noncurrent_version_expiration_days >= 1
+    error_message = "frontend_noncurrent_version_expiration_days debe ser >= 1."
+  }
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

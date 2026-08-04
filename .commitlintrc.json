@@ -38,6 +38,7 @@
         "events",
         "dynamodb",
         "ssm",
+        "frontend",
         "live",
         "modules",
         "terraform",

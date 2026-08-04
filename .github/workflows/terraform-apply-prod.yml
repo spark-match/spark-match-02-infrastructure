@@ -45,7 +45,7 @@ jobs:
       gh-environment: production
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
-      apply-role-arn: ${{ vars.AWS_APPLY_ROLE_ARN }}
+      apply-role-arn: ${{ secrets.AWS_APPLY_ROLE_ARN_PROD }}
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate

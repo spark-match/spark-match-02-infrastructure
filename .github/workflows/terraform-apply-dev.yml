@@ -49,4 +49,4 @@ jobs:
       backend-key: dev/terraform.tfstate
       auto-approve: true
     secrets:
-      AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN_DEV }}
+      AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN }}

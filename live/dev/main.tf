@@ -63,9 +63,10 @@ module "networking" {
   flow_log_traffic_type   = var.flow_log_traffic_type
   flow_log_retention_days = var.flow_log_retention_days
 
-  # KMS key se seteara en Fase 1.5 cuando module.security cree el CMK.
-  # Por ahora null: AWS usa CMK administrada por defecto para cifrar el log group.
-  kms_key_arn = null
+  # CMK del proyecto (module.kms.kms_key_arn) se usa para cifrar el log group
+  # de VPC flow logs. Wireado en Fase 2 (PR #132) -- el leftover de Fase 1
+  # (kms_key_arn = null) se corrigio el 2026-08-04.
+  kms_key_arn = module.kms.kms_key_arn
 }
 
 ###############################################################################

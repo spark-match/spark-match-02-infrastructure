@@ -33,7 +33,7 @@ output "public_route_table_id" {
 }
 
 output "private_route_table_ids" {
-  description = "IDs de las route tables privadas (1 sola si enable_nat_ha=false; 1 por AZ si true)."
+  description = "IDs de las route tables privadas (siempre 1 por AZ, independiente de si hay NAT). Ver comentario en aws_route_table.private."
   value       = aws_route_table.private[*].id
 }
 

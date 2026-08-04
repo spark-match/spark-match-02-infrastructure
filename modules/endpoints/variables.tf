@@ -68,7 +68,7 @@ variable "enable_all_endpoints_by_default" {
 }
 
 variable "enabled_endpoints" {
-  description = "Lista explicita de interface endpoints a crear (cuando enable_all_endpoints_by_default=false). Valores validos: ssm, ssmmessages, ec2messages, secretsmanager, kms, logs, ecr.api, ecr.dkr, bedrock-runtime, sts."
+  description = "Lista explicita de interface endpoints a crear (cuando enable_all_endpoints_by_default=false). Valores validos: ssm, ssmmessages, ec2messages, secretsmanager, kms, logs, ecr.api, ecr.dkr, bedrock-runtime, sts, events."
   type        = list(string)
   default     = []
 
@@ -76,10 +76,10 @@ variable "enabled_endpoints" {
     condition = alltrue([
       for ep in var.enabled_endpoints : contains([
         "ssm", "ssmmessages", "ec2messages", "secretsmanager",
-        "kms", "logs", "ecr.api", "ecr.dkr", "bedrock-runtime", "sts",
+        "kms", "logs", "ecr.api", "ecr.dkr", "bedrock-runtime", "sts", "events",
       ], ep)
     ])
-    error_message = "Cada valor de enabled_endpoints debe estar en [ssm, ssmmessages, ec2messages, secretsmanager, kms, logs, ecr.api, ecr.dkr, bedrock-runtime, sts]."
+    error_message = "Cada valor de enabled_endpoints debe estar en [ssm, ssmmessages, ec2messages, secretsmanager, kms, logs, ecr.api, ecr.dkr, bedrock-runtime, sts, events]."
   }
 }
 
@@ -87,4 +87,10 @@ variable "enable_s3_gateway_endpoint" {
   description = "Si crear el VPC endpoint gateway para S3 (gratis). Recomendado true siempre para que las descargas de ECR/Lambda no salgan por NAT."
   type        = bool
   default     = true
+}
+
+variable "interface_endpoint_subnet_ids" {
+  description = "Subnets donde crear los ENI de los interface endpoints. Por defecto (lista vacia) usa todas las private_subnet_ids (1 ENI por AZ, mejor disponibilidad). Pasar un subset (ej: 1 sola subnet/AZ) para reducir costo en dev: cada ENI adicional por AZ cuesta ~$7.20/mes por endpoint."
+  type        = list(string)
+  default     = []
 }

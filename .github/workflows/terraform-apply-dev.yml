@@ -43,7 +43,7 @@ jobs:
       gh-environment: dev
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
       aws-region: ${{ vars.AWS_REGION }}
-      apply-role-arn-secret: AWS_APPLY_ROLE_ARN_DEV
+      apply-role-arn-secret: AWS_APPLY_ROLE_ARN
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-dev
       backend-key: dev/terraform.tfstate

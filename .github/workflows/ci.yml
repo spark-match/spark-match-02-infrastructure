@@ -72,7 +72,7 @@ jobs:
       sources: ${{ vars.SONAR_SOURCES }}
       exclude-patterns: ${{ vars.SONAR_EXCLUDE_PATTERNS }}
       working-directory: "."
-      env: ""
+      env: "dev"
       fail-on-quality-gate: ${{ vars.SONAR_FAIL_ON_QUALITY_GATE }}
 
   # ---------------------------------------------------------------------------

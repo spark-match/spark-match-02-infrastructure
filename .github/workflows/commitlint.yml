@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   lint-commits:
-    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-commitlint.yml@v0.1.16
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-commitlint.yml@main
     with:
       config-file: .commitlintrc.json
       help-url: "https://github.com/spark-match/spark-match-02-infrastructure/blob/dev/AGENTS.md"

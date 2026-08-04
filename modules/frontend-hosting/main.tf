@@ -58,6 +58,15 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
   }
 }
 
+# S3 server access logs del bucket frontend hacia el bucket access-logs compartido.
+# Habilita visibilidad de accesos directos (no via CloudFront) por si el OAC se rompe.
+resource "aws_s3_bucket_logging" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  target_bucket = aws_s3_bucket.access_logs.id
+  target_prefix = "frontend-s3-access-logs/"
+}
+
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 

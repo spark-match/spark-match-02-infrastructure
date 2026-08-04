@@ -66,9 +66,15 @@ variable "enable_nat_ha" {
 ###############################################################################
 
 variable "enable_all_endpoints_by_default" {
-  description = "Si crear todos los interface endpoints (SSM, ECR, Logs, Secrets, Bedrock, KMS, STS, events, etc.). true en prod para mantener trafico AWS privado (sin atravesar NAT ni internet). Costo ~$72/mes (10-11 interface endpoints x $0.01/h)."
+  description = "Si crear todos los interface endpoints (SSM, ECR, Logs, Secrets, Bedrock, KMS, STS, events, etc.). false en prod (checkpoint de costos 2026-08-04): con NAT presente, solo los servicios realmente usados necesitan endpoint dedicado -- el resto sale por NAT. Los 11 endpoints x 2 AZ costaban ~$160.60/mes (22 ENI); con enabled_endpoints explicito + 1 sola AZ el costo baja a ~$29.20/mes."
   type        = bool
-  default     = true
+  default     = false
+}
+
+variable "enabled_endpoints" {
+  description = "Lista explicita de interface endpoints a crear (con enable_all_endpoints_by_default=false). Prod necesita secretsmanager (credenciales RDS), events (PutEvents a EventBridge), ssm (config ADR-0002 para Lambdas en VPC) y bedrock-runtime (el deep-agent invoca Bedrock desde subnets privadas)."
+  type        = list(string)
+  default     = ["secretsmanager", "events", "ssm", "bedrock-runtime"]
 }
 
 variable "enable_flow_logs" {
@@ -120,12 +126,10 @@ variable "bedrock_deploy_github_repos" {
 ###############################################################################
 # Variables para modules de Fase 2 (storage, secrets, events, dynamodb, rds, ssm)
 ###############################################################################
-# Nota: enabled_endpoints e interface_endpoint_subnet_ids (usadas en dev) NO
-# se declaran aca a proposito: con enable_all_endpoints_by_default=true el
-# modulo endpoints ignora enabled_endpoints, y con
-# interface_endpoint_subnet_ids sin pasar (default []) usa automaticamente
-# TODAS las private_subnet_ids (ambas AZs) -- exactamente lo que prod quiere
-# para alta disponibilidad. Ver modules/endpoints/main.tf locals.
+# Nota: interface_endpoint_subnet_ids no se declara como variable aca -- se
+# calcula inline en main.tf con slice(module.networking.private_subnet_ids,
+# 0, 1) (1 sola AZ, mismo patron que live/dev/main.tf) para el recorte de
+# costos del checkpoint 2026-08-04.
 
 variable "sam_artifacts_force_destroy" {
   description = "Si permitir que terraform destroy borre el bucket de artefactos SAM aunque tenga objetos. false en prod (evita borrado accidental de artefactos de deploy vigentes; a diferencia de dev que usa true para iterar rapido)."

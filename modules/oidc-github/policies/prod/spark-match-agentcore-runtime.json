@@ -52,7 +52,13 @@
       ],
       "Resource": [
         "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0",
-        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0"
+        "arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-haiku-4-5-20251001-v1:0",
+        "arn:aws:bedrock:us-east-1:681526276858:inference-profile/us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+        "arn:aws:bedrock:us-east-1:681526276858:inference-profile/us.anthropic.claude-haiku-4-5-20251001-v1:0"
       ]
     },
     {
@@ -63,7 +69,7 @@
         "secretsmanager:DescribeSecret"
       ],
       "Resource": [
-        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-*-${environment}"
+        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match-${environment}-*"
       ]
     },
     {
@@ -78,7 +84,7 @@
         "secretsmanager:TagResource"
       ],
       "Resource": [
-        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-user-*-${environment}"
+        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match-${environment}-agent-user-*"
       ]
     },
     {
@@ -92,18 +98,6 @@
       "Resource": [
         "arn:aws:ssm:us-east-1:681526276858:parameter/spark-match/*"
       ]
-    },
-    {
-      "Sid": "RDSDataAuroraPgvector",
-      "Effect": "Allow",
-      "Action": [
-        "rds-data:ExecuteStatement",
-        "rds-data:BatchExecuteStatement",
-        "rds-data:BeginTransaction",
-        "rds-data:CommitTransaction",
-        "rds-data:RollbackTransaction"
-      ],
-      "Resource": "arn:aws:rds:us-east-1:681526276858:cluster:spark-match-aurora-${environment}-*"
     },
     {
       "Sid": "KMSDecrypt",

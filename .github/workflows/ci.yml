@@ -34,7 +34,7 @@ jobs:
     name: tflint
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-tflint.yml@main
     with:
-      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      environment-name: ""
       terraform-version: ${{ vars.TF_VERSION }}
       working-directory: "."
   # ---------------------------------------------------------------------------
@@ -44,7 +44,7 @@ jobs:
     name: gitleaks
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-gitleaks.yml@main
     with:
-      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      environment-name: ""
     secrets:
       GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
   # ---------------------------------------------------------------------------
@@ -54,7 +54,7 @@ jobs:
     name: terraform-validate
     uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-validate.yml@main
     with:
-      environment-name: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      environment-name: ""
       terraform-version: ${{ vars.TF_VERSION }}
       working-directory: "."
   # ---------------------------------------------------------------------------
@@ -72,7 +72,7 @@ jobs:
       sources: ${{ vars.SONAR_SOURCES }}
       exclude-patterns: ${{ vars.SONAR_EXCLUDE_PATTERNS }}
       working-directory: "."
-      env: ${{ github.event.pull_request.base.ref == 'main' && 'production' || 'dev' }}
+      env: ""
       fail-on-quality-gate: ${{ vars.SONAR_FAIL_ON_QUALITY_GATE }}
 
   # ---------------------------------------------------------------------------

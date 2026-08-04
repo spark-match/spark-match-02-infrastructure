@@ -96,7 +96,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   # checkov:skip=CKV_AWS_374:geo restriction deshabilitada por default (decision de producto: publico global). Se puede activar via restrictions.geo_restriction.locations cuando se defina el alcance geografico.
   # checkov:skip=CKV_AWS_68:WAF no esta en el scope actual. Plan: AWS WAF WebACL compartido por todas las distribuciones del proyecto en una sesion dedicada (costo ~$5/mes + $1/mes por regla).
   # checkov:skip=CKV2_AWS_32:response headers policy no configurada en esta fase (defer). El comportamiento por default de CloudFront ya sirve HTML estatico de forma segura.
-  # checkov:skip=CKV2_AWS_42:custom SSL certificate requiere dominio custom (sin aliases en esta fase, defer). El default *.cloudfront.net certificate aplica cuando viewer_certificate.certificate_source es vacio.
+  # checkov:skip=CKV2_AWS_42:custom SSL certificate requiere dominio custom (sin aliases en esta fase, defer). Se usa cloudfront_default_certificate=true (*.cloudfront.net) hasta que se asigne un dominio custom.
   # checkov:skip=CKV2_AWS_47:WAFv2 con regla AMR para Log4j -- depende de WAF (mismo defer que CKV_AWS_68).
   enabled             = true
   is_ipv6_enabled     = true
@@ -127,7 +127,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     default_ttl            = 3600
     max_ttl                = 86400
 
-    cache_policy_id = "4135ea2d-6df8-44a3-9df3-4d5f7a4cf2d2"
+    cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
   }
 
   custom_error_response {
@@ -145,7 +145,8 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    minimum_protocol_version = var.min_protocol_version
+    cloudfront_default_certificate = true
+    minimum_protocol_version       = var.min_protocol_version
   }
 
   restrictions {
@@ -226,8 +227,18 @@ resource "aws_s3_bucket_ownership_controls" "access_logs" {
   bucket = aws_s3_bucket.access_logs.id
 
   rule {
-    object_ownership = "BucketOwnerEnforced"
+    object_ownership = "BucketOwnerPreferred"
   }
+}
+
+# CloudFront log delivery (delivery.logs.amazonaws.com) requires ACL log-delivery-write
+# on the destination bucket. With BucketOwnerEnforced this is rejected; BucketOwnerPreferred
+# allows the ACL while keeping ObjectOwnership enforced for all new objects.
+resource "aws_s3_bucket_acl" "access_logs" {
+  depends_on = [aws_s3_bucket_ownership_controls.access_logs]
+
+  bucket = aws_s3_bucket.access_logs.id
+  acl    = "log-delivery-write"
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {

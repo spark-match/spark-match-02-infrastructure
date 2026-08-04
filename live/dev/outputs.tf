@@ -188,3 +188,42 @@ output "ssm_parameter_names" {
   description = "Map con los 8 nombres (paths) de los parametros SSM creados para spark-match-03-backend."
   value       = module.ssm_bootstrap.parameter_names
 }
+
+###############################################################################
+# Frontend hosting (S3 + CloudFront + OAC)
+###############################################################################
+
+output "frontend_bucket_name" {
+  description = "Nombre del bucket S3 que almacena los assets del frontend. Wire a 04-frontend config (S3_BUCKET)."
+  value       = module.frontend_hosting.frontend_bucket_name
+}
+
+output "frontend_bucket_arn" {
+  description = "ARN del bucket S3 del frontend."
+  value       = module.frontend_hosting.frontend_bucket_arn
+}
+
+output "frontend_bucket_regional_domain_name" {
+  description = "Domain name regional del bucket S3 (para endpoint regional en scripts de deploy)."
+  value       = module.frontend_hosting.frontend_bucket_regional_domain_name
+}
+
+output "frontend_distribution_id" {
+  description = "ID de la distribucion CloudFront del frontend. Wire a 04-frontend config (CLOUDFRONT_DISTRIBUTION_ID)."
+  value       = module.frontend_hosting.frontend_distribution_id
+}
+
+output "frontend_distribution_domain_name" {
+  description = "Default domain name de la distribucion (*.cloudfront.net)."
+  value       = module.frontend_hosting.frontend_distribution_domain_name
+}
+
+output "frontend_distribution_arn" {
+  description = "ARN de la distribucion CloudFront del frontend."
+  value       = module.frontend_hosting.frontend_distribution_arn
+}
+
+output "frontend_deploy_role_arn" {
+  description = "ARN del role OIDC asumido por spark-match-04-frontend para deploy. Wire a GitHub Actions secret AWS_FRONTEND_DEPLOY_ROLE_ARN_DEV."
+  value       = module.oidc_frontend.deploy_role_arn
+}

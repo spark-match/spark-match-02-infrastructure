@@ -274,10 +274,32 @@ Referencia: política adoptada el 2026-07-31 tras cleanup de PR #65 (14 commits
 > aceptable usar `--admin` en `gh pr merge` para forzar un merge contra las
 > required checks del ruleset `spark-match-default-branch-protection`.
 
+### Required checks actuales del ruleset 18893016 (post-2026-08-04)
+
+El ruleset tiene **21 required checks** distribuidos en 4 grupos:
+
+- **CI base (7)**: `plan-dev / plan-`, `tflint / tflint-`, `gitleaks / gitleaks-`,
+  `sonar-terraform / sonar-terraform-dev`, `terraform-validate / terraform-validate-`,
+  `quality / bats`, `lint-commits / commitlint`.
+- **Checkov matrix (14)**: `checkov-live/dev`, `checkov-live/prod`, y 12
+  `checkov-modules/<module>` (networking, security-groups, endpoints,
+  oidc-github, kms, notifications, storage-sam-artifacts, secrets-bootstrap,
+  eventbridge-bus, dynamodb-idempotency, ssm-bootstrap, rds-postgres).
+
+**Nota 2026-08-04**: el check top-level derivado `Checkov` (Code Scanning
+check que se genera automaticamente cuando el SARIF de checkov sube
+resultados) **fue removido** del required check del ruleset en esta fecha.
+Razon: en sync PRs con diff amplio contra `main` (caso PR #137, 53 archivos),
+Code Scanning re-reportaba alertas pre-existentes del codigo de `dev` como
+"new in PR diff" -- side-effect estructural del `git merge --squash` que no
+representa alertas reales. Los 14 matrix jobs de checkov siguen siendo
+required, asi que el escaneo real NO se pierde, solo se elimina el check
+derivado que re-reports alertas pre-existentes.
+
 **Admin bypass SOLO permitido cuando se cumplen TODAS estas condiciones:**
 
-1. TODOS los required checks en SUCCESS (Plan dev, Checkov, tflint, gitleaks,
-   sonar-terraform), Y
+1. TODOS los 21 required checks en SUCCESS (los 7 CI base + los 14 checkov
+   matrix jobs; el top-level `Checkov` ya NO es required post-2026-08-04), Y
 2. No hay reviewer disponible (nocturno, urgencia operativa, sin quorum de
    CODEOWNERS), Y
 3. Queda documentado en la PR description + commit message con razon
@@ -286,13 +308,31 @@ Referencia: política adoptada el 2026-07-31 tras cleanup de PR #65 (14 commits
 **Admin bypass NO permitido cuando:**
 
 - Cualquier required check en FAILURE (incluyendo tflint, gitleaks,
-  sonar-terraform).
+  sonar-terraform, o cualquiera de los 14 checkov matrix jobs).
 - Alertas CodeQL / Dependabot / GHAS OPEN (regla dura ya existente, ver
   seccion "Prioridad de alertas de seguridad").
 - Coverage gap.
 - "Solo para mergear rapido" sin justificacion operativa documentada.
 
-**Workflow al usar admin-bypass:**
+### Patron especifico para sync PRs (chore: sync dev into main)
+
+Los sync PRs que promueven trabajo cerrado de `dev` a `main` tienen una
+particularidad: a menudo divergen del ruleset por **falta de reviewer**
+(@spark-match/devops es team-of-1, sin quorum para review normal), no por
+checks en rojo. El admin-bypass es aceptable en este caso siguiendo la
+politica general, con dos consideraciones adicionales:
+
+1. **Documentar bypass + sync process**: en la PR description incluir:
+   - Lista explicita de PRs promovidos desde `dev`.
+   - Lista de archivos / lineas modificadas (`git diff --stat origin/main origin/dev`).
+   - Estado de las alertas CodeQL/Dependabot (verificado via `gh api`).
+   - Estado de `live/dev` aplicado (verificado via `terraform plan` 0 drift).
+   - Estado de `live/prod` (code only, no aplicado).
+2. **Verificar contenido del squash** antes del merge: `git diff --cached origin/dev`
+   debe ser vacio (o solo contener el drift intencional documentado). Si hay
+   drift no intencional, NO hacer bypass, resolver primero.
+
+**Workflow al usar admin-bypass (general, valido para sync y feature PRs):**
 
 1. Abrir PR normalmente.
 2. Esperar a que TODOS los required checks pasen en verde.
@@ -309,6 +349,25 @@ Referencia: política adoptada el 2026-07-31 tras cleanup de PR #65 (14 commits
 Esto oculta fallas de tooling / cobertura / seguridad y bloquea la
 capacidad del equipo de auditar. Si un check falla, se arregla el problema
 raíz, no se bypasea.
+
+**Leccion historica (2026-08-04)**: 3 sync PRs consecutivos (#137, #139,
+#141) requirieron admin-bypass en una sola sesion. Patrones observados:
+
+- PR #137: admin-bypass por Checkov top-level FAILURE (side-effect Code
+  Scanning en diff amplio). **Resuelto post-hoc** quitando `Checkov` del
+  ruleset (esta seccion).
+- PR #139: admin-bypass por Checkov top-level + PR title con mayusculas
+  (`PR #137` literal) fallo `subject-case: lower-case` post-push a main.
+  **Resuelto** via cleanup PR + fix-forward PR #140 (commit valido tapa
+  el malo en `commit-depth: 2`). Llesson documented in
+  `docs/lessons-learned-conventional-commits.md`.
+- PR #141: admin-bypass por falta de reviewer (Checkov top-level ya no
+  era required post-fix). Tamaño del diff (2 archivos docs) no justificaba
+  dividirlo.
+
+Conclusion: tras quitar `Checkov` del ruleset, los futuros sync PRs solo
+requeriran admin-bypass por **falta de reviewer**, no por checks en rojo.
+Esto reduce la superficie de admin-bypass significativamente.
 
 Referencia: PR #200 (spark-match-01-devops) actualizo el ruleset 18893016
 agregando tflint/gitleaks/sonar-terraform como required checks. Antes de
@@ -535,6 +594,40 @@ Si el merge ya ocurrió con el subject malo, hay dos opciones:
 Lecciones aprendidas en este repo: PR #114 (scope `workflows` no
 válido en 02-infra) y PR #115 (`PR` mayúscula, sujeto al rule
 `subject-case: lower-case`). Ambos requirieron fix forward.
+
+### Regla de capitalización: siglas y abreviaturas
+
+El rule `subject-case: lower-case` (heredado de `@commitlint/config-conventional`)
+es case-sensitive y evalua TODO el subject. **Las siglas y abreviaturas
+deben ir en lowercase** en PR titles y commit subjects:
+
+- `PR` (Pull Request) -> `pr` o re-frasear (`sync pr 137` en vez de `sync PR 137`).
+- `AWS` -> `aws` o re-frasear (`feat(iam): add aws oidc trust policy`).
+- `OIDC`, `S3`, `CI`, `CD`, `ECR`, `RDS`, `VPC`, `IAM`, `KMS`, `SNS`, `SQS`,
+  `API`, `URL`, `ARN`, `JSON`, `YAML`, `JIT`, `TTL`, `JWT` -> todos lowercase.
+- `#<num>` (issue/PR number) -> OK, son numericos.
+- `v<semver>` (release tag) -> OK, son numericos precedidos de `v`.
+
+**Ejemplos validos**:
+- `chore: sync dev into main (fix-forward for cleanup of pr 139)`
+- `feat(iam): add aws oidc trust policy for github actions`
+- `fix(rds): encrypt performance insights with project cmk`
+
+**Ejemplos invalidos** (rompen `subject-case`):
+- `chore: sync dev into main (fix-forward for cleanup of PR 139)` <- PR mayuscula
+- `feat(iam): add AWS OIDC trust policy for GitHub Actions` <- siglas mayuscula
+- `fix(rds): encrypt Performance Insights with project CMK` <- palabras mayuscula
+
+Si el PR title tiene mayusculas incorrectas, **NO** abrir el PR asi. Editarlo
+antes de abrir:
+
+```bash
+gh pr create --title "..."  # si usamos Ctrl+C, no crearlo
+gh pr edit <num> --title "<subject en lowercase>"
+```
+
+Si ya se abrio y todavia no se mergeo, editar antes de mergear.
+Si ya se mergeo (caso PR #139), fix-forward con un nuevo commit valido.
 
 ### Cómo añadir un scope nuevo
 

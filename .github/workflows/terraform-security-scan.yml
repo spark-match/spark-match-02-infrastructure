@@ -58,6 +58,7 @@ jobs:
           - modules/eventbridge-bus
           - modules/dynamodb-idempotency
           - modules/ssm-bootstrap
+          - modules/rds-postgres
 
     steps:
       - name: checkout

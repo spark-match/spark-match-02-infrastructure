@@ -1,0 +1,9 @@
+output "bucket_name" {
+  description = "Nombre del bucket de artefactos SAM (spark-match-sam-artifacts-{env})."
+  value       = aws_s3_bucket.sam_artifacts.id
+}
+
+output "bucket_arn" {
+  description = "ARN del bucket de artefactos SAM."
+  value       = aws_s3_bucket.sam_artifacts.arn
+}

@@ -52,6 +52,12 @@ jobs:
           - modules/endpoints
           - modules/oidc-github      # Sprint 1: extracted OIDC + IAM roles
           - modules/kms              # Sprint 1: extracted KMS CMK
+          - modules/notifications
+          - modules/storage-sam-artifacts
+          - modules/secrets-bootstrap
+          - modules/eventbridge-bus
+          - modules/dynamodb-idempotency
+          - modules/ssm-bootstrap
 
     steps:
       - name: checkout

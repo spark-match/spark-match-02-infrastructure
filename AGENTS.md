@@ -618,7 +618,7 @@ workflow runs antiguos y complica búsquedas en GitHub UI.
 >    `tests/bats/commitlint-config.bats` (drift detector) lo detectan
 >    antes de CI.
 
-### Scope enum (25 infra scopes)
+### Scope enum (26 infra scopes)
 
 Los scopes permitidos viven en `.commitlintrc.json` bajo `scope-enum` Y
 en `.pre-commit-hooks/commit-msg.sh` (regex). Deben estar sincronizados
@@ -626,7 +626,7 @@ en `.pre-commit-hooks/commit-msg.sh` (regex). Deben estar sincronizados
 
 | Capa | Scopes |
 |---|---|
-| **Módulos** (componentes Terraform) | `oidc`, `networking`, `security`, `endpoints`, `kms`, `notifications`, `iam`, `observability`, `rds`, `lambda`, `budget`, `storage`, `secrets`, `events`, `dynamodb`, `ssm` |
+| **Módulos** (componentes Terraform) | `oidc`, `networking`, `security`, `endpoints`, `kms`, `notifications`, `iam`, `observability`, `rds`, `lambda`, `budget`, `storage`, `secrets`, `events`, `dynamodb`, `ssm`, `frontend` |
 | **Capas Terraform** | `live`, `modules`, `terraform` |
 | **Generales** | `ci`, `deps`, `docs`, `governance`, `scripts`, `repo` |
 

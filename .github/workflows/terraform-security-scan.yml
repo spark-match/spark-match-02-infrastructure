@@ -65,6 +65,8 @@ jobs:
           - modules/dynamodb-idempotency
           - modules/ssm-bootstrap
           - modules/rds-postgres
+          - modules/frontend-hosting
+          - modules/oidc-frontend
 
     steps:
       - name: checkout

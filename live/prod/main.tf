@@ -342,3 +342,40 @@ module "ssm_bootstrap" {
 
   kms_key_arn = module.kms.kms_key_arn
 }
+
+###############################################################################
+# Module: frontend_hosting
+###############################################################################
+# Bucket S3 + CloudFront + OAC para servir el build estatico de
+# spark-match-04-frontend en prod. force_destroy=false (a diferencia de
+# dev) para no borrar accidentalmente los assets de deploy vigentes.
+###############################################################################
+
+module "frontend_hosting" {
+  source = "../../modules/frontend-hosting"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  force_destroy                      = var.frontend_force_destroy
+  access_logs_retention_days         = var.frontend_access_logs_retention_days
+  noncurrent_version_expiration_days = var.frontend_noncurrent_version_expiration_days
+}
+
+###############################################################################
+# Module: oidc_frontend
+###############################################################################
+# Role OIDC prod (spark-match-frontend-deploy-prod) asumido por 04-frontend
+# en CI contra refs/heads/main + environment:production.
+###############################################################################
+
+module "oidc_frontend" {
+  source = "../../modules/oidc-frontend"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  bucket_arn             = module.frontend_hosting.frontend_bucket_arn
+  access_logs_bucket_arn = module.frontend_hosting.access_logs_bucket_arn
+  distribution_arn       = module.frontend_hosting.frontend_distribution_arn
+}

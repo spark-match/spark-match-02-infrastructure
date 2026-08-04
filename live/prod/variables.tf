@@ -167,6 +167,38 @@ variable "db_instance_class" {
   default     = "db.t4g.small"
 }
 
+###############################################################################
+# Variables para modules/frontend-hosting + modules/oidc-frontend
+###############################################################################
+
+variable "frontend_force_destroy" {
+  description = "Si permitir que terraform destroy borre el bucket frontend aunque tenga objetos. false en prod (proteger deploys vigentes); true en dev para iterar rapido."
+  type        = bool
+  default     = false
+}
+
+variable "frontend_access_logs_retention_days" {
+  description = "Dias antes de expirar los CloudFront access logs en el bucket access-logs del frontend. 90 en prod (auditoria)."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = var.frontend_access_logs_retention_days >= 1
+    error_message = "frontend_access_logs_retention_days debe ser >= 1."
+  }
+}
+
+variable "frontend_noncurrent_version_expiration_days" {
+  description = "Dias antes de expirar versiones no-actuales del bucket frontend. 90 en prod (auditoria)."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = var.frontend_noncurrent_version_expiration_days >= 1
+    error_message = "frontend_noncurrent_version_expiration_days debe ser >= 1."
+  }
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

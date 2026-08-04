@@ -55,6 +55,7 @@ resource "aws_db_instance" "main" {
   # checkov:skip=CKV_AWS_161:IAM database authentication no se usa en este POC; auth via password + Secrets Manager (arquitectura ya definida en BACKEND-DEPLOY.md).
   # checkov:skip=CKV_AWS_118:enhanced monitoring (requiere IAM role + costo extra) diferido; Performance Insights disponible via var.performance_insights_enabled.
   # checkov:skip=CKV_AWS_129:log exports a CloudWatch desactivados por default para minimizar costo en dev; activar con var.enabled_cloudwatch_logs_exports si se necesita debug.
+  # checkov:skip=CKV_AWS_133:dev usa backup_retention_period_days=0 por restriccion dura de cuenta AWS "Free Tier account" (AWS rechazo CreateDBInstance con FreeTierRestrictionError al pedir 7 dias, confirmado en cuenta 681526276858 el 2026-08-04). prod debe mantener backup_retention_period_days >= 7 via su propio terraform.tfvars; este skip es a nivel de modulo (aplica a cualquier caller) porque el check no puede evaluar el valor real resuelto por entorno.
   identifier     = local.identifier
   engine         = "postgres"
   engine_version = var.engine_version

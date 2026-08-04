@@ -337,6 +337,11 @@ module "rds_postgres" {
   # 0 en dev: permite recrear el secret de credenciales sin esperar el
   # recovery window (mismo razonamiento que module.secrets_bootstrap).
   secret_recovery_window_in_days = var.secrets_recovery_window_in_days
+
+  # 0 en dev: la cuenta AWS 681526276858 tiene guardrails de "Free Tier
+  # account" que rechazan CreateDBInstance si backup_retention_period > 0
+  # (FreeTierRestrictionError, confirmado en el primer apply real 2026-08-04).
+  backup_retention_period_days = var.rds_backup_retention_period_days
 }
 
 ###############################################################################

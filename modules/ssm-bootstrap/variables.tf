@@ -82,3 +82,23 @@ variable "kms_key_arn" {
     error_message = "kms_key_arn debe ser null o un ARN valido de KMS."
   }
 }
+
+variable "private_subnet_ids" {
+  description = "IDs de subnets privadas (output de modules/networking). El backend las necesita para el VpcConfig de sus Lambdas (corren dentro de la VPC para llegar a RDS). Se almacena como CSV en un solo parametro String."
+  type        = list(string)
+
+  validation {
+    condition     = length(var.private_subnet_ids) >= 1
+    error_message = "private_subnet_ids debe tener al menos 1 elemento."
+  }
+}
+
+variable "lambda_security_group_id" {
+  description = "ID del security group de Lambda (output de modules/security-groups). El backend lo necesita para el VpcConfig de sus Lambdas."
+  type        = string
+
+  validation {
+    condition     = can(regex("^sg-[0-9a-f]{8,17}$", var.lambda_security_group_id))
+    error_message = "lambda_security_group_id debe tener formato sg-<hex>."
+  }
+}

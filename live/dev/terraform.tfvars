@@ -30,22 +30,24 @@ enable_nat_gateway = false
 enable_nat_ha      = false
 
 ###############################################################################
-# Endpoints (modulo endpoints - se usara en Fase 1.5)
+# Endpoints (modulo endpoints)
 ###############################################################################
 
-# Decisión de arquitectura dev (Opción A — IMPROVEMENTS.md A4/NET-01):
-#   Las Lambdas de 03-backend y 08-deep-agent corren FUERA de la VPC.
-#   Justificación:
-#     - Tavily (búsqueda web externa) y LangSmith (métricas) requieren acceso
-#       a internet público desde la Lambda. Sin VPC, esto es directo (sin NAT).
-#     - Aurora PostgreSQL Serverless v2 con RDS Data API habilitada permite
-#       conectar a RDS por HTTPS público, sin necesidad de Lambda en VPC.
-#     - Servicios AWS regionales (DynamoDB, SSM, Secrets Manager, Bedrock,
-#       S3) son accesibles vía endpoints públicos sin VPC ni NAT.
-#   Costo networking dev: $0/mes (sin NAT, sin interface endpoints).
-#
-# Por lo tanto, en dev NO prendemos NAT ni interface endpoints.
+# Decision de arquitectura dev (ADR 0002 §4 — VPC + 2 interface endpoints, sin NAT):
+#   Las Lambdas de 03-backend corren DENTRO de la VPC (subnet privada) porque
+#   RDS Postgres estandar (NO Aurora, ver PR #131) no tiene Data API HTTPS --
+#   la unica forma de conectar es via TCP 5432, que requiere estar en la VPC
+#   o exponer RDS publicamente (descartado por seguridad).
+#   Sin NAT, las unicas llamadas SDK salientes que necesitan salida son:
+#     - Secrets Manager (leer credenciales frescas de RDS en cada invocacion)
+#     - EventBridge (PutEvents para eventos de dominio)
+#   Ambas se resuelven con interface endpoints en 1 sola AZ (no las 2) para
+#   reducir costo: cada ENI adicional por AZ cuesta ~$7.20/mes por endpoint.
+#   CloudWatch Logs y X-Ray no requieren NAT ni VPC endpoint (viajan por el
+#   plano de control de Lambda, no por la ENI de la funcion).
+#   Costo networking dev: ~$14.60/mes (2 endpoints x 1 AZ), sin NAT.
 enable_all_endpoints_by_default = false
+enabled_endpoints               = ["secretsmanager", "events"]
 enable_s3_gateway_endpoint      = true
 
 # Flow logs: desactivado en dev para minimizar costo (~$0.50/mes si esta
@@ -69,3 +71,18 @@ sam_deploy_github_repos = [
 bedrock_deploy_github_repos = [
   "spark-match/spark-match-08-deep-agent",
 ]
+
+###############################################################################
+# Fase 2 (modulos storage, secrets, events, dynamodb, rds, ssm — ADR 0002)
+###############################################################################
+
+# true en dev: permite terraform destroy sin vaciar el bucket de artefactos SAM a mano.
+sam_artifacts_force_destroy = true
+
+# 0 en dev: permite recrear secrets (JWT, credenciales RDS) sin esperar el
+# recovery window de Secrets Manager mientras iteramos.
+secrets_recovery_window_in_days = 0
+
+# '*' en dev: el frontend local (Vite, distintos puertos) necesita CORS abierto.
+# En prod esto debe ser una lista explicita de dominios.
+cors_allowed_origins = "*"

@@ -6,18 +6,20 @@
 #   - Sin recursos aplicados (cuenta AWS 681526276858 limpia salvo tfstate backend).
 #   - State bucket: spark-match-tfstate-dev con versioning + native lockfile.
 #
-# Fase 1 (activa):
-#   - module "networking" -> VPC 10.10.0.0/16, NAT OFF, 1 subnet publica + 1 privada por AZ
-#   - module "security"   -> IAM roles *-dev, KMS CMK dev, SGs (Fase 1.5)
-#   - module "endpoints"  -> Solo S3 gateway (no interface endpoints en dev por costo)
+# Fase 1 (completada):
+#   - module "networking"      -> VPC 10.10.0.0/16, NAT OFF, 1 subnet publica + 1 privada por AZ
+#   - module "security_groups" -> SGs lambda/rds/endpoints
+#   - module "kms"             -> CMK por entorno
+#   - module "endpoints"       -> S3 gateway + interface endpoints (secretsmanager, events)
+#   - module "oidc_github"     -> OIDC provider + 4 IAM roles
 #
-# Fases futuras:
-#   - module "database"     -> RDS Aurora PostgreSQL Serverless v2 (sin pgvector; vector store en otro proveedor)
-#   - module "storage"      -> S3 buckets definitivos
-#   - module "events"       -> EventBridge bus custom + archive + DLQ
-#   - module "secrets"      -> Secrets Manager (JWT, DB credentials)
-#   - module "monitoring"   -> CloudWatch + SNS
-#   - module "bedrock"      -> IAM para Bedrock + ECR repo del agente
+# Fase 2 (activa, ADR 0002 — cross-repo config contract):
+#   - module "storage_sam_artifacts"  -> S3 bucket de artefactos SAM
+#   - module "secrets_bootstrap"      -> Secrets Manager (JWT signing key)
+#   - module "eventbridge_bus"        -> EventBridge bus custom + archive + DLQ
+#   - module "dynamodb_idempotency"   -> Tabla DynamoDB de idempotencia
+#   - module "rds_postgres"           -> RDS PostgreSQL Single-AZ + secret de credenciales
+#   - module "ssm_bootstrap"          -> 8 parametros SSM (contrato con 03-backend)
 #
 # Politica de cambios:
 #   - Cualquier cambio aca requiere PR aprobado por @spark-match/devops.
@@ -29,8 +31,11 @@
 # Module: networking
 ###############################################################################
 # VPC principal + 2 subnets publicas + 2 subnets privadas (1 por AZ en us-east-1a/b).
-# NAT gateway desactivado en dev (las Lambdas corren fuera de VPC por decision
-# arquitectonica Opcion A, IMPROVEMENTS.md A4/NET-01).
+# NAT gateway desactivado en dev: las Lambdas del backend corren DENTRO de la
+# VPC (subnet privada, para llegar a RDS por TCP 5432 -- ver ADR 0002 seccion 4),
+# pero sin necesidad de salida generica a internet. Las unicas llamadas SDK
+# salientes (Secrets Manager, EventBridge PutEvents) se resuelven con 2
+# interface endpoints en 1 sola AZ (module.endpoints), no con NAT.
 # Flow logs desactivados en dev para minimizar costo (default false).
 #
 # Outputs consumidos por modules/networking y modules/endpoints (Fase 1.5):
@@ -48,8 +53,7 @@ module "networking" {
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
 
-  # NAT desactivado en dev: sin salida a internet para subnets privadas.
-  # Las Lambdas de 03-backend y 08-deep-agent corren fuera de VPC.
+  # NAT desactivado en dev: ver comentario del modulo arriba (ADR 0002 §4).
   enable_nat_gateway = var.enable_nat_gateway
   enable_nat_ha      = var.enable_nat_ha
 
@@ -189,15 +193,19 @@ module "security_groups" {
 ###############################################################################
 # Module: endpoints
 ###############################################################################
-# VPC endpoints para que las Lambdas (cuando esten en VPC) y el contenedor
-# FastAPI del agente (en AgentCore) no salgan por NAT para hablar con AWS.
+# VPC endpoints para que las Lambdas del backend (dentro de VPC, ver ADR 0002
+# §4) no salgan por NAT para hablar con AWS.
 #
-# Decisión dev (Opción A — IMPROVEMENTS.md A4/NET-01):
-#   - Interface endpoints: DESACTIVADOS en dev (~$7.20/mes por endpoint × 10 =
-#     $72/mes). Las Lambdas corren FUERA de VPC por lo que no los necesitan.
-#   - Gateway endpoint S3: ACTIVADO (gratis). Lo activamos igual porque si en
-#     algun momento una Lambda entra a VPC, ya tendra acceso privado a S3 sin
-#     cargo.
+# Decision dev (ADR 0002 §4):
+#   - Interface endpoints: solo `secretsmanager` (leer credenciales frescas de
+#     RDS) y `events` (PutEvents a EventBridge). Desplegados en 1 sola AZ (no
+#     las 2) para reducir costo: ~$14.60/mes (2 endpoints x 1 AZ) en vez de
+#     ~$72/mes (10 endpoints x 2 AZ, catalogo completo).
+#   - Gateway endpoint S3: ACTIVADO (gratis).
+#   - CloudWatch Logs y X-Ray no requieren VPC endpoint (viajan por el plano
+#     de control de Lambda, no por la ENI de la funcion).
+#   - `ssm` NO esta en la lista: el runtime del backend lee env vars
+#     inyectadas en deploy-time via `{{resolve:ssm:}}`, no relee SSM (ADR 0002 §3).
 #
 # El SG que se pasa (`endpoints_security_group_id`) es el mismo que se creo en
 # module.security, y permite ingress 443 desde sg-lambda (regla que también se
@@ -218,7 +226,145 @@ module "endpoints" {
   # SG de VPC endpoints (creado en module.security_groups, con ingress 443 desde sg-lambda).
   endpoints_security_group_id = module.security_groups.sg_endpoints_id
 
-  # Decisión dev: solo S3 gateway endpoint (gratis), sin interface endpoints.
+  # Decision dev (ADR 0002 §4): solo secretsmanager + events, en 1 AZ.
   enable_all_endpoints_by_default = var.enable_all_endpoints_by_default
+  enabled_endpoints               = var.enabled_endpoints
   enable_s3_gateway_endpoint      = var.enable_s3_gateway_endpoint
+
+  # 1 sola AZ (la primera subnet privada) en vez de las 2 -- reduce costo a
+  # la mitad (~$7.20/mes por endpoint por AZ evitada).
+  interface_endpoint_subnet_ids = slice(module.networking.private_subnet_ids, 0, 1)
+}
+
+###############################################################################
+# Module: storage_sam_artifacts
+###############################################################################
+# Bucket S3 donde `sam deploy` (spark-match-03-backend) sube los artefactos
+# de build (zips de Lambda, plantillas empaquetadas). Cifrado con la CMK del
+# proyecto, versionado, con bucket de access logs dedicado (ver Sonar S6249/
+# S6258 en PR #130).
+###############################################################################
+
+module "storage_sam_artifacts" {
+  source = "../../modules/storage-sam-artifacts"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn = module.kms.kms_key_arn
+
+  # true en dev: permite `terraform destroy` sin vaciar el bucket a mano
+  # mientras iteramos (los artefactos de build son recreables, no criticos).
+  force_destroy = var.sam_artifacts_force_destroy
+}
+
+###############################################################################
+# Module: secrets_bootstrap
+###############################################################################
+# Secret JWT (HS256 signing key, 48 bytes aleatorios en base64) para que
+# spark-match-03-backend firme/valide access y refresh tokens. Unico secret
+# de este modulo -- el secret de credenciales de RDS vive en modules/rds-postgres
+# (ver ADR 0002 seccion 2, decision de ownership).
+###############################################################################
+
+module "secrets_bootstrap" {
+  source = "../../modules/secrets-bootstrap"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn = module.kms.kms_key_arn
+
+  # 0 en dev: permite recrear el secret sin esperar el recovery window si se
+  # necesita rotar/destruir durante la iteracion (ver descripcion de la variable).
+  recovery_window_in_days = var.secrets_recovery_window_in_days
+}
+
+###############################################################################
+# Module: eventbridge_bus
+###############################################################################
+# Bus de EventBridge custom (`spark-match-events-{env}`) para eventos de
+# dominio (ej: MatchCreated, ApplicationSubmitted). Incluye archive (30 dias)
+# y DLQ SQS para target failures de las reglas que consuman este bus.
+###############################################################################
+
+module "eventbridge_bus" {
+  source = "../../modules/eventbridge-bus"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn = module.kms.kms_key_arn
+}
+
+###############################################################################
+# Module: dynamodb_idempotency
+###############################################################################
+# Tabla DynamoDB (`spark-match-{env}-idempotency`) usada por el backend para
+# evitar procesar el mismo evento/request 2 veces (patron idempotency key +
+# TTL). PAY_PER_REQUEST: sin costo fijo, solo por uso.
+###############################################################################
+
+module "dynamodb_idempotency" {
+  source = "../../modules/dynamodb-idempotency"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn = module.kms.kms_key_arn
+}
+
+###############################################################################
+# Module: rds_postgres
+###############################################################################
+# Instancia RDS PostgreSQL Single-AZ (`db.t4g.micro`, free-tier los primeros
+# 12 meses de la cuenta). Decision explicita: RDS estandar, NO Aurora
+# Serverless v2 (Aurora minimo cuesta ~$43/mes incluso idle, ver PR #131).
+# El secret de credenciales (`spark-match-{env}-db-credentials`) se crea
+# dentro de este modulo -- ver ADR 0002 seccion 2 para el razonamiento.
+###############################################################################
+
+module "rds_postgres" {
+  source = "../../modules/rds-postgres"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  private_subnet_ids    = module.networking.private_subnet_ids
+  rds_security_group_id = module.security_groups.sg_rds_id
+  kms_key_arn           = module.kms.kms_key_arn
+
+  # 0 en dev: permite recrear el secret de credenciales sin esperar el
+  # recovery window (mismo razonamiento que module.secrets_bootstrap).
+  secret_recovery_window_in_days = var.secrets_recovery_window_in_days
+}
+
+###############################################################################
+# Module: ssm_bootstrap
+###############################################################################
+# 8 parametros SSM bajo /spark-match/dev/config/* que forman el contrato
+# cross-repo con spark-match-03-backend (ver ADR 0002 completo). Este modulo
+# no calcula nada: solo expone los outputs de los modulos anteriores en las
+# rutas que el template SAM del backend resuelve via `{{resolve:ssm:}}`.
+###############################################################################
+
+module "ssm_bootstrap" {
+  source = "../../modules/ssm-bootstrap"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  eventbridge_bus_arn = module.eventbridge_bus.bus_arn
+  db_secret_arn       = module.rds_postgres.db_credentials_secret_arn
+  jwt_secret_arn      = module.secrets_bootstrap.jwt_secret_arn
+  db_connection_url   = module.rds_postgres.connection_url
+
+  idempotency_table_name = module.dynamodb_idempotency.table_name
+  cors_allowed_origins   = var.cors_allowed_origins
+
+  # VpcConfig para las Lambdas del backend (ADR 0002 seccion 5).
+  private_subnet_ids       = module.networking.private_subnet_ids
+  lambda_security_group_id = module.security_groups.sg_lambda_id
+
+  kms_key_arn = module.kms.kms_key_arn
 }

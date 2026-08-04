@@ -20,6 +20,16 @@
 # Esto permite tener 4 roles distintos (plan-dev, plan-prod, apply-dev, apply-prod)
 # sin _DEV/_PROD suffix en los nombres - el env hace el scoping.
 #
+# Por que AWS_PLAN_ROLE_ARN aparece duplicado (repo + env dev) con el mismo valor:
+#   - Repo-level var = fallback para PRs (donde environment queda vacio por bug GH
+#     Actions runner_id=0 con branch policy + refs/pull/*/merge).
+#   - Env-level var = usado en workflow_dispatch (que si bindea al env correctamente).
+#   - El valor es identico a proposito: el repo-level solo se lee cuando no hay env
+#     binding, asi que ambos apuntan al mismo role (plan-dev). Borrar el repo-level
+#     haria que los PRs fallen (sin fallback en el lookup chain).
+# AWS_APPLY_ROLE_ARN NO se duplica porque apply solo corre en workflow_dispatch,
+# que siempre bindea al env correspondiente.
+#
 # Para PR omite backend-bucket -> el reusable workflow usa -backend=false
 # (state bucket no existe para project fresh). Para dispatch incluye backend
 # (verifica contra state real).

@@ -8,8 +8,9 @@
 #
 # Fase 1 + Fase 2 (este PR, ADR 0002 — cross-repo config contract):
 #   - Wiring completo de los mismos 11 modulos ya aplicados en dev (ver
-#     live/dev/main.tf), con decisiones especificas de prod (NAT HA, todos
-#     los VPC endpoints, Multi-AZ en RDS, deletion protection, etc.).
+#     live/dev/main.tf), con decisiones especificas de prod (NAT HA,
+#     cobertura completa de VPC endpoints, Multi-AZ en RDS, deletion
+#     protection, etc.).
 #   - NO se instancia module "notifications": ese modulo crea recursos DE
 #     CUENTA (SNS topic + AWS Budget), unicos a nivel de cuenta AWS, y ya
 #     fueron creados desde live/dev (ver comentario en ese archivo). Volver
@@ -157,10 +158,11 @@ module "security_groups" {
 ###############################################################################
 # Module: endpoints
 ###############################################################################
-# Decision de arquitectura prod: TODOS los interface endpoints (SSM, ECR,
-# Logs, Secrets, KMS, STS, Bedrock, events, etc.) + gateway S3, para mantener
-# trafico AWS privado (sin atravesar NAT ni internet) incluso teniendo NAT
-# disponible. Costo ~$72/mes (10-11 interface endpoints x $0.01/h).
+# Decision de arquitectura prod: cobertura completa de interface endpoints
+# (SSM, ECR, Logs, Secrets, KMS, STS, Bedrock, events, etc.) + gateway S3,
+# para mantener trafico AWS privado (sin atravesar NAT ni internet) incluso
+# teniendo NAT disponible. Costo ~$72/mes (10-11 interface endpoints x
+# $0.01/h).
 #
 # `enabled_endpoints` e `interface_endpoint_subnet_ids` NO se pasan a
 # proposito (quedan en su default del modulo, [] ambos):

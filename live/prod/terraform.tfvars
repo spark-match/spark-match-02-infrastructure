@@ -33,9 +33,9 @@ enable_nat_ha      = true
 # Endpoints (modulo endpoints - se usara en Fase 1.5)
 ###############################################################################
 
-# Prod: TODOS los interface endpoints + S3 gateway para mantener trafico AWS
-# privado (sin atravesar NAT ni internet). Costo: ~$72/mes (10 interface
-# endpoints x $0.01/h).
+# Prod: cobertura completa de interface endpoints + S3 gateway para mantener
+# trafico AWS privado (sin atravesar NAT ni internet). Costo: ~$72/mes (10
+# interface endpoints x $0.01/h).
 enable_all_endpoints_by_default = true
 enable_s3_gateway_endpoint      = true
 

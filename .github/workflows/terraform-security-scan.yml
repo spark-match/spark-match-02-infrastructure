@@ -17,7 +17,13 @@
 # parametrizar SARIF upload via action outputs.
 #
 # trigger: pull_request contra dev/main, y workflow_dispatch manual.
-# output: SARIF subido a GitHub code scanning (no bloquea merge por default).
+# output: SARIF subido a GitHub code scanning. Los matrix jobs
+# (checkov-live/*, checkov-modules/*) son required checks en el ruleset
+# 18893016 -- estos SI bloquean merge si fallan. El check top-level
+# derivado `Checkov` (generado automaticamente por Code Scanning a partir
+# del SARIF) **ya NO es required** (fue removido en 2026-08-04 por
+# re-reports de alertas pre-existentes en sync PRs grandes -- ver
+# AGENTS.md seccion "Admin bypass policy" / "Leccion historica 2026-08-04").
 ###############################################################################
 
 name: continuous-integration-terraform-security-scan

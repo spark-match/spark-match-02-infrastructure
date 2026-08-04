@@ -65,14 +65,11 @@ module "networking" {
   flow_log_traffic_type   = var.flow_log_traffic_type
   flow_log_retention_days = var.flow_log_retention_days
 
-  # null igual que dev: el log group de flow logs usa la CMK administrada
-  # por defecto de AWS, no la CMK del proyecto. Esto es consistente con
-  # live/dev/main.tf (que tambien pasa null pese a que module.kms ya existe
-  # desde Fase 2) -- parece un detalle pendiente de la Fase 1 original que no
-  # se reviso en el wiring de Fase 2 (PR #132). No se corrige aca a proposito
-  # (fuera de alcance de este PR); si se decide wirear la CMK real en algun
-  # momento, deberia hacerse en dev y prod a la vez para mantener paridad.
-  kms_key_arn = null
+  # CMK del proyecto (module.kms.kms_key_arn) se usa para cifrar el log group
+  # de VPC flow logs. Wireado en dev y prod a la vez el 2026-08-04 para
+  # mantener paridad (correccion del leftover de Fase 1 que no se reviso
+  # en el wiring de Fase 2, PR #132).
+  kms_key_arn = module.kms.kms_key_arn
 }
 
 ###############################################################################

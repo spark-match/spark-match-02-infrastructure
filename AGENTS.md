@@ -66,8 +66,8 @@ desde `spark-match-01-devops`.
 ```bash
 git checkout dev
 git pull --ff-only
-git checkout -b feat/sprint-N-{name}   # o fix/sprint-N-{name} / chore/sprint-N-{name}
-git push -u origin feat/sprint-N-{name}
+git checkout -b feat/{name}   # o fix/{name} / chore/{name}
+git push -u origin feat/{name}
 # crear PRs incrementales desde esta branch contra dev
 ```
 
@@ -81,14 +81,14 @@ git push -u origin feat/sprint-N-{name}
 ### 3. Sync a `main` (release a produccion)
 
 - PR target: `main`.
-- Squash merge con titulo `chore: sync dev into main (sprint N - <resumen>)`.
+- Squash merge con titulo `chore: sync dev into main (<resumen>)`.
 - Branch deletion on merge.
 
 **Cuando promover dev -> main** (criterios, en orden de precedencia):
 
 | Trigger | Categoria | Ejemplo |
 |---|---|---|
-| Sprint cerrado y QA aprobado | **Madurez** | Sprint 12 cerrado, tests OK |
+| Conjunto de trabajo cerrado y QA aprobado | **Madurez** | Feature/modulo completo, tests OK |
 | Code freeze planificado | **Madurez** | Fecha de release definida |
 | Hotfix critico operacional | **Decision explicita** | Patch de seguridad urgente |
 | Release planeado a produccion | **Decision explicita** | Deploy window agendado |
@@ -101,7 +101,7 @@ NO se sincroniza:
   ya existente en seccion "Prioridad de alertas de seguridad").
 
 > **Regla**: si dudas, NO sincronices. main queda libre de cambios hasta
-> que el owner del sprint o el desarrollo indique lo contrario.
+> que el owner del repo o el desarrollo indique lo contrario.
 
 ### 4. Verificacion post-sync (OBLIGATORIA)
 
@@ -142,84 +142,36 @@ sincronizacion real es el paso 4: `git diff --stat origin/main origin/dev`
 - **Asumir que `git log` divergente = desactualizacion**: falso. Validar
   siempre con `git diff --stat`.
 
-### Workflow automatizado (futuro Sprint 13)
+### Workflow automatizado (futuro)
 
 Pendiente: crear workflow `.github/workflows/check-sync.yml` que corra en
 cron semanal (`schedule: cron: '0 0 * * 0'`) y falle si el `git diff`
 NO esta vacio. Notifica via Slack o abre issue automatica.
 
-## Terminología unificada: solo "Sprint N" (regla dura)
+## Naming de branches y coordinación cross-repo (regla operacional)
 
-> **Regla dura**: a partir del 2026-07-31, toda referencia a fases, tracks o
-> implementation phases se hace **exclusivamente** como **"Sprint N"** (con N
-> entero, sin prefijos ni sufijos). NO se usan los siguientes términos en
-> código, docs, tasks, commits, branch names, labels, ni PR descriptions:
->
-> - ❌ `Track A`, `Track B`, `track-A`, `track-B`
-> - ❌ `Impl-2`, `Impl-3`, `Impl-4`, `Impl-5`, `impl-2`, `impl-3`, `impl-4`, `impl-5`
-> - ❌ `Prod-1` a `Prod-6`, `prod-1` a `prod-6`
-> - ❌ `preflight`, `Preflight` (como categoría independiente)
-> - ❌ `A1`-`A30`, `B1`-`B6` (sin contexto de sprint)
->
-> **Equivalencias canónicas** (usar siempre estas):
->
-> | Concepto antiguo | Término unificado |
-> | ---------------- | ----------------- |
-> | Sprint 1 RECREATE | **Sprint 1** |
-> | preflight 01-08 (8 quality gates) | **Sprint 2** (sub-items: `Sprint 2-NN`) |
-> | Track A, Impl-2, foundation | **Sprint 3** |
-> | Track A, Impl-3, database/observability | **Sprint 4** |
-> | Track A, Impl-4, deploy automation | **Sprint 5** |
-> | Track A, Impl-5, hardening | **Sprint 6** |
-> | Track B, Prod-1 a Prod-6, production | **Sprint 7 a Sprint 12** |
-> | Sprint 7 (Prod-1) | **Sprint 7** |
-> | Sprint 8 (Prod-2) | **Sprint 8** |
-> | Sprint 9 (Prod-3) | **Sprint 9** |
-> | Sprint 10 (Prod-4) | **Sprint 10** |
-> | Sprint 11 (Prod-5) | **Sprint 11** |
-> | Sprint 12 (Prod-6) | **Sprint 12** |
->
-> **Convenciones de naming derivadas**:
->
-> - **Branch names**: `feat/sprint-N-*`, `fix/sprint-N-*`, `chore/sprint-N-*`
->   (NO usar `feat/impl-N-*` ni `feat/prod-N-*`).
-> - **Task files** (estructura de sprints con carpetas):
->   - **Carpetas**: `tasks/infra/pending/sprint-N/` (activas) o
->     `tasks/infra/archive/sprint-N/` (cerradas). La carpeta provee el
->     contexto del sprint.
->   - **Filenames**: SIN fecha, SIN prefijo `sprint-N`. Solo `overview.md`,
->     `NN-{name}.md`, o `99-{name}-tracking.md`.
->   - **Overview**: `tasks/infra/pending/sprint-N/overview.md` — 1 archivo
->     por Sprint (contexto, scope, acceptance criteria sprint-level, lista
->     de subtasks).
->   - **Subtask**: `tasks/infra/pending/sprint-N/NN-{name}.md` — N archivos
->     numerados (01, 02, ...) por Sprint, donde NN es el orden de ejecución
->     y `{name}` es kebab-case descriptivo.
->   - **Tracking cross-cutting**: `tasks/infra/pending/sprint-N/99-{name}-tracking.md`
->     (NN alto reservado para tracking, no es PR real).
->   - **Metadatos** (fecha, sprint, pr_number) van DENTRO del markdown en
->     frontmatter — NO en el filename.
->   - NO usar `preflight-NN-*`, `track-a-*`, `impl-N-*`, ni nombres con
->     fecha (`2026-MM-DD-*`).
-> - **PR labels**: `sprint-3-6` (NO `track-A` ni `impl-N`).
-> - **Doc headers**: `### Sprint 3-6`, `## Sprint 7-12` (NO `### Track A`).
->
-> **Migración histórica**: el 2026-07-31 se hizo un sweep completo de tasks,
-> BACKEND-DEPLOY.md, INFRA-PREFLIGHT-CHECKLIST.md (renombrado a
-> INFRA-SPRINT-2-CHECKLIST.md) y AGENTS.md para unificar la terminología.
-> Cualquier referencia residual a "Track A/B", "Impl-N", "Prod-N" o
-> "preflight" debe corregirse al editar el archivo.
->
-> **Excepción documentada**: si un término externo (ej: nombre de branch
-> upstream, referencia en código histórico) usa la nomenclatura antigua,
-> agregar entre paréntesis la equivalencia nueva SOLO en el primer comment
-> del archivo. Ej: `# antes: feat/impl-2-storage-modules (ahora: feat/sprint-3-storage-modules)`.
-> Después, usar solo la nueva.
->
-> **Razón**: la mezcla de "Sprint", "Track", "Impl-N", "Prod-N" y
-> "preflight" generaba confusión mental para el owner (@ahincho) y para
-> cualquier revisor. Una sola dimensión de naming (Sprint N) elimina la
-> ambigüedad y facilita grep/búsqueda.
+> **Regla operacional** (vigente desde 2026-08-04): este repo adoptó el
+> 2026-07-31 una terminología unificada "Sprint N" (para branches, tasks,
+> labels y doc headers) y un sistema de task files en
+> `tasks/infra/pending/sprint-N/`. Ambas convenciones se **revirtieron 4
+> días después** por no aportar valor operacional frente al ritmo real de
+> trabajo. PRs y commits ya mergeados que mencionan "Sprint N" NO se
+> reescriben (son historia inmutable); solo el trabajo nuevo sigue la
+> convención vigente.
+
+**Convención vigente:**
+
+- **Branch names**: descriptivos, kebab-case, **sin número de sprint ni
+  código de track/fase**. `feat/{name}`, `fix/{name}`, `chore/{name}`.
+  Ejemplo: `feat/rds-postgres-module` (NO `feat/sprint-13-rds-postgres-module`,
+  NO `feat/track-a-rds-postgres-module`, NO `feat/a6-rds-postgres-module`).
+- **Coordinación cross-repo**: cuando un cambio en este repo requiere
+  trabajo de otro agente/equipo (ej: `01-devops` para un reusable workflow,
+  `03-backend` para wiring de un output) se comunica **directamente en la
+  conversación/chat** con el responsable. NO se crea un archivo markdown de
+  task en `tasks/infra/` para trackear el pedido.
+- **PR labels y doc headers**: descriptivos por tema (`iac`, `governance`,
+  `security`, etc.), sin número de sprint ni código de fase.
 
 ## Prioridad de alertas de seguridad (regla dura)
 
@@ -241,7 +193,7 @@ NO esta vacio. Notifica via Slack o abre issue automatica.
    - **False positive**: dismissar con razón específica (`won't fix`, `false positive`, `used in tests`).
 5. **Verificar** con `gh api /repos/{owner}/{repo}/code-scanning/alerts` o
    `gh api /repos/{owner}/{repo}/dependabot/alerts` que el count de open alerts = 0 antes de mergear.
-6. **Documentar** la acción en la bitácora del PR o en un task `/tasks/infra/`.
+6. **Documentar** la acción en la bitácora del PR.
 
 **Anti-pattern**: dismissar alertas masivamente sin justificación, ocultar
 alertas, o marcarlas como wont_fix sin documentación. Esto oculta vulnerabilidades
@@ -351,8 +303,7 @@ Referencia: política adoptada el 2026-07-31 tras cleanup de PR #65 (14 commits
    - Que el autor del PR (@ahincho) se hace responsable.
 4. `gh pr merge --admin --squash --delete-branch`.
 5. El commit de merge debe llevar en el body la justificacion operativa.
-6. Documentar el bypass en la bitacora de la task correspondiente
-   (`tasks/infra/pending/sprint-N/`).
+6. Documentar el bypass en la descripcion del PR o en el commit de merge.
 
 **Anti-pattern**: usar admin-bypass para "saltarse" checks en rojo.
 Esto oculta fallas de tooling / cobertura / seguridad y bloquea la
@@ -521,7 +472,7 @@ workflow runs antiguos y complica búsquedas en GitHub UI.
 >    `tests/bats/commitlint-config.bats` (drift detector) lo detectan
 >    antes de CI.
 
-### Scope enum (20 infra scopes)
+### Scope enum (25 infra scopes)
 
 Los scopes permitidos viven en `.commitlintrc.json` bajo `scope-enum` Y
 en `.pre-commit-hooks/commit-msg.sh` (regex). Deben estar sincronizados
@@ -529,7 +480,7 @@ en `.pre-commit-hooks/commit-msg.sh` (regex). Deben estar sincronizados
 
 | Capa | Scopes |
 |---|---|
-| **Módulos** (componentes Terraform) | `oidc`, `networking`, `security`, `endpoints`, `kms`, `notifications`, `iam`, `observability`, `rds`, `lambda`, `budget` |
+| **Módulos** (componentes Terraform) | `oidc`, `networking`, `security`, `endpoints`, `kms`, `notifications`, `iam`, `observability`, `rds`, `lambda`, `budget`, `storage`, `secrets`, `events`, `dynamodb`, `ssm` |
 | **Capas Terraform** | `live`, `modules`, `terraform` |
 | **Generales** | `ci`, `deps`, `docs`, `governance`, `scripts`, `repo` |
 
@@ -685,7 +636,7 @@ manualmente con la version deseada.
 
 ## Cleanup de infraestructura (convencion pipeline-only)
 
-> **Pendiente Sprint 2**: actualmente no existe `terraform-cleanup.yml`
+> **Pendiente**: actualmente no existe `terraform-cleanup.yml`
 > standalone. Cualquier cleanup se hace via `aws` CLI directo desde el
 > workstation (como hicimos en el cleanup de AWS del 2026-07-28). Una vez
 > que el workflow se cree (siguiendo el patron de

@@ -57,9 +57,9 @@ variable "kms_key_arn" {
 }
 
 variable "engine_version" {
-  description = "Version de PostgreSQL. Fijar una version concreta (no solo el major) evita drift entre lo declarado y lo que AWS reporta tras la creacion."
+  description = "Version de PostgreSQL. Fijar una version concreta (no solo el major) evita drift entre lo declarado y lo que AWS reporta tras la creacion. AWS deprecia minor versions periodicamente (17.4 dejo de estar disponible para CreateDBInstance en us-east-1, confirmado 2026-08-04 con InvalidParameterCombination); revisar `aws rds describe-db-engine-versions --engine postgres` si un apply futuro falla con un error similar."
   type        = string
-  default     = "17.4"
+  default     = "17.10"
 }
 
 variable "instance_class" {

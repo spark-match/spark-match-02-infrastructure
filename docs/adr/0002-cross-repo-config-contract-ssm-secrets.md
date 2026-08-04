@@ -1,6 +1,6 @@
 # ADR 0002 — Cross-repo config contract via SSM Parameter Store y Secrets Manager
 
-> **Status**: accepted
+> **Status**: accepted (amended 2026-08-04: +2 parametros SSM para VPC config de Lambda)
 > **Date**: 2026-08-04
 > **Deciders**: @ahincho
 
@@ -16,6 +16,7 @@ solo existen despues de que Terraform los crea en este repo:
 - Connection URL completa de Postgres (solo para la Lambda `migrate`)
 - Nombre de la tabla DynamoDB de idempotencia
 - Lista de origenes CORS permitidos
+- IDs de subnets privadas y security group de Lambda (VpcConfig — ver seccion 5)
 
 Hasta este ADR, **ninguno de estos recursos existia**: `live/dev/outputs.tf`
 y `live/prod/outputs.tf` estaban vacios (solo comentarios), no habia ni un
@@ -48,7 +49,7 @@ Todos los parametros SSM viven bajo:
 /spark-match/{env}/config/{key}
 ```
 
-Los 6 parametros concretos:
+Los 8 parametros concretos:
 
 | Path | Tipo | Contenido |
 |---|---|---|
@@ -58,11 +59,17 @@ Los 6 parametros concretos:
 | `/spark-match/{env}/config/db-connection-url` | **SecureString** | Postgres URL con password embebido — SI es secreto |
 | `/spark-match/{env}/config/idempotency-table` | String | Nombre de tabla DynamoDB (identificador) |
 | `/spark-match/{env}/config/cors-allowed-origins` | String | Lista de origenes, `*` en dev |
+| `/spark-match/{env}/config/private-subnet-ids` | String | IDs de subnets privadas, CSV (identificador) |
+| `/spark-match/{env}/config/lambda-security-group-id` | String | ID del SG de Lambda (identificador) |
 
 Regla: **un ARN es un identificador, no un secreto** (mismo principio que
 ya aplicamos a `vars.AWS_APPLY_ROLE_ARN` en GitHub Actions — ver AGENTS.md).
 Solo `db-connection-url` contiene un password embebido y por eso es
-`SecureString` cifrado con la CMK de `modules/kms`.
+`SecureString` cifrado con la CMK de `modules/kms`. Los IDs de red
+(`private-subnet-ids`, `lambda-security-group-id`) son igual de publicos
+que un ARN: identifican un recurso, no autorizan nada por si mismos (el
+control de acceso real vive en IAM/security groups, no en el secreto de
+conocer el ID).
 
 ### 2. Secrets Manager: naming y ownership
 
@@ -108,6 +115,30 @@ reducir costo: cada ENI adicional por AZ cuesta ~$7.20/mes por endpoint.
 CloudWatch Logs y X-Ray **no requieren** NAT ni VPC endpoint: viajan por
 el plano de control de Lambda, no por la ENI de la funcion.
 
+### 5. VPC config para Lambda: subnet IDs + security group via SSM
+
+Como las Lambdas corren dentro de la VPC (seccion 4), `03-backend` necesita
+2 valores adicionales para configurar `AWS::Lambda::Function.VpcConfig` en
+su template SAM: los IDs de las subnets privadas y el ID del security group
+`sg-lambda` (creado en `modules/security-groups`, con `egress = []` inline
+y reglas explicitas de salida hacia `sg-rds`/`sg-endpoints`).
+
+Se exponen como parametros String adicionales bajo el mismo prefijo
+`/spark-match/{env}/config/` (ver tabla en seccion 1) en vez de requerir un
+paso manual de copiar IDs a variables de GitHub Actions, por 2 razones:
+
+- Consistencia con el patron `{{resolve:ssm:}}` ya usado para los otros 6
+  valores deploy-time — un solo mecanismo de resolucion, no dos.
+- Evita drift: si la VPC se recrea (ej: cambio de CIDR), el proximo
+  `terraform apply` actualiza el parametro SSM automaticamente y el
+  siguiente `sam deploy` lo recoge sin intervencion humana. Una variable de
+  GitHub Actions copiada a mano no se actualiza sola.
+
+`private-subnet-ids` se almacena como CSV en un solo parametro String (no
+como `StringList`, que tiene limitaciones de longitud y no es soportado por
+`{{resolve:ssm:}}` en todos los contextos de CloudFormation); el template
+SAM debe hacer `!Split [",", "{{resolve:ssm:...}}"]` para consumirlo.
+
 ## Consequences
 
 ### Positivas
@@ -136,7 +167,7 @@ el plano de control de Lambda, no por la ENI de la funcion.
 ## Verification
 
 ```bash
-# Confirmar que los 6 parametros existen post-apply:
+# Confirmar que los 8 parametros existen post-apply:
 aws ssm get-parameters-by-path --path "/spark-match/dev/config" --recursive \
   --profile spark-match-admin --query 'Parameters[].Name' --output table
 

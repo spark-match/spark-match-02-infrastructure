@@ -88,6 +88,11 @@ resource "aws_db_instance" "main" {
 
   auto_minor_version_upgrade   = true
   performance_insights_enabled = var.performance_insights_enabled
+  # Reusa la misma CMK del storage (var.kms_key_arn) para cifrar Performance
+  # Insights (CKV_AWS_354). null cuando performance insights esta
+  # desactivado (evita pasar un valor sin efecto) o cuando kms_key_arn es
+  # null (AWS usa su key administrada por defecto en ese caso).
+  performance_insights_kms_key_id = var.performance_insights_enabled ? var.kms_key_arn : null
 
   enabled_cloudwatch_logs_exports = var.enabled_cloudwatch_logs_exports
 

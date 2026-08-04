@@ -174,12 +174,19 @@ resource "aws_route_table_association" "public" {
 }
 
 # Route table privada:
-#   - Sin NAT (nat_count=0): no se crea ninguna RT ni asociacion (dev offline).
-#   - NAT sin HA (nat_count=1): 1 RT compartida, todas las subnets privadas la usan.
-#   - NAT con HA (nat_count=N): N RTs (1 por AZ), cada subnet privada usa la de su AZ
-#     para rutear al NAT local (mejor latencia y aislamiento).
+#   - Se crea SIEMPRE 1 RT por AZ (length(var.azs)), independiente de si hay NAT.
+#     Esto es deliberado: sin una RT explicita, las subnets privadas caen al
+#     "main route table" implicito de la VPC, lo que deja al gateway endpoint
+#     de S3 (que requiere `route_table_ids` explicitos) sin ninguna ruta
+#     asociada y por lo tanto inalcanzable. Ver docs/adr/0002.
+#   - Sin NAT (nat_count=0): la RT solo tiene la ruta local (implicita), sin
+#     ruta 0.0.0.0/0. Suficiente para trafico intra-VPC (Lambda ENI <-> RDS
+#     ENI <-> VPC endpoint ENI) y para que el gateway endpoint de S3 funcione.
+#   - NAT sin HA (nat_count=1): todas las RTs (1 por AZ) rutean 0.0.0.0/0 al
+#     mismo NAT unico (index 0).
+#   - NAT con HA (nat_count=N): cada RT rutea 0.0.0.0/0 al NAT de su propia AZ.
 resource "aws_route_table" "private" {
-  count = local.nat_count
+  count = length(var.azs)
 
   vpc_id = aws_vpc.main.id
 
@@ -188,25 +195,23 @@ resource "aws_route_table" "private" {
     content {
       cidr_block = "0.0.0.0/0"
       # Si HA=true, cada RT rutea al NAT de su propia AZ (aws_nat_gateway.main[i]).
-      # Si HA=false, todas las RTs (que en este caso es 1) rutean al mismo NAT (index 0).
+      # Si HA=false, todas las RTs rutean al unico NAT (index 0).
       nat_gateway_id = var.enable_nat_ha ? aws_nat_gateway.main[count.index].id : aws_nat_gateway.main[0].id
     }
   }
 
   tags = merge(local.common_tags, {
-    Name = local.nat_count > 1 ? "${var.project_name}-${var.environment}-private-rt-${var.azs[count.index]}" : "${var.project_name}-${var.environment}-private-rt"
+    Name = "${var.project_name}-${var.environment}-private-rt-${var.azs[count.index]}"
   })
 
   depends_on = [aws_nat_gateway.main]
 }
 
 resource "aws_route_table_association" "private" {
-  count = local.nat_count
+  count = length(var.azs)
 
-  subnet_id = aws_subnet.private[count.index].id
-  # Si HA=true, cada subnet usa la RT de su AZ (rt[i]).
-  # Si HA=false, todas las subnets usan la unica RT (rt[0]).
-  route_table_id = local.nat_count > 1 ? aws_route_table.private[count.index].id : aws_route_table.private[0].id
+  subnet_id      = aws_subnet.private[count.index].id
+  route_table_id = aws_route_table.private[count.index].id
 }
 
 ###############################################################################

@@ -38,9 +38,16 @@ locals {
     "ecr.dkr"         = "ecr.dkr"
     "bedrock-runtime" = "bedrock-runtime"
     "sts"             = "sts"
+    "events"          = "events"
   }
 
   enabled_interface_endpoints = var.enable_all_endpoints_by_default ? toset(keys(local.interface_endpoint_services)) : toset(var.enabled_endpoints)
+
+  # Subnets donde se crean los ENI de los interface endpoints. Por defecto
+  # (lista vacia) usa todas las private_subnet_ids, 1 ENI por AZ (mejor
+  # disponibilidad). Pasar un subset (ej: 1 sola AZ) reduce costo en dev:
+  # cada ENI adicional por AZ cuesta ~$7.20/mes por endpoint.
+  interface_endpoint_subnet_ids = length(var.interface_endpoint_subnet_ids) > 0 ? var.interface_endpoint_subnet_ids : var.private_subnet_ids
 }
 
 # -----------------------------------------------------------------------------
@@ -53,7 +60,7 @@ resource "aws_vpc_endpoint" "interface" {
   vpc_id              = var.vpc_id
   service_name        = "com.amazonaws.${var.aws_region}.${local.interface_endpoint_services[each.key]}"
   vpc_endpoint_type   = "Interface"
-  subnet_ids          = var.private_subnet_ids
+  subnet_ids          = local.interface_endpoint_subnet_ids
   private_dns_enabled = true
   security_group_ids  = [var.endpoints_security_group_id]
 

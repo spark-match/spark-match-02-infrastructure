@@ -117,6 +117,54 @@ variable "bedrock_deploy_github_repos" {
   default     = ["spark-match/spark-match-08-deep-agent"]
 }
 
+###############################################################################
+# Variables para module "endpoints" (Fase 2 — Lambda dentro de VPC, ADR 0002 §4)
+###############################################################################
+
+variable "enabled_endpoints" {
+  description = "Lista explicita de interface endpoints a crear (con enable_all_endpoints_by_default=false). Dev necesita solo secretsmanager (leer credenciales frescas de RDS) y events (PutEvents a EventBridge); ver ADR 0002."
+  type        = list(string)
+  default     = ["secretsmanager", "events"]
+}
+
+###############################################################################
+# Variables para modules de Fase 2 (storage, secrets, events, dynamodb, rds, ssm)
+###############################################################################
+
+variable "sam_artifacts_force_destroy" {
+  description = "Si permitir que terraform destroy borre el bucket de artefactos SAM aunque tenga objetos. true en dev para facilitar cleanup e iteracion."
+  type        = bool
+  default     = true
+}
+
+variable "secrets_recovery_window_in_days" {
+  description = "Dias de gracia antes de borrar definitivamente un secret de Secrets Manager (JWT y credenciales de RDS) tras un delete. 0 = borrado inmediato, recomendado en dev para poder recrear el mismo secret sin esperar el recovery window."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.secrets_recovery_window_in_days == 0 || (var.secrets_recovery_window_in_days >= 7 && var.secrets_recovery_window_in_days <= 30)
+    error_message = "secrets_recovery_window_in_days debe ser 0 o estar entre 7 y 30."
+  }
+}
+
+variable "cors_allowed_origins" {
+  description = "Origenes CORS permitidos por el backend, comma-separated. '*' en dev; lista explicita de dominios en prod."
+  type        = string
+  default     = "*"
+}
+
+variable "rds_backup_retention_period_days" {
+  description = "Dias de retencion de backups automaticos de RDS. 0 en dev: la cuenta AWS 681526276858 tiene guardrails de 'Free Tier account' que rechazan CreateDBInstance (FreeTierRestrictionError) si este valor es > 0. Prod debe usar >= 7."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.rds_backup_retention_period_days >= 0 && var.rds_backup_retention_period_days <= 35
+    error_message = "rds_backup_retention_period_days debe estar entre 0 y 35."
+  }
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

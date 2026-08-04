@@ -1,0 +1,112 @@
+###############################################################################
+# Governance - Check Sync (dev <-> main)
+###############################################################################
+# Verifica semanalmente que el contenido de `dev` y `main` este sincronizado,
+# segun el proceso documentado en AGENTS.md seccion "Sync process (branch ->
+# dev -> main)". El repo NO sincroniza despues de cada PR (overhead
+# innecesario) — este workflow es solo un chequeo de visibilidad, no fuerza
+# ningun sync automatico.
+#
+# Por que "git diff" (contenido) y no "git log" (commits): el historial
+# diverge SIEMPRE porque el sync usa `git merge --squash` (ver AGENTS.md
+# seccion "Por que git log muestra divergencia aunque el contenido sea
+# igual"). El unico chequeo valido es el diff de contenido entre
+# origin/main y origin/dev, no el conteo de commits.
+#
+# Notificacion: abre (o comenta, si ya existe) un GitHub Issue con el label
+# `sync-drift`. NO usa Slack -- no hay webhook configurado en este repo (ver
+# AGENTS.md "Secrets y GH Env (estado actual)"); agregar uno implicaria un
+# secret nuevo sin necesidad. `gh issue create/comment` solo requiere el
+# GITHUB_TOKEN por defecto.
+#
+# El job tambien falla explicitamente (exit 1) si hay drift, para que quede
+# visible en la pestana Actions ademas del issue.
+#
+# trigger: cron semanal (domingo 00:00 UTC, ver AGENTS.md "Workflow
+# automatizado (futuro)") + workflow_dispatch manual.
+###############################################################################
+
+name: check-sync
+
+on:
+  schedule:
+    - cron: "0 0 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check-sync:
+    name: check-sync
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: diff-dev-main
+        id: diff
+        run: |
+          git fetch origin main dev --quiet
+          if git diff --quiet origin/main origin/dev; then
+            echo "has-drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has-drift=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "stat<<SYNC_DIFF_EOF"
+              git diff --stat origin/main origin/dev
+              echo "SYNC_DIFF_EOF"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: find-existing-issue
+        if: steps.diff.outputs.has-drift == 'true'
+        id: existing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NUMBER=$(gh issue list \
+            --search "in:title \"dev/main sync drift detected\" is:open" \
+            --json number --jq '.[0].number // empty')
+          echo "number=$NUMBER" >> "$GITHUB_OUTPUT"
+
+      - name: open-or-update-issue
+        if: steps.diff.outputs.has-drift == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DIFF_STAT: ${{ steps.diff.outputs.stat }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          BODY_FILE=$(mktemp)
+          cat > "$BODY_FILE" <<EOF
+          dev y main estan desincronizados.
+
+          \`\`\`
+          $DIFF_STAT
+          \`\`\`
+
+          Detectado por check-sync run: $RUN_URL
+
+          Ver AGENTS.md seccion "Sync process (branch -> dev -> main)" para el
+          flujo de sync PR. Este drift es NORMAL si hay trabajo en dev
+          pendiente de promover (no se sincroniza sin decision explicita, ver
+          seccion "Cuando promover dev -> main"). Solo requiere accion si hay
+          una decision de release ya tomada.
+          EOF
+
+          if [ -n "${{ steps.existing.outputs.number }}" ]; then
+            gh issue comment "${{ steps.existing.outputs.number }}" --body-file "$BODY_FILE"
+          else
+            gh issue create \
+              --title "dev/main sync drift detected" \
+              --body-file "$BODY_FILE"
+          fi
+
+      - name: fail-if-drift
+        if: steps.diff.outputs.has-drift == 'true'
+        run: |
+          echo "::error::dev y main estan desincronizados. Ver el issue creado/actualizado en el paso anterior."
+          exit 1

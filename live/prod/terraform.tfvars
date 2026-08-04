@@ -33,17 +33,18 @@ enable_nat_ha      = true
 # Endpoints (modulo endpoints - se usara en Fase 1.5)
 ###############################################################################
 
-# Prod: TODOS los interface endpoints + S3 gateway para mantener trafico AWS
-# privado (sin atravesar NAT ni internet). Costo: ~$72/mes (10 interface
-# endpoints x $0.01/h).
+# Prod: cobertura completa de interface endpoints + S3 gateway para mantener
+# trafico AWS privado (sin atravesar NAT ni internet). Costo: ~$72/mes (10
+# interface endpoints x $0.01/h).
 enable_all_endpoints_by_default = true
 enable_s3_gateway_endpoint      = true
 
 # Flow logs: activado en prod para auditoria y debugging. Costo estimado
-# ~$5-10/mes segun volumen de trafico. Retencion 90 dias.
+# ~$5-10/mes segun volumen de trafico. Retencion 365 dias (1 anio, minimo
+# exigido por CKV_AWS_338 ademas de buena practica de auditoria).
 enable_flow_logs        = true
 flow_log_traffic_type   = "REJECT"
-flow_log_retention_days = 90
+flow_log_retention_days = 365
 
 ###############################################################################
 # Security (modulo security - se usara en Fase 1.5)
@@ -61,3 +62,35 @@ sam_deploy_github_repos = [
 bedrock_deploy_github_repos = [
   "spark-match/spark-match-08-deep-agent",
 ]
+
+###############################################################################
+# Fase 2 (modulos storage, secrets, events, dynamodb, rds, ssm — ADR 0002)
+###############################################################################
+
+# false en prod (a diferencia de dev): evita que terraform destroy borre el
+# bucket de artefactos SAM aunque tenga objetos vigentes.
+sam_artifacts_force_destroy = false
+
+# 30 en prod (maximo, a diferencia de dev que usa 0): protege los secrets
+# (JWT, credenciales RDS) contra borrado accidental/definitivo.
+secrets_recovery_window_in_days = 30
+
+# TODO: reemplazar por el dominio real de spark-match-04-frontend antes del
+# primer apply real a prod. El frontend aun no existe/despliega, por lo que
+# este es un placeholder deliberadamente invalido (no debe resolver a un
+# origen real hasta que se actualice).
+cors_allowed_origins = "https://TODO-set-real-frontend-domain.spark-match.example"
+
+# 0 en prod: la cuenta AWS 681526276858 tiene guardrails de "Free Tier
+# account" (distinto del free-tier clasico) que rechazan CreateDBInstance con
+# FreeTierRestrictionError si backup_retention_period > 0. Prod usa LA MISMA
+# cuenta AWS que dev (ver AGENTS.md tabla Multi-env), por lo que el mismo
+# guardrail aplica. Riesgo operacional conocido y aceptado por ahora: sin
+# backups automaticos de RDS en prod. Revisar antes del primer apply real
+# (upgrade de cuenta AWS, o cuenta separada para prod).
+rds_backup_retention_period_days = 0
+
+# db.t4g.small (2GiB RAM): punto de partida conservador, mas grande que dev
+# (db.t4g.micro, 1GiB) sin sobre-aprovisionar antes de tener datos reales de
+# carga. Ajustar segun metricas post-launch.
+db_instance_class = "db.t4g.small"

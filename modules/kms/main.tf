@@ -23,20 +23,23 @@ data "aws_partition" "current" {}
 # KMS - Customer Managed Key (CMK) por entorno
 ###############################################################################
 # Encrypted resources en ${var.environment}:
-#   - SSM parameters (modules/ssm-bootstrap, futuro)
-#   - Secrets Manager (modules/secrets-bootstrap, futuro)
-#   - S3 server-side encryption (modules/storage, futuro)
+#   - SSM parameters (modules/ssm-bootstrap)
+#   - Secrets Manager (modules/secrets-bootstrap, modules/rds-postgres)
+#   - S3 server-side encryption (modules/storage-sam-artifacts)
 #   - CloudWatch Logs (VPC flow logs, RDS logs, Lambda logs)
 #   - Bedrock (model invocation responses)
+#   - RDS storage encryption (modules/rds-postgres)
+#   - DynamoDB table encryption (modules/dynamodb-idempotency)
+#   - SQS DLQ encryption (modules/eventbridge-bus)
 #
 # Key policy explicita con 4 statements:
 #   1. RootAccountManage: el account root puede hacer todo (kms:*).
 #   2. TerraformRoleManage: los 2 roles spark-match-terraform-{plan,apply}-{env}
 #      pueden administrar la CMK (re-keys, rotations, deletions).
 #   3. IAMRolesUseCMK: los N roles en var.user_role_arns pueden encrypt/decrypt.
-#   4. AWSServicesUseCMK: los 5 service principals pueden encrypt/decrypt (logs,
-#      ssm, secretsmanager, s3, bedrock) con condition kms:CallerAccount para
-#      evitar cross-account abuse.
+#   4. AWSServicesUseCMK: los 8 service principals pueden encrypt/decrypt (logs,
+#      ssm, secretsmanager, s3, bedrock, rds, dynamodb, sqs) con condition
+#      kms:CallerAccount para evitar cross-account abuse.
 #
 # Ref: IMPROVEMENTS.md [SEC-05]
 ###############################################################################

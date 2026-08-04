@@ -48,7 +48,7 @@ variable "user_role_arns" {
 }
 
 variable "aws_service_principals" {
-  description = "AWS service principals que pueden usar la CMK (logs, ssm, secretsmanager, s3, bedrock). Default: 5 servicios comunes en spark-match."
+  description = "AWS service principals que pueden usar la CMK (logs, ssm, secretsmanager, s3, bedrock, rds, dynamodb, sqs). Default: 8 servicios comunes en spark-match."
   type        = list(string)
   default = [
     "logs",
@@ -56,5 +56,8 @@ variable "aws_service_principals" {
     "secretsmanager",
     "s3",
     "bedrock",
+    "rds",
+    "dynamodb",
+    "sqs",
   ]
 }

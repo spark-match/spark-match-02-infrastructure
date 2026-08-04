@@ -8,10 +8,10 @@
 # .commitlintrc.json. Runs from the pre-commit framework via the local
 # `commit-msg-conventional` hook declared in .pre-commit-config.yaml.
 #
-# Scope enum matches .commitlintrc.json scope-enum (25 infra scopes):
+# Scope enum matches .commitlintrc.json scope-enum (26 infra scopes):
 #   oidc networking security endpoints kms notifications iam observability
-#   rds lambda budget storage secrets events dynamodb ssm live modules
-#   terraform ci deps docs governance scripts repo
+#   rds lambda budget storage secrets events dynamodb ssm frontend live
+#   modules terraform ci deps docs governance scripts repo
 #
 # Type enum matches @commitlint/config-conventional defaults (10 types):
 #   feat fix chore docs refactor test build ci perf revert
@@ -52,7 +52,7 @@ err() {
 }
 
 TYPE_RE='^(feat|fix|chore|docs|refactor|test|build|ci|perf|revert)'
-SCOPE_RE='(oidc|networking|security|endpoints|kms|notifications|iam|observability|rds|lambda|budget|storage|secrets|events|dynamodb|ssm|live|modules|terraform|ci|deps|docs|governance|scripts|repo)'
+SCOPE_RE='(oidc|networking|security|endpoints|kms|notifications|iam|observability|rds|lambda|budget|storage|secrets|events|dynamodb|ssm|frontend|live|modules|terraform|ci|deps|docs|governance|scripts|repo)'
 
 if [[ ! "$FIRST_LINE" =~ ${TYPE_RE}(\(${SCOPE_RE}\))?:\ .+ ]]; then
   err "header '$FIRST_LINE' does not match Conventional Commits shape '<type>(<scope>): <subject>' or '<type>: <subject>'"

@@ -9,7 +9,7 @@
 #   - the @commitlint/config-conventional base is extended (so default
 #     rules like header-max-length are inherited)
 #   - the type-enum is exactly the 10 Conventional Commits types we allow
-#   - the scope-enum matches the 25 infra scopes documented in AGENTS.md
+#   - the scope-enum matches the 26 infra scopes documented in AGENTS.md
 #   - .pre-commit-hooks/commit-msg.sh reflects the same allowlists
 #     (drift detector: if you add a scope to one, you must add it to
 #     the other)
@@ -54,11 +54,11 @@ HOOK="$REPO_ROOT/.pre-commit-hooks/commit-msg.sh"
   done
 }
 
-@test "commitlint-config: scope-enum contains the 25 infra-approved scopes" {
+@test "commitlint-config: scope-enum contains the 26 infra-approved scopes" {
   run jq -r '.rules["scope-enum"][2] | length' "$CONFIG"
   [ "$status" -eq 0 ]
-  [ "$output" = "25" ]
-  for s in oidc networking security endpoints kms notifications iam observability rds lambda budget storage secrets events dynamodb ssm live modules terraform ci deps docs governance scripts repo; do
+  [ "$output" = "26" ]
+  for s in oidc networking security endpoints kms notifications iam observability rds lambda budget storage secrets events dynamodb ssm frontend live modules terraform ci deps docs governance scripts repo; do
     run jq -e --arg s "$s" '.rules["scope-enum"][2] | index($s) != null' "$CONFIG"
     [ "$status" -eq 0 ]
   done
@@ -136,8 +136,8 @@ HOOK="$REPO_ROOT/.pre-commit-hooks/commit-msg.sh"
   done
 }
 
-@test "commitlint-config: hook script lists the 25 infra scopes" {
-  for s in oidc networking security endpoints kms notifications iam observability rds lambda budget storage secrets events dynamodb ssm live modules terraform ci deps docs governance scripts repo; do
+@test "commitlint-config: hook script lists the 26 infra scopes" {
+  for s in oidc networking security endpoints kms notifications iam observability rds lambda budget storage secrets events dynamodb ssm frontend live modules terraform ci deps docs governance scripts repo; do
     run grep -E "\\b$s\\b" "$HOOK"
     [ "$status" -eq 0 ]
   done

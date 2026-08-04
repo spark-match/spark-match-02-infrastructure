@@ -83,9 +83,25 @@ git push -u origin feat/sprint-N-{name}
 - PR target: `main`.
 - Squash merge con titulo `chore: sync dev into main (sprint N - <resumen>)`.
 - Branch deletion on merge.
-- Frecuencia recomendada: cuando se cierra un sprint o cuando se necesita
-  un release a produccion. No es necesario sincronizar despues de cada PR
-  a dev.
+
+**Cuando promover dev -> main** (criterios, en orden de precedencia):
+
+| Trigger | Categoria | Ejemplo |
+|---|---|---|
+| Sprint cerrado y QA aprobado | **Madurez** | Sprint 12 cerrado, tests OK |
+| Code freeze planificado | **Madurez** | Fecha de release definida |
+| Hotfix critico operacional | **Decision explicita** | Patch de seguridad urgente |
+| Release planeado a produccion | **Decision explicita** | Deploy window agendado |
+
+NO se sincroniza:
+- Despues de cada PR a dev (overhead innecesario).
+- Sin que el desarrollo lo indique explicitamente (en comentario del PR,
+  en daily, o en task tracking).
+- Cuando hay un check rojo o alerta CodeQL/Dependabot abierta (regla dura
+  ya existente en seccion "Prioridad de alertas de seguridad").
+
+> **Regla**: si dudas, NO sincronices. main queda libre de cambios hasta
+> que el owner del sprint o el desarrollo indique lo contrario.
 
 ### 4. Verificacion post-sync (OBLIGATORIA)
 

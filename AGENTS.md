@@ -375,6 +375,93 @@ este PR, era posible (aunque no recomendado) admin-bypass con checks en
 rojo. A partir de 2026-08-01 eso esta formalmente prohibido por esta
 politica.
 
+## Follow-ups conocidos (fuera de scope actual)
+
+> **Estado**: items identificados durante el trabajo de governance
+> (Fase 2, PRs #128-#143) que requieren accion futura. NO son
+> bloqueantes para syncs `dev -> main` ni para aplicar prod, pero deben
+> ser trackeados para evitar que se olviden.
+
+### FU-1: 7 checkov findings pre-existentes compartidos dev/prod (low)
+
+Identificados durante la sesion de governance del 2026-08-04. Son
+alertas que **ambos** environments (dev y prod) heredan de modulos
+compartidos y NO son false positives -- son riesgos reales que requieren
+cambios cross-module:
+
+1. `CKV2_AWS_61` -- `lifecycle_rule` en `modules/storage-sam-artifacts/main.tf`
+   no tiene `abort_incomplete_multipart_upload_days`. Mitigacion:
+   anadir bloque `abort_incomplete_multipart_upload` al lifecycle rule
+   (aplica a `sam_artifacts` y `access_logs`, 2 findings totales).
+2. `CKV_AWS_354` -- `aws_db_instance.performance_insights_enabled = false`
+   en `modules/rds-postgres/variables.tf`. Mitigacion: ya corregido
+   parcialmente en PR #136 (prod usa `performance_insights_enabled = true`
+   + `performance_insights_kms_key_id = module.kms.kms_key_arn`). Dev
+   sigue con default `false` por diseno (Free Tier guardrail). NO es
+   accionable mientras el guardrail aplique.
+3. `CKV2_AWS_29` -- `enable_log_file_validation = false` en
+   `modules/rds-postgres/main.tf` (RDS log exports). Mitigacion: agregar
+   variable `rds_enable_log_file_validation` con default `true` en
+   prod, `false` en dev (costo CloudWatch Logs).
+4. `CKV_AWS_161` -- KMS-based encryption en secrets con auto-rotation
+   en `modules/secrets-bootstrap/main.tf`. Mitigacion: anadir
+   `rotation_rules { automatically_after_days = 90 }` + un
+   `aws_secretsmanager_secret_rotation` resource que invoque una Lambda
+   de rotacion. Scope: cross-module (necesita Lambda de rotacion).
+5. `CKV_AWS_149` -- Similar a #4, secretos de `modules/rds-postgres`
+   sin rotation. Misma mitigacion que #4.
+6. `CKV_AWS_21` -- `versioning` no habilitado en
+   `modules/storage-sam-artifacts/access_logs`. Mitigacion: versionar
+   el bucket de access logs (costo extra, baja prioridad).
+7. `CKV_AWS_19` -- `access_logs` bucket no cifrado con KMS. Mitigacion:
+   cambiar SSE-S3 a SSE-KMS usando la CMK del proyecto (requiere que
+   el servicio de log delivery tenga permisos sobre la CMK).
+
+**Decision recomendada**: items #1, #3 son low effort (1-2 lineas de
+codigo cada uno), pueden resolverse en un PR dedicado. Items #4, #5
+requieren Lambda de rotacion -- scope mayor, mejor en una sesion
+dedicada. Items #6, #7 son low value vs cost.
+
+### FU-2: rds_backup_retention_period_days=0 en prod (medium)
+
+**Decision humana explicita** adoptada en PR #136. La cuenta AWS
+`681526276858` tiene guardrails de "Free Tier account" (no confundir con
+free-tier clasico) que rechazan `CreateDBInstance` con
+`FreeTierRestrictionError` si `backup_retention_period > 0`. Prod usa
+LA MISMA cuenta AWS que dev, por lo que el mismo guardrail aplica.
+
+**Riesgo operacional**: sin backups automaticos de RDS en prod. Si la
+instancia falla, no hay punto de recuperacion automatico (solo el
+snapshot final al borrarla).
+
+**Opciones para resolverlo**:
+- Upgrade de la cuenta a "Paid" (no "Free Tier account" sino tier
+  estandar): AWS Support case. Probablemente toma dias y requiere
+  verificacion de billing info.
+- Cuenta AWS dedicada para prod: costoso (requiere reorganizar toda la
+  infraestructura multi-env). Fuera de scope.
+- Aceptar el riesgo y aplicar con retention=0: opcion actual.
+
+**Tracking**: no requiere codigo. Documentar en `live/prod/variables.tf`
+(comentario existente es suficiente) y revisar antes del primer apply
+real a prod.
+
+### FU-3: git housekeeping oddity del branch feat/wire-live-prod-modules (low)
+
+Observado durante la sesion: el branch local `feat/wire-live-prod-modules`
+desaparecio del working tree despues del merge del PR #136 sin un
+`git branch -D` explicito por mi parte. Posibles causas:
+- Limpieza automatica por el IDE / extension de Git
+- Limpieza por otro agente / sesion paralela que opera en el mismo repo
+- Reset del working tree por `git checkout` inadvertido
+
+**Impacto**: cero. El branch ya estaba mergeado a dev (su trabajo vive
+en el commit `0cc5601`) y el remote fue borrado via
+`--delete-branch` automatico del PR. La rama local desaparecida no
+afecta al historial ni al estado de `dev`/`main`.
+
+**Accion recomendada**: ninguna. Documentado solo para consciencia.
+
 ## Reglas duras (no negociables)
 
 1. **Nunca** pegar AKIA / ASIA / access keys literales en archivos

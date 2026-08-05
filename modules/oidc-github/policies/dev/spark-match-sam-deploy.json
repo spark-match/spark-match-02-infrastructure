@@ -1,4 +1,4 @@
-﻿{
+{
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -36,6 +36,26 @@
       ]
     },
     {
+      "Sid": "CloudFormationSamTransform",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateChangeSet"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:us-east-1:aws:transform/Serverless-2016-10-31"
+      ]
+    },
+    {
+      "Sid": "EC2DescribeForVpcLambdas",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:DescribeSecurityGroups",
+        "ec2:DescribeSubnets",
+        "ec2:DescribeVpcs"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "LambdaReadAll",
       "Effect": "Allow",
       "Action": [
@@ -66,7 +86,10 @@
         "lambda:PublishVersion",
         "lambda:CreateAlias",
         "lambda:UpdateAlias",
-        "lambda:InvokeFunction"
+        "lambda:InvokeFunction",
+        "lambda:TagResource",
+        "lambda:UntagResource",
+        "lambda:ListTags"
       ],
       "Resource": [
         "arn:aws:lambda:us-east-1:681526276858:function:spark-match-identity-*-${environment}",
@@ -74,40 +97,22 @@
       ]
     },
     {
-      "Sid": "ApiGatewayV2Manage",
+      "Sid": "ApiGatewayManage",
       "Effect": "Allow",
       "Action": [
-        "apigatewayv2:CreateApi",
-        "apigatewayv2:UpdateApi",
-        "apigatewayv2:DeleteApi",
-        "apigatewayv2:GetApi",
-        "apigatewayv2:ImportApi",
-        "apigatewayv2:CreateRoute",
-        "apigatewayv2:UpdateRoute",
-        "apigatewayv2:DeleteRoute",
-        "apigatewayv2:GetRoutes",
-        "apigatewayv2:CreateIntegration",
-        "apigatewayv2:UpdateIntegration",
-        "apigatewayv2:DeleteIntegration",
-        "apigatewayv2:GetIntegrations",
-        "apigatewayv2:CreateStage",
-        "apigatewayv2:UpdateStage",
-        "apigatewayv2:DeleteStage",
-        "apigatewayv2:GetStages",
-        "apigatewayv2:CreateDeployment",
-        "apigatewayv2:GetDeployments",
-        "apigatewayv2:DeleteDeployment",
-        "apigatewayv2:CreateVpcLink",
-        "apigatewayv2:UpdateVpcLink",
-        "apigatewayv2:DeleteVpcLink",
-        "apigatewayv2:GetVpcLinks",
-        "apigatewayv2:CreateAuthorizer",
-        "apigatewayv2:UpdateAuthorizer",
-        "apigatewayv2:DeleteAuthorizer",
-        "apigatewayv2:AddTagsToResource",
-        "apigatewayv2:RemoveTagsFromResource"
+        "apigateway:GET",
+        "apigateway:POST",
+        "apigateway:PUT",
+        "apigateway:PATCH",
+        "apigateway:DELETE",
+        "apigateway:TagResource",
+        "apigateway:UntagResource"
       ],
-      "Resource": "*"
+      "Resource": [
+        "arn:aws:apigateway:us-east-1::/apis",
+        "arn:aws:apigateway:us-east-1::/apis/*",
+        "arn:aws:apigateway:us-east-1::/tags/*"
+      ]
     },
     {
       "Sid": "EventBridgeManageBusAndRules",
@@ -238,7 +243,8 @@
       ],
       "Resource": [
         "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/${environment}/*",
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-identity-*-${environment}"
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-identity-*-${environment}",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-identity-*-${environment}:*"
       ]
     },
     {

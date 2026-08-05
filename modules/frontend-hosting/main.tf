@@ -58,6 +58,15 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
   }
 }
 
+# S3 server access logs del bucket frontend hacia el bucket access-logs compartido.
+# Habilita visibilidad de accesos directos (no via CloudFront) por si el OAC se rompe.
+resource "aws_s3_bucket_logging" "frontend" {
+  bucket = aws_s3_bucket.frontend.id
+
+  target_bucket = aws_s3_bucket.access_logs.id
+  target_prefix = "frontend-s3-access-logs/"
+}
+
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
@@ -123,10 +132,14 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "s3-${local.bucket_name}"
 
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
 
+    # Sin min_ttl / default_ttl / max_ttl a proposito: son mutuamente excluyentes
+    # con cache_policy_id. Con una cache policy adjunta, CloudFront ignora los TTL
+    # legacy y ni siquiera los guarda -- get-distribution-config los devuelve
+    # vacios. Declararlos producia un diff perpetuo (`default_ttl 0 -> 3600`) que
+    # ningun apply podia cerrar, y un plan que siempre miente entrena a ignorarlo.
+    # Los TTL efectivos los define la managed policy CachingOptimized:
+    # min 1s, default 1 dia, max 1 ano.
     cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
   }
 
@@ -157,7 +170,24 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   tags = local.common_tags
 
-  depends_on = [aws_s3_bucket_ownership_controls.frontend]
+  # aws_s3_bucket_acl.access_logs es obligatorio aca aunque parezca redundante.
+  # `logging_config` solo referencia aws_s3_bucket.access_logs.bucket_domain_name,
+  # asi que la unica arista implicita que Terraform deduce es contra el BUCKET,
+  # no contra su ACL. Pero CloudFront standard logging exige que el bucket
+  # destino tenga ACLs habilitadas para poder escribir el grant FULL_CONTROL de
+  # awslogsdelivery, y desde abril 2023 todo bucket S3 nace con
+  # BucketOwnerEnforced (ACLs deshabilitadas). Sin esta arista, Terraform puede
+  # emitir CreateDistribution antes del ownership_controls + acl del bucket de
+  # logs y AWS responde InvalidArgument. En dev no exploto por suerte en el
+  # orden, no por garantia.
+  #
+  # Con una sola entrada basta: aws_s3_bucket_acl.access_logs ya declara
+  # depends_on sobre aws_s3_bucket_ownership_controls.access_logs, asi que el
+  # ownership entra en el grafo por transitividad.
+  depends_on = [
+    aws_s3_bucket_ownership_controls.frontend,
+    aws_s3_bucket_acl.access_logs,
+  ]
 }
 
 resource "aws_s3_bucket_policy" "frontend" {

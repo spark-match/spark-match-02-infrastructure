@@ -36,6 +36,16 @@
       ]
     },
     {
+      "Sid": "CloudFormationSamTransform",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateChangeSet"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:us-east-1:aws:transform/Serverless-2016-10-31"
+      ]
+    },
+    {
       "Sid": "LambdaReadAll",
       "Effect": "Allow",
       "Action": [

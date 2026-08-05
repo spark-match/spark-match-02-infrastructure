@@ -556,12 +556,112 @@ resource "aws_ecs_service" "this" {
 ###############################################################################
 
 resource "aws_ssm_parameter" "agent_endpoint_url" {
-  # checkov:skip=CKV_AWS_337:valor es una URL publica (DNS del ALB), no un secreto.
+  # checkov:skip=CKV_AWS_337:valor es una URL publica (DNS del ALB o de CloudFront), no un secreto.
   # checkov:skip=CKV2_AWS_34:mismo razonamiento que CKV_AWS_337 -- una URL publica no necesita SecureString/KMS.
   name  = "${local.ssm_prefix}/agent-endpoint-url"
   type  = "String"
-  value = "http://${aws_lb.this.dns_name}"
+  value = local.agent_public_url
   tags  = local.common_tags
+}
+
+###############################################################################
+# CloudFront delante del ALB -- terminacion TLS sin dominio propio
+###############################################################################
+# Por que hace falta: el frontend se sirve por HTTPS desde CloudFront. Una
+# pagina HTTPS no puede abrir un fetch/EventSource contra `http://`: el
+# navegador lo bloquea por mixed content, sin excepcion posible desde la app.
+# Y no se puede resolver poniendole un ACM al ALB, porque AWS no emite
+# certificados publicos para *.elb.amazonaws.com -- haria falta dominio propio.
+#
+# CloudFront resuelve las dos cosas a la vez: da HTTPS gratis sobre
+# *.cloudfront.net y es donde se enganchara el dominio real cuando exista, asi
+# que no es trabajo desechable.
+#
+# Configuracion critica para SSE (/ag-ui responde text/event-stream):
+#
+#   compress = false        -- comprimir obliga a CloudFront a BUFFERAR la
+#                              respuesta, y un stream bufferado deja de ser un
+#                              stream: el usuario no ve nada hasta el final.
+#   cache_policy_id         -- CachingDisabled (managed). Cachear un stream de
+#                              chat no tiene sentido y romperia el aislamiento
+#                              entre usuarios.
+#   origin_request_policy   -- AllViewer (managed). Reenvia el header
+#                              Authorization; sin el, /ag-ui responde 401.
+#   allowed_methods         -- /ag-ui es POST, no GET.
+#   origin_read_timeout     -- 60s (maximo sin subir quota). Aplica ENTRE bytes,
+#                              no al total: AG-UI emite RUN_STARTED de
+#                              inmediato y luego tokens, asi que el hueco real
+#                              entre eventos es de milisegundos.
+###############################################################################
+
+locals {
+  agent_public_url = (
+    var.enable_cloudfront
+    ? "https://${aws_cloudfront_distribution.agent[0].domain_name}"
+    : "http://${aws_lb.this.dns_name}"
+  )
+}
+
+resource "aws_cloudfront_distribution" "agent" {
+  # checkov:skip=CKV_AWS_68:WAF fuera de scope en v1 (mismo razonamiento que el ALB). La autorizacion la hace el JWT que valida /ag-ui.
+  # checkov:skip=CKV_AWS_310:origin failover requiere 2 origins; el agente tiene uno solo.
+  # checkov:skip=CKV_AWS_374:geo restriction deshabilitada (mismo criterio que el frontend).
+  # checkov:skip=CKV2_AWS_32:response headers policy no configurada en v1; el agente ya emite sus propios security headers via SecurityHeadersMiddleware.
+  # checkov:skip=CKV2_AWS_42:sin dominio custom todavia -- se usa el certificado default de CloudFront. Ese ES el objetivo de este recurso.
+  # checkov:skip=CKV2_AWS_47:WAFv2 con regla Log4j -- depende de WAF (mismo defer que CKV_AWS_68).
+  # checkov:skip=CKV_AWS_86:access logging de CloudFront requiere bucket dedicado; follow-up junto con el del ALB (CKV_AWS_91).
+  count = var.enable_cloudfront ? 1 : 0
+
+  enabled         = true
+  is_ipv6_enabled = true
+  comment         = "Spark Match deep-agent (${var.environment}) -- terminacion TLS sobre el ALB"
+  price_class     = var.cloudfront_price_class
+  http_version    = "http2and3"
+
+  origin {
+    domain_name = aws_lb.this.dns_name
+    origin_id   = "alb-${local.name_prefix}"
+
+    custom_origin_config {
+      http_port              = 80
+      https_port             = 443
+      origin_protocol_policy = "http-only"
+      origin_ssl_protocols   = ["TLSv1.2"]
+
+      # Ver la nota de SSE arriba.
+      origin_read_timeout      = var.cloudfront_origin_read_timeout
+      origin_keepalive_timeout = 60
+    }
+  }
+
+  default_cache_behavior {
+    target_origin_id       = "alb-${local.name_prefix}"
+    viewer_protocol_policy = "redirect-to-https"
+
+    allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+    cached_methods  = ["GET", "HEAD"]
+
+    # NO comprimir: rompe el streaming. Ver la nota de arriba.
+    compress = false
+
+    # Managed-CachingDisabled
+    cache_policy_id = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+    # Managed-AllViewer (reenvia Authorization, query strings y cookies)
+    origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+  }
+
+  restrictions {
+    geo_restriction {
+      restriction_type = "none"
+    }
+  }
+
+  viewer_certificate {
+    cloudfront_default_certificate = true
+    minimum_protocol_version       = var.min_protocol_version
+  }
+
+  tags = local.common_tags
 }
 
 resource "aws_ssm_parameter" "agent_ecr_repository_url" {

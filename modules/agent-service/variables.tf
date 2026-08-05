@@ -101,6 +101,40 @@ variable "vpc_endpoints_security_group_id" {
   }
 }
 
+variable "enable_cloudfront" {
+  description = "Pone una distribucion CloudFront delante del ALB para terminar TLS. Necesario para que el frontend (servido por HTTPS) pueda llamar al agente: el navegador bloquea mixed content y AWS no emite certificados ACM publicos para *.elb.amazonaws.com. Con false, el agente queda accesible solo por HTTP."
+  type        = bool
+  default     = true
+}
+
+variable "cloudfront_price_class" {
+  description = "Price class de la distribucion del agente. PriceClass_100 (US/EU) alcanza y es la mas barata; el trafico esperado es de Peru pero la latencia extra es irrelevante frente al tiempo de inferencia del modelo."
+  type        = string
+  default     = "PriceClass_100"
+
+  validation {
+    condition     = contains(["PriceClass_100", "PriceClass_200", "PriceClass_All"], var.cloudfront_price_class)
+    error_message = "cloudfront_price_class debe ser PriceClass_100, PriceClass_200 o PriceClass_All."
+  }
+}
+
+variable "cloudfront_origin_read_timeout" {
+  description = "Segundos que CloudFront espera ENTRE bytes del origin antes de cortar. 60 es el maximo sin pedir aumento de quota a AWS. Aplica al hueco entre eventos SSE, no al total del stream: AG-UI emite RUN_STARTED de inmediato y luego tokens, asi que el hueco real es de milisegundos."
+  type        = number
+  default     = 60
+
+  validation {
+    condition     = var.cloudfront_origin_read_timeout >= 1 && var.cloudfront_origin_read_timeout <= 60
+    error_message = "cloudfront_origin_read_timeout debe estar entre 1 y 60 (limite de AWS sin aumento de quota)."
+  }
+}
+
+variable "min_protocol_version" {
+  description = "TLS minimo de la distribucion del agente. OJO: CloudFront lo IGNORA mientras se use cloudfront_default_certificate (fuerza TLSv1); solo aplica con certificado ACM propio. Se declara para que el dia que llegue el dominio quede en el valor correcto sin tocar el modulo."
+  type        = string
+  default     = "TLSv1.2_2021"
+}
+
 variable "alb_ingress_cidr_blocks" {
   description = "CIDRs autorizados a alcanzar el ALB en el puerto 80. Default 0.0.0.0/0 porque el agente se consume desde el navegador (frontend en CloudFront) sin IP fija. La autorizacion real la hace el JWT que valida /ag-ui, no la red."
   type        = list(string)

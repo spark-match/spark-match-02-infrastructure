@@ -114,9 +114,11 @@
       "Resource": "arn:aws:sns:us-east-1:681526276858:spark-match-*"
     },
     {
-      "Sid": "RDSDescribeSubnetAndParamGroups",
+      "Sid": "RDSDescribe",
       "Effect": "Allow",
       "Action": [
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBClusters",
         "rds:DescribeDBSubnetGroups",
         "rds:DescribeDBParameterGroups",
         "rds:DescribeDBParameters",
@@ -146,6 +148,33 @@
         "s3:PutBucketOwnershipControls"
       ],
       "Resource": "arn:aws:s3:::spark-match-*"
+    },
+    {
+      "Sid": "BudgetsView",
+      "Effect": "Allow",
+      "Action": [
+        "budgets:ViewBudget",
+        "budgets:ViewBudgetAction",
+        "budgets:DescribeBudgetPerformanceHistory"
+      ],
+      "Resource": "arn:aws:budgets::681526276858:budget/*"
+    },
+    {
+      "Sid": "KMSDecryptViaAwsServices",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "arn:aws:kms:us-east-1:681526276858:key/*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": [
+            "secretsmanager.us-east-1.amazonaws.com",
+            "ssm.us-east-1.amazonaws.com"
+          ]
+        }
+      }
     }
   ]
 }

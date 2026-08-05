@@ -41,13 +41,17 @@ enable_nat_ha      = false
 #   Sin NAT, las unicas llamadas SDK salientes que necesitan salida son:
 #     - Secrets Manager (leer credenciales frescas de RDS en cada invocacion)
 #     - EventBridge (PutEvents para eventos de dominio)
-#   Ambas se resuelven con interface endpoints en 1 sola AZ (no las 2) para
+#     - SSM Parameter Store (03-backend resuelve en runtime los parametros
+#       del contrato ADR-0002 /spark-match/{env}/config/*: bus-arn en
+#       composition.ts, jwt-arn en jwt-secret-loader.ts y db-connection-url
+#       en la lambda migrate)
+#   Se resuelven con interface endpoints en 1 sola AZ (no las 2) para
 #   reducir costo: cada ENI adicional por AZ cuesta ~$7.20/mes por endpoint.
 #   CloudWatch Logs y X-Ray no requieren NAT ni VPC endpoint (viajan por el
 #   plano de control de Lambda, no por la ENI de la funcion).
-#   Costo networking dev: ~$14.60/mes (2 endpoints x 1 AZ), sin NAT.
+#   Costo networking dev: ~$21.90/mes (3 endpoints x 1 AZ), sin NAT.
 enable_all_endpoints_by_default = false
-enabled_endpoints               = ["secretsmanager", "events"]
+enabled_endpoints               = ["secretsmanager", "events", "ssm"]
 enable_s3_gateway_endpoint      = true
 
 # Flow logs: desactivado en dev para minimizar costo (~$0.50/mes si esta

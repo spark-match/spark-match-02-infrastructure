@@ -51,18 +51,22 @@
       "Resource": "*"
     },
     {
-      "Sid": "SecretsManagerDescribe",
+      "Sid": "SecretsManagerManage",
       "Effect": "Allow",
       "Action": [
         "secretsmanager:DescribeSecret",
         "secretsmanager:GetResourcePolicy",
         "secretsmanager:ListSecretVersionIds",
-        "secretsmanager:GetSecretValue"
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:TagResource",
+        "secretsmanager:UntagResource"
       ],
       "Resource": "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match-${environment}-*"
     },
     {
-      "Sid": "DynamoDBDescribe",
+      "Sid": "DynamoDBManage",
       "Effect": "Allow",
       "Action": [
         "dynamodb:DescribeTable",
@@ -70,7 +74,12 @@
         "dynamodb:DescribeContinuousBackups",
         "dynamodb:DescribeContributorInsights",
         "dynamodb:DescribeTableReplicaAutoScaling",
-        "dynamodb:ListTagsOfResource"
+        "dynamodb:ListTagsOfResource",
+        "dynamodb:UpdateTable",
+        "dynamodb:UpdateTimeToLive",
+        "dynamodb:UpdateContinuousBackups",
+        "dynamodb:TagResource",
+        "dynamodb:UntagResource"
       ],
       "Resource": "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-${environment}-*"
     },
@@ -127,7 +136,7 @@
       "Resource": "*"
     },
     {
-      "Sid": "CloudFrontOACAndTags",
+      "Sid": "CloudFrontManage",
       "Effect": "Allow",
       "Action": [
         "cloudfront:GetOriginAccessControl",
@@ -136,7 +145,12 @@
         "cloudfront:CreateOriginAccessControl",
         "cloudfront:UpdateOriginAccessControl",
         "cloudfront:DeleteOriginAccessControl",
-        "cloudfront:ListTagsForResource"
+        "cloudfront:ListTagsForResource",
+        "cloudfront:GetDistribution",
+        "cloudfront:GetDistributionConfig",
+        "cloudfront:UpdateDistribution",
+        "cloudfront:TagResource",
+        "cloudfront:UntagResource"
       ],
       "Resource": "*"
     },
@@ -150,14 +164,38 @@
       "Resource": "arn:aws:s3:::spark-match-*"
     },
     {
-      "Sid": "BudgetsView",
+      "Sid": "BudgetsManage",
       "Effect": "Allow",
       "Action": [
         "budgets:ViewBudget",
         "budgets:ViewBudgetAction",
-        "budgets:DescribeBudgetPerformanceHistory"
+        "budgets:DescribeBudgetPerformanceHistory",
+        "budgets:ListTagsForResource",
+        "budgets:TagResource",
+        "budgets:UntagResource",
+        "budgets:ModifyBudget"
       ],
       "Resource": "arn:aws:budgets::681526276858:budget/*"
+    },
+    {
+      "Sid": "IAMTrustPolicyAndInstanceProfiles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:UpdateAssumeRolePolicy",
+        "iam:ListInstanceProfilesForRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::681526276858:role/spark-match-*-${environment}",
+        "arn:aws:iam::681526276858:role/spark-match-*-${environment}-*"
+      ]
+    },
+    {
+      "Sid": "EC2ModifyVpcEndpoints",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:ModifyVpcEndpoint"
+      ],
+      "Resource": "*"
     },
     {
       "Sid": "KMSDecryptViaAwsServices",

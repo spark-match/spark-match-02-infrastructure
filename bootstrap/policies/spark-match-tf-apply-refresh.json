@@ -164,6 +164,15 @@
       "Resource": "arn:aws:s3:::spark-match-*"
     },
     {
+      "Sid": "S3BucketExistenceRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": "arn:aws:s3:::spark-match-*"
+    },
+    {
       "Sid": "BudgetsManage",
       "Effect": "Allow",
       "Action": [

@@ -14,9 +14,16 @@ locals {
   gh_env    = var.environment == "prod" ? "production" : "development"
   role_name = "${var.project_name}-frontend-deploy-${var.environment}"
 
+  # Formato REAL del sub claim de GitHub Actions:
+  #   repo:spark-match/spark-match-04-frontend:environment:development
+  # NO lleva `@<repository_id>` en ningun punto. El wildcard `@*` que tenia
+  # este modulo no matchea nunca, y por eso el deploy del frontend fallaba
+  # con `Not authorized to perform sts:AssumeRoleWithWebIdentity`.
+  # Mismo fix aplicado a modules/oidc-github en 9721345; oidc-frontend se
+  # quedo fuera de aquel cambio.
   sub_patterns = [
-    "repo:${var.repo}@*:ref:refs/heads/${local.branch}",
-    "repo:${var.repo}@*:environment:${local.gh_env}",
+    "repo:${var.repo}:ref:refs/heads/${local.branch}",
+    "repo:${var.repo}:environment:${local.gh_env}",
   ]
 }
 

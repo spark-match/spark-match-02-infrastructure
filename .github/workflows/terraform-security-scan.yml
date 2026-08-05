@@ -67,6 +67,8 @@ jobs:
           - modules/rds-postgres
           - modules/frontend-hosting
           - modules/oidc-frontend
+          - modules/ecr              # PR-I2: registry de la imagen del deep-agent
+          - modules/agent-service    # PR-I2: ECS Fargate + ALB del deep-agent
 
     steps:
       - name: checkout

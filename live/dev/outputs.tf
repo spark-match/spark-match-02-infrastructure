@@ -227,3 +227,59 @@ output "frontend_deploy_role_arn" {
   description = "ARN del role OIDC asumido por spark-match-04-frontend para deploy. Wire a GitHub Actions secret AWS_FRONTEND_DEPLOY_ROLE_ARN_DEV."
   value       = module.oidc_frontend.deploy_role_arn
 }
+
+###############################################################################
+# deep-agent (modules/ecr + modules/agent-service)
+###############################################################################
+# Todos usan one(...) porque los modulos llevan count (var.enable_agent_service):
+# devuelven null cuando el agente esta apagado, en vez de romper el output.
+
+output "agent_ecr_repository_name" {
+  description = "Nombre del repositorio ECR del agente. Wire a spark-match-08-deep-agent como repo-level var ECR_REPOSITORY_DEV."
+  value       = one(module.ecr[*].repository_name)
+}
+
+output "agent_ecr_repository_url" {
+  description = "URL del repositorio ECR del agente (base del tag de imagen en el push)."
+  value       = one(module.ecr[*].repository_url)
+}
+
+output "agent_cluster_name" {
+  description = "Nombre del cluster ECS del agente. Input `cluster-name` de la receta reusable-ecs-deploy.yml."
+  value       = one(module.agent_service[*].cluster_name)
+}
+
+output "agent_service_name" {
+  description = "Nombre del servicio ECS del agente. Input `service-name` de la receta reusable-ecs-deploy.yml."
+  value       = one(module.agent_service[*].service_name)
+}
+
+output "agent_container_name" {
+  description = "Nombre del contenedor dentro de la task definition. Input `container-name` de la receta reusable-ecs-deploy.yml."
+  value       = one(module.agent_service[*].container_name)
+}
+
+output "agent_task_definition_family" {
+  description = "Family de la task definition del agente."
+  value       = one(module.agent_service[*].task_definition_family)
+}
+
+output "agent_execution_role_arn" {
+  description = "ARN del execution role de la task del agente (spark-match-agentcore-exec-dev)."
+  value       = one(module.agent_service[*].execution_role_arn)
+}
+
+output "agent_endpoint_url" {
+  description = "URL base del agente (http://{alb-dns}). Mismo valor que /spark-match/dev/config/agent-endpoint-url."
+  value       = one(module.agent_service[*].agent_endpoint_url)
+}
+
+output "agent_log_group_name" {
+  description = "Log group donde el contenedor del agente escribe stdout/stderr."
+  value       = one(module.agent_service[*].log_group_name)
+}
+
+output "agent_sg_id" {
+  description = "ID del SG de las tasks del agente."
+  value       = one(module.agent_service[*].sg_agent_id)
+}

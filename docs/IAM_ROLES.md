@@ -46,6 +46,14 @@
 > está en el state bucket separado y en los GH Environments con branch
 > policies.
 
+> **Permisos versionados**: "no modificar" se refiere a no gestionarlos con
+> Terraform — si Terraform gestionara sus propias credenciales, un cambio malo
+> lo dejaría sin permisos para arreglarse. Pero el **contenido** de esos
+> permisos sí vive en el repo, en [`bootstrap/`](../bootstrap/README.md), como
+> JSON revisable más un script idempotente que los aplica. Antes no estaba
+> versionado en ningún lado, y eso dejó el `apply` de dev roto y silencioso
+> durante mucho tiempo: ver el análisis en `bootstrap/README.md`.
+
 ---
 
 ## Roles nuevos (a crear via `modules/security` en Fase 1.5)

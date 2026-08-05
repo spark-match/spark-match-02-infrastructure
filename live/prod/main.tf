@@ -389,3 +389,91 @@ module "oidc_frontend" {
   access_logs_bucket_arn = module.frontend_hosting.access_logs_bucket_arn
   distribution_arn       = module.frontend_hosting.frontend_distribution_arn
 }
+
+###############################################################################
+# Module: ecr
+###############################################################################
+# Repositorio `spark-match-agent-advisor-prod`. El nombre importa: cae dentro
+# del allowlist IAM `spark-match-agent-*-prod` de la policy
+# spark-match-bedrock-agentcore-deploy. El valor que hoy tiene configurado
+# spark-match-08-deep-agent (`spark-match-agent-advisor-production`) NO
+# matchea ese patron -- se corrige en el PR-DA2 de ese repo.
+###############################################################################
+
+module "ecr" {
+  count = var.enable_agent_service ? 1 : 0
+
+  source = "../../modules/ecr"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn = module.kms.kms_key_arn
+
+  # false en prod: evita que un `terraform destroy` borre la imagen que esta
+  # corriendo en el servicio.
+  force_delete = var.agent_ecr_force_delete
+}
+
+###############################################################################
+# Module: agent_service
+###############################################################################
+# Cluster ECS + task definition Fargate ARM64 + servicio detras de un ALB
+# publico para spark-match-08-deep-agent.
+#
+# Decision prod (a diferencia de dev): las tasks corren en las subnets
+# PRIVADAS sin IP publica. El egress a ECR/Bedrock/Secrets sale por el NAT
+# unico (enable_nat_ha=false, checkpoint de costos 2026-08-04) y por los 4
+# interface endpoints habilitados. Solo el ALB vive en las subnets publicas.
+#
+# Costo estimado: Fargate 0.5 vCPU / 1 GiB ~$18/mes + ALB ~$17.50/mes + ECR
+# ~$0.30/mes. Sumado a los ~$101/mes del resto de prod queda en ~$137/mes,
+# bajo el budget de $200/mes de la cuenta.
+###############################################################################
+
+module "agent_service" {
+  count = var.enable_agent_service ? 1 : 0
+
+  source = "../../modules/agent-service"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+
+  vpc_id   = module.networking.vpc_id
+  vpc_cidr = var.vpc_cidr
+
+  # ALB en publicas (>= 2 AZs, requisito de ELB); tasks en privadas.
+  alb_subnet_ids     = module.networking.public_subnet_ids
+  service_subnet_ids = module.networking.private_subnet_ids
+  assign_public_ip   = false
+
+  # El modulo agrega la rule de ingress 5432 sobre este SG para que el
+  # checkpointer de LangGraph (schema `agent`) llegue a RDS.
+  rds_security_group_id = module.security_groups.sg_rds_id
+
+  # Task role: los permisos que usa el codigo del agente en runtime (Bedrock,
+  # Secrets Manager, SSM). El execution role lo crea el propio modulo.
+  agentcore_runtime_role_arn = module.oidc_github.agentcore_runtime_role_arn
+
+  # Imagen bootstrap: el repositorio esta vacio hasta el primer push del
+  # pipeline del deep-agent. Ver el encabezado de modules/agent-service.
+  container_image    = "${module.ecr[0].repository_url}:bootstrap"
+  ecr_repository_url = module.ecr[0].repository_url
+
+  task_cpu      = var.agent_task_cpu
+  task_memory   = var.agent_task_memory
+  desired_count = var.agent_desired_count
+
+  # Solo el dominio CloudFront de prod (sin localhost, a diferencia de dev).
+  cors_allowed_origins = jsonencode([
+    "https://${module.frontend_hosting.frontend_distribution_domain_name}",
+  ])
+
+  log_retention_days = var.agent_log_retention_days
+  kms_key_arn        = module.kms.kms_key_arn
+
+  # true en prod: protege el ALB (y con el, el DNS publicado en SSM) contra
+  # un destroy accidental.
+  enable_deletion_protection = var.agent_enable_deletion_protection
+}

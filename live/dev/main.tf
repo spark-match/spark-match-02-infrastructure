@@ -416,3 +416,93 @@ module "oidc_frontend" {
   access_logs_bucket_arn = module.frontend_hosting.access_logs_bucket_arn
   distribution_arn       = module.frontend_hosting.frontend_distribution_arn
 }
+
+###############################################################################
+# Module: ecr
+###############################################################################
+# Repositorio `spark-match-agent-advisor-dev` donde spark-match-08-deep-agent
+# publica la imagen ARM64 del agente. El nombre cae dentro del allowlist IAM
+# `spark-match-agent-*-dev` de la policy spark-match-bedrock-agentcore-deploy.
+###############################################################################
+
+module "ecr" {
+  count = var.enable_agent_service ? 1 : 0
+
+  source = "../../modules/ecr"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn = module.kms.kms_key_arn
+
+  # true en dev: permite `terraform destroy` sin vaciar el repositorio a mano
+  # (las imagenes son recreables desde el pipeline).
+  force_delete = var.agent_ecr_force_delete
+}
+
+###############################################################################
+# Module: agent_service
+###############################################################################
+# Cluster ECS + task definition Fargate ARM64 + servicio detras de un ALB
+# publico para spark-match-08-deep-agent.
+#
+# Decision dev: las tasks corren en las subnets PUBLICAS con IP publica
+# (assign_public_ip=true). dev no tiene NAT gateway (enable_nat_gateway=false),
+# asi que es la unica forma de que la task llegue a ECR, Bedrock y Secrets
+# Manager sin agregar ~$36.50/mes de NAT. El SG del agente sigue rechazando
+# todo ingress que no venga del SG del ALB, por lo que la IP publica no expone
+# el contenedor.
+#
+# El agente de dev es la validacion previa al rollout productivo. Una vez
+# validado prod se puede apagar con enable_agent_service=false (ahorra el
+# Fargate ~$18/mes + el ALB ~$17.50/mes).
+###############################################################################
+
+module "agent_service" {
+  count = var.enable_agent_service ? 1 : 0
+
+  source = "../../modules/agent-service"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+
+  vpc_id   = module.networking.vpc_id
+  vpc_cidr = var.vpc_cidr
+
+  # El ALB exige >= 2 AZs; las tasks van en las mismas subnets publicas
+  # (ver el comentario de la decision dev arriba).
+  alb_subnet_ids     = module.networking.public_subnet_ids
+  service_subnet_ids = module.networking.public_subnet_ids
+  assign_public_ip   = true
+
+  # El modulo agrega la rule de ingress 5432 sobre este SG para que el
+  # checkpointer de LangGraph (schema `agent`) llegue a RDS.
+  rds_security_group_id = module.security_groups.sg_rds_id
+
+  # Task role: los permisos que usa el codigo del agente en runtime (Bedrock,
+  # Secrets Manager, SSM). El execution role lo crea el propio modulo.
+  agentcore_runtime_role_arn = module.oidc_github.agentcore_runtime_role_arn
+
+  # Imagen bootstrap: el repositorio esta vacio hasta el primer push del
+  # pipeline del deep-agent. Ver el encabezado de modules/agent-service.
+  container_image    = "${module.ecr[0].repository_url}:bootstrap"
+  ecr_repository_url = module.ecr[0].repository_url
+
+  task_cpu      = var.agent_task_cpu
+  task_memory   = var.agent_task_memory
+  desired_count = var.agent_desired_count
+
+  # Origenes que el agente acepta: el dominio CloudFront de dev + el dev
+  # server de Angular para poder probar el chat en local contra el agente real.
+  cors_allowed_origins = jsonencode([
+    "https://${module.frontend_hosting.frontend_distribution_domain_name}",
+    "http://localhost:4200",
+  ])
+
+  log_retention_days = var.agent_log_retention_days
+  kms_key_arn        = module.kms.kms_key_arn
+
+  # false en dev: permite `terraform destroy` mientras se itera.
+  enable_deletion_protection = var.agent_enable_deletion_protection
+}

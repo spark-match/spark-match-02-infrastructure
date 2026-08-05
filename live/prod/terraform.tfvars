@@ -111,3 +111,30 @@ frontend_force_destroy = false
 # 90 en prod: retencion extendida para auditoria de cambios en el frontend.
 frontend_access_logs_retention_days         = 90
 frontend_noncurrent_version_expiration_days = 90
+
+###############################################################################
+# Deep agent (modules/ecr + modules/agent-service)
+###############################################################################
+
+# Interruptor de costo del agente: Fargate 0.5 vCPU / 1 GiB (~$18/mes) + ALB
+# (~$17.50/mes) + ECR (~$0.30/mes) = ~$36/mes. Con los ~$101/mes del resto de
+# prod (tras los recortes del checkpoint 2026-08-04) el total queda en
+# ~$137/mes, bajo el budget de $200/mes de la cuenta.
+enable_agent_service = true
+
+# 1 task: el estado de conversacion vive en Postgres (schema `agent`), no en
+# memoria de la task, asi que escalar horizontalmente es solo subir este
+# numero cuando el trafico lo justifique.
+agent_desired_count = 1
+agent_task_cpu      = 512
+agent_task_memory   = 1024
+
+# Protecciones de prod (a diferencia de dev): el repositorio ECR no se borra
+# con imagenes dentro y el ALB tiene deletion protection -- su DNS queda
+# publicado en SSM y consumido por el frontend.
+agent_ecr_force_delete           = false
+agent_enable_deletion_protection = true
+
+# 365 dias: mismo minimo de 1 anio que exige CKV_AWS_338 para el resto de los
+# log groups productivos.
+agent_log_retention_days = 365

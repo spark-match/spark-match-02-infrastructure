@@ -203,6 +203,52 @@ variable "frontend_noncurrent_version_expiration_days" {
   }
 }
 
+###############################################################################
+# Variables para modules/ecr + modules/agent-service (spark-match-08-deep-agent)
+###############################################################################
+
+variable "enable_agent_service" {
+  description = "Si crear el repositorio ECR y el servicio ECS del deep-agent. Interruptor de costo: apagarlo destruye el ALB (~$17.50/mes) y las tasks Fargate (~$18/mes). true en prod: el agente es parte del producto."
+  type        = bool
+  default     = true
+}
+
+variable "agent_ecr_force_delete" {
+  description = "Si permitir que `terraform destroy` borre el repositorio ECR aunque tenga imagenes. false en prod: protege la imagen que esta corriendo en el servicio."
+  type        = bool
+  default     = false
+}
+
+variable "agent_task_cpu" {
+  description = "CPU units de la task Fargate del agente (512 = 0.5 vCPU). Punto de partida conservador; ajustar segun metricas reales de latencia de Bedrock."
+  type        = number
+  default     = 512
+}
+
+variable "agent_task_memory" {
+  description = "Memoria en MiB de la task Fargate del agente."
+  type        = number
+  default     = 1024
+}
+
+variable "agent_desired_count" {
+  description = "Cuantas tasks del agente correr. 1 en el arranque de prod: el estado de conversacion vive en Postgres (schema `agent`), no en memoria, asi que escalar es solo subir este numero cuando el trafico lo justifique."
+  type        = number
+  default     = 1
+}
+
+variable "agent_log_retention_days" {
+  description = "Retencion del log group del servicio del agente. 365 en prod: mismo minimo de 1 anio que exige CKV_AWS_338 para el resto de los log groups productivos."
+  type        = number
+  default     = 365
+}
+
+variable "agent_enable_deletion_protection" {
+  description = "Si proteger el ALB del agente contra borrado. true en prod: el DNS del ALB queda publicado en SSM y consumido por el frontend, un destroy accidental cortaria el chat."
+  type        = bool
+  default     = true
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

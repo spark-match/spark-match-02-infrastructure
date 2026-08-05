@@ -22,14 +22,17 @@ locals {
   # primero que lo intenta.
   #
   # Ref: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
-  regional_service_principals = ["logs"]
+  # Ademas del principal regional, Logs necesita su propia condicion. Por eso
+  # sale del statement generico y tiene el suyo (`CloudWatchLogsUseCMK`, mas
+  # abajo): el resto de los servicios se autoriza por kms:CallerAccount, que
+  # Logs no satisface.
+  services_with_own_statement = ["logs"]
 
-  # El resto de los servicios usa el principal global.
+  # Los demas servicios usan el principal global y el statement compartido.
   service_principal_arns = [
     for svc in var.aws_service_principals :
-    contains(local.regional_service_principals, svc)
-    ? "${svc}.${data.aws_region.current.region}.${data.aws_partition.current.dns_suffix}"
-    : "${svc}.${data.aws_partition.current.dns_suffix}"
+    "${svc}.${data.aws_partition.current.dns_suffix}"
+    if !contains(local.services_with_own_statement, svc)
   ]
 }
 
@@ -147,6 +150,43 @@ resource "aws_kms_key" "main" {
         Condition = {
           StringEquals = {
             "kms:CallerAccount" = data.aws_caller_identity.current.account_id
+          }
+        }
+      },
+      {
+        # CloudWatch Logs va en su propio statement porque NO satisface la
+        # condicion kms:CallerAccount del statement anterior. Los otros 7
+        # servicios llaman a KMS arrastrando el contexto del caller que creo el
+        # recurso, asi que kms:CallerAccount viene poblado (verificado: RDS,
+        # Secrets Manager y DynamoDB cifran con esta CMK sin problema). Logs
+        # cifra de forma asincrona desde su propio contexto de servicio y la
+        # condicion no matchea, con lo cual ningun Allow aplica y KMS deniega.
+        #
+        # El sintoma es un CreateLogGroup que falla con "The specified KMS key
+        # does not exist or is not allowed to be used", incluso con credenciales
+        # de admin -- lo que descarta que sea un problema de IAM del caller.
+        #
+        # La condicion que si corresponde es la documentada por AWS: acotar por
+        # el encryption context aws:logs:arn, que limita el uso de la CMK a log
+        # groups de esta cuenta y region.
+        #
+        # Ref: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+        Sid    = "CloudWatchLogsUseCMK"
+        Effect = "Allow"
+        Principal = {
+          Service = "logs.${data.aws_region.current.region}.${data.aws_partition.current.dns_suffix}"
+        }
+        Action = [
+          "kms:Encrypt*",
+          "kms:Decrypt*",
+          "kms:ReEncrypt*",
+          "kms:GenerateDataKey*",
+          "kms:Describe*",
+        ]
+        Resource = "*"
+        Condition = {
+          ArnLike = {
+            "kms:EncryptionContext:aws:logs:arn" = "arn:${data.aws_partition.current.partition}:logs:${data.aws_region.current.region}:${data.aws_caller_identity.current.account_id}:log-group:*"
           }
         }
       },

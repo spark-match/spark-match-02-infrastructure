@@ -132,10 +132,14 @@ resource "aws_cloudfront_distribution" "frontend" {
     target_origin_id = "s3-${local.bucket_name}"
 
     viewer_protocol_policy = "redirect-to-https"
-    min_ttl                = 0
-    default_ttl            = 3600
-    max_ttl                = 86400
 
+    # Sin min_ttl / default_ttl / max_ttl a proposito: son mutuamente excluyentes
+    # con cache_policy_id. Con una cache policy adjunta, CloudFront ignora los TTL
+    # legacy y ni siquiera los guarda -- get-distribution-config los devuelve
+    # vacios. Declararlos producia un diff perpetuo (`default_ttl 0 -> 3600`) que
+    # ningun apply podia cerrar, y un plan que siempre miente entrena a ignorarlo.
+    # Los TTL efectivos los define la managed policy CachingOptimized:
+    # min 1s, default 1 dia, max 1 ano.
     cache_policy_id = "658327ea-f89d-4fab-a63d-7e88639e58f6"
   }
 

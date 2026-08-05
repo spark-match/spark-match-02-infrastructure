@@ -10,14 +10,32 @@ locals {
     }
   )
 
-  # Construir los service principals con el suffix DNS correcto (varia por region).
+  # CloudWatch Logs es la excepcion: cuando cifra un log group con una CMK llama
+  # a KMS con el principal CALIFICADO POR REGION (logs.us-east-1.amazonaws.com),
+  # no con el global. Con el global, KMS no reconoce al llamante y CreateLogGroup
+  # falla con "The specified KMS key does not exist or is not allowed to be used
+  # with Arn 'arn:aws:logs:...'", que es engañoso: la key existe y el permiso IAM
+  # esta; lo que no matchea es el principal del key policy.
+  #
+  # Estuvo latente hasta ahora porque ningun log group usaba la CMK (los 12 de
+  # las Lambdas del backend tienen kmsKeyId=None). El del agente en Fargate es el
+  # primero que lo intenta.
+  #
+  # Ref: https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/encrypt-log-data-kms.html
+  regional_service_principals = ["logs"]
+
+  # El resto de los servicios usa el principal global.
   service_principal_arns = [
-    for svc in var.aws_service_principals : "${svc}.${data.aws_partition.current.dns_suffix}"
+    for svc in var.aws_service_principals :
+    contains(local.regional_service_principals, svc)
+    ? "${svc}.${data.aws_region.current.region}.${data.aws_partition.current.dns_suffix}"
+    : "${svc}.${data.aws_partition.current.dns_suffix}"
   ]
 }
 
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
+data "aws_region" "current" {}
 
 ###############################################################################
 # KMS - Customer Managed Key (CMK) por entorno

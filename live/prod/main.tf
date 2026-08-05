@@ -6,7 +6,7 @@
 #   - Sin recursos aplicados (cuenta AWS 681526276858 limpia salvo tfstate backend).
 #   - State bucket: spark-match-tfstate-prod con versioning + native lockfile.
 #
-# Fase 1 + Fase 2 (este PR, ADR 0002 — cross-repo config contract):
+# Fase 1 + Fase 2 (este PR, ADR 0002 â€” cross-repo config contract):
 #   - Wiring completo de los mismos 11 modulos ya aplicados en dev (ver
 #     live/dev/main.tf), con decisiones especificas de prod (NAT HA,
 #     cobertura completa de VPC endpoints, Multi-AZ en RDS, deletion
@@ -450,7 +450,8 @@ module "agent_service" {
 
   # El modulo agrega la rule de ingress 5432 sobre este SG para que el
   # checkpointer de LangGraph (schema `agent`) llegue a RDS.
-  rds_security_group_id = module.security_groups.sg_rds_id
+  rds_security_group_id           = module.security_groups.sg_rds_id
+  vpc_endpoints_security_group_id = module.security_groups.sg_endpoints_id
 
   # Task role: los permisos que usa el codigo del agente en runtime (Bedrock,
   # Secrets Manager, SSM). El execution role lo crea el propio modulo.

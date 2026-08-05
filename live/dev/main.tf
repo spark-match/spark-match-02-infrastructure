@@ -13,7 +13,7 @@
 #   - module "endpoints"       -> S3 gateway + interface endpoints (secretsmanager, events)
 #   - module "oidc_github"     -> OIDC provider + 4 IAM roles
 #
-# Fase 2 (activa, ADR 0002 — cross-repo config contract):
+# Fase 2 (activa, ADR 0002 â€” cross-repo config contract):
 #   - module "storage_sam_artifacts"  -> S3 bucket de artefactos SAM
 #   - module "secrets_bootstrap"      -> Secrets Manager (JWT signing key)
 #   - module "eventbridge_bus"        -> EventBridge bus custom + archive + DLQ
@@ -53,7 +53,7 @@ module "networking" {
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
 
-  # NAT desactivado en dev: ver comentario del modulo arriba (ADR 0002 §4).
+  # NAT desactivado en dev: ver comentario del modulo arriba (ADR 0002 Â§4).
   enable_nat_gateway = var.enable_nat_gateway
   enable_nat_ha      = var.enable_nat_ha
 
@@ -195,9 +195,9 @@ module "security_groups" {
 # Module: endpoints
 ###############################################################################
 # VPC endpoints para que las Lambdas del backend (dentro de VPC, ver ADR 0002
-# §4) no salgan por NAT para hablar con AWS.
+# Â§4) no salgan por NAT para hablar con AWS.
 #
-# Decision dev (ADR 0002 §4):
+# Decision dev (ADR 0002 Â§4):
 #   - Interface endpoints: solo `secretsmanager` (leer credenciales frescas de
 #     RDS) y `events` (PutEvents a EventBridge). Desplegados en 1 sola AZ (no
 #     las 2) para reducir costo: ~$14.60/mes (2 endpoints x 1 AZ) en vez de
@@ -206,10 +206,10 @@ module "security_groups" {
 #   - CloudWatch Logs y X-Ray no requieren VPC endpoint (viajan por el plano
 #     de control de Lambda, no por la ENI de la funcion).
 #   - `ssm` NO esta en la lista: el runtime del backend lee env vars
-#     inyectadas en deploy-time via `{{resolve:ssm:}}`, no relee SSM (ADR 0002 §3).
+#     inyectadas en deploy-time via `{{resolve:ssm:}}`, no relee SSM (ADR 0002 Â§3).
 #
 # El SG que se pasa (`endpoints_security_group_id`) es el mismo que se creo en
-# module.security, y permite ingress 443 desde sg-lambda (regla que también se
+# module.security, y permite ingress 443 desde sg-lambda (regla que tambiÃ©n se
 # creo en module.security via `aws_security_group_rule.endpoints_ingress_from_lambda`).
 ###############################################################################
 
@@ -227,7 +227,7 @@ module "endpoints" {
   # SG de VPC endpoints (creado en module.security_groups, con ingress 443 desde sg-lambda).
   endpoints_security_group_id = module.security_groups.sg_endpoints_id
 
-  # Decision dev (ADR 0002 §4): solo secretsmanager + events, en 1 AZ.
+  # Decision dev (ADR 0002 Â§4): solo secretsmanager + events, en 1 AZ.
   enable_all_endpoints_by_default = var.enable_all_endpoints_by_default
   enabled_endpoints               = var.enabled_endpoints
   enable_s3_gateway_endpoint      = var.enable_s3_gateway_endpoint
@@ -478,7 +478,8 @@ module "agent_service" {
 
   # El modulo agrega la rule de ingress 5432 sobre este SG para que el
   # checkpointer de LangGraph (schema `agent`) llegue a RDS.
-  rds_security_group_id = module.security_groups.sg_rds_id
+  rds_security_group_id           = module.security_groups.sg_rds_id
+  vpc_endpoints_security_group_id = module.security_groups.sg_endpoints_id
 
   # Task role: los permisos que usa el codigo del agente en runtime (Bedrock,
   # Secrets Manager, SSM). El execution role lo crea el propio modulo.

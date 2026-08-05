@@ -484,9 +484,11 @@ module "agent_service" {
   # Secrets Manager, SSM). El execution role lo crea el propio modulo.
   agentcore_runtime_role_arn = module.oidc_github.agentcore_runtime_role_arn
 
-  # Imagen bootstrap: el repositorio esta vacio hasta el primer push del
-  # pipeline del deep-agent. Ver el encabezado de modules/agent-service.
-  container_image    = "${module.ecr[0].repository_url}:bootstrap"
+  # `latest`, no `bootstrap`: el pipeline de spark-match-08-deep-agent publica
+  # con `image-tags-input: 'latest,__GITHUB_SHA_SHORT__'`, o sea NUNCA existe un
+  # tag `bootstrap`. Apuntar ahi dejaba al servicio en CannotPullContainerError
+  # indefinidamente ("...:bootstrap: not found", 7 reintentos por task).
+  container_image    = "${module.ecr[0].repository_url}:latest"
   ecr_repository_url = module.ecr[0].repository_url
 
   task_cpu      = var.agent_task_cpu

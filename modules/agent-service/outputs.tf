@@ -54,8 +54,18 @@ output "alb_zone_id" {
 }
 
 output "agent_endpoint_url" {
-  description = "URL base del agente (`http://{alb-dns}`), el mismo valor que queda en /{project}/{env}/config/agent-endpoint-url."
-  value       = "http://${aws_lb.this.dns_name}"
+  description = "URL base publica del agente. Con enable_cloudfront=true es la de CloudFront (HTTPS); si no, la del ALB (HTTP). Mismo valor que queda en /{project}/{env}/config/agent-endpoint-url."
+  value       = local.agent_public_url
+}
+
+output "agent_cloudfront_domain" {
+  description = "Dominio de la distribucion CloudFront del agente, o null si enable_cloudfront=false."
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.agent[0].domain_name : null
+}
+
+output "agent_cloudfront_distribution_id" {
+  description = "ID de la distribucion CloudFront del agente, o null si enable_cloudfront=false."
+  value       = var.enable_cloudfront ? aws_cloudfront_distribution.agent[0].id : null
 }
 
 output "target_group_arn" {

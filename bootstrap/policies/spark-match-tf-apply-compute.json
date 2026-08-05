@@ -109,6 +109,14 @@
       }
     },
     {
+      "Sid": "EC2ReadForLoadBalancerCreation",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:GetSecurityGroupsForVpc"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "ServiceLinkedRolesForECSAndELB",
       "Effect": "Allow",
       "Action": "iam:CreateServiceLinkedRole",

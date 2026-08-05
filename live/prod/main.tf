@@ -100,6 +100,13 @@ module "oidc_github" {
   project_name = var.project_name
   environment  = var.environment
 
+  # El GH Environment real se llama "production" (ver `gh api
+  # repos/spark-match/*/environments`), no "prod" -- `environment` arriba
+  # solo nombra los recursos AWS. Sin este override, el sub claim
+  # `environment:production` que emite GitHub no matchea el trust policy
+  # (que usaria `environment:prod`) y AssumeRoleWithWebIdentity es rechazado.
+  github_environment_name = "production"
+
   sam_deploy_github_repos     = var.sam_deploy_github_repos
   bedrock_deploy_github_repos = var.bedrock_deploy_github_repos
 }
@@ -155,19 +162,13 @@ module "security_groups" {
 ###############################################################################
 # Module: endpoints
 ###############################################################################
-# Decision de arquitectura prod: cobertura completa de interface endpoints
-# (SSM, ECR, Logs, Secrets, KMS, STS, Bedrock, events, etc.) + gateway S3,
-# para mantener trafico AWS privado (sin atravesar NAT ni internet) incluso
-# teniendo NAT disponible. Costo ~$72/mes (10-11 interface endpoints x
-# $0.01/h).
-#
-# `enabled_endpoints` e `interface_endpoint_subnet_ids` NO se pasan a
-# proposito (quedan en su default del modulo, [] ambos):
-#   - Con enable_all_endpoints_by_default=true, enabled_endpoints se ignora
-#     (ver modules/endpoints/main.tf locals.enabled_interface_endpoints).
-#   - Con interface_endpoint_subnet_ids=[] el modulo usa automaticamente
-#     TODAS las private_subnet_ids (ambas AZs) -- alta disponibilidad, a
-#     diferencia de dev que restringe a 1 sola AZ para ahorrar costo.
+# Decision de arquitectura prod (checkpoint de costos 2026-08-04): con NAT
+# presente (module "networking" abajo, enable_nat_ha=false pero NAT si esta
+# ON), solo los servicios que las Lambdas/el agente llaman con volumen alto
+# o baja tolerancia a latencia de NAT necesitan interface endpoint dedicado.
+# Los 11 endpoints x 2 AZ (22 ENI) costaban ~$160.60/mes; con
+# enabled_endpoints explicito (4 servicios) + interface_endpoint_subnet_ids
+# a 1 sola AZ (mismo patron que dev) el costo baja a ~$29.20/mes.
 ###############################################################################
 
 module "endpoints" {
@@ -184,7 +185,12 @@ module "endpoints" {
   endpoints_security_group_id = module.security_groups.sg_endpoints_id
 
   enable_all_endpoints_by_default = var.enable_all_endpoints_by_default
+  enabled_endpoints               = var.enabled_endpoints
   enable_s3_gateway_endpoint      = var.enable_s3_gateway_endpoint
+
+  # 1 sola AZ (la primera subnet privada), mismo recorte que dev -- reduce
+  # el costo a la mitad (~$7.30/mes por endpoint por AZ evitada).
+  interface_endpoint_subnet_ids = slice(module.networking.private_subnet_ids, 0, 1)
 }
 
 ###############################################################################
@@ -266,7 +272,11 @@ module "dynamodb_idempotency" {
 # difieren de dev (todas hardcodeadas aca, no ameritan una variable propia
 # por ser decisiones de arquitectura de una sola vez, no algo que se ajuste
 # por apply):
-#   - multi_az=true: standby en otra AZ con failover automatico.
+#   - multi_az=false (checkpoint de costos 2026-08-04): sin standby en otra
+#     AZ. Ahorra ~$25.66/mes (computo + storage duplicado). Coherente con
+#     rds_backup_retention_period_days=0 abajo: sin PITR, Multi-AZ ya daba
+#     HA a medias pagando el costo completo. Revertir a true cuando se
+#     resuelva el guardrail de backups de la cuenta.
 #   - deletion_protection=true: terraform destroy / aws rds delete-db-instance
 #     rechazado sin desactivar esta proteccion primero.
 #   - skip_final_snapshot=false: toma un snapshot final antes de cualquier
@@ -299,7 +309,7 @@ module "rds_postgres" {
   kms_key_arn           = module.kms.kms_key_arn
 
   instance_class = var.db_instance_class
-  multi_az       = true
+  multi_az       = false
 
   max_allocated_storage_gb = 100
 

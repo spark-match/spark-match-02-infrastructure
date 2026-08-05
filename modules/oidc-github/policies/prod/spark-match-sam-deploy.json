@@ -1,4 +1,4 @@
-﻿{
+{
   "Version": "2012-10-17",
   "Statement": [
     {
@@ -31,8 +31,8 @@
         "cloudformation:RollbackStack"
       ],
       "Resource": [
-        "arn:aws:cloudformation:us-east-1:681526276858:stack/spark-match-backend-*-${environment}",
-        "arn:aws:cloudformation:us-east-1:681526276858:stack/spark-match-backend-*-${environment}/*"
+        "arn:aws:cloudformation:us-east-1:681526276858:stack/spark-match-backend-${environment}*",
+        "arn:aws:cloudformation:us-east-1:681526276858:stack/spark-match-backend-${environment}*/*"
       ]
     },
     {
@@ -69,24 +69,8 @@
         "lambda:InvokeFunction"
       ],
       "Resource": [
-        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-backend-*-${environment}",
-        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-backend-*-${environment}:*"
-      ]
-    },
-    {
-      "Sid": "LambdaManageLayers",
-      "Effect": "Allow",
-      "Action": [
-        "lambda:GetLayerVersion",
-        "lambda:ListLayerVersions",
-        "lambda:PublishLayerVersion",
-        "lambda:DeleteLayerVersion"
-      ],
-      "Resource": [
-        "arn:aws:lambda:us-east-1:681526276858:layer:spark-match-node-shared-*-${environment}",
-        "arn:aws:lambda:us-east-1:681526276858:layer:spark-match-node-runtime-*-${environment}",
-        "arn:aws:lambda:us-east-1:681526276858:layer:spark-match-python-shared-*-${environment}",
-        "arn:aws:lambda:us-east-1:681526276858:layer:spark-match-python-runtime-*-${environment}"
+        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-identity-*-${environment}",
+        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-identity-*-${environment}:*"
       ]
     },
     {
@@ -162,36 +146,10 @@
       ]
     },
     {
-      "Sid": "IAMManageExecutionRoles",
-      "Effect": "Allow",
-      "Action": [
-        "iam:CreateRole",
-        "iam:DeleteRole",
-        "iam:GetRole",
-        "iam:UpdateRole",
-        "iam:TagRole",
-        "iam:UntagRole",
-        "iam:PutRolePolicy",
-        "iam:DeleteRolePolicy",
-        "iam:GetRolePolicy",
-        "iam:ListRolePolicies",
-        "iam:ListAttachedRolePolicies",
-        "iam:AttachRolePolicy",
-        "iam:DetachRolePolicy"
-      ],
-      "Resource": [
-        "arn:aws:iam::681526276858:role/spark-match-backend-*-${environment}",
-        "arn:aws:iam::681526276858:role/spark-match-backend-*-exec-${environment}",
-        "arn:aws:iam::681526276858:role/spark-match-lambda-runtime-${environment}"
-      ]
-    },
-    {
       "Sid": "IAMPassRoleToLambdaAndEvents",
       "Effect": "Allow",
       "Action": "iam:PassRole",
       "Resource": [
-        "arn:aws:iam::681526276858:role/spark-match-backend-*-${environment}",
-        "arn:aws:iam::681526276858:role/spark-match-backend-*-exec-${environment}",
         "arn:aws:iam::681526276858:role/spark-match-lambda-runtime-${environment}"
       ],
       "Condition": {
@@ -217,9 +175,7 @@
       ],
       "Resource": [
         "arn:aws:s3:::spark-match-sam-artifacts-${environment}",
-        "arn:aws:s3:::spark-match-sam-artifacts-${environment}/*",
-        "arn:aws:s3:::spark-match-backend-deploy-${environment}",
-        "arn:aws:s3:::spark-match-backend-deploy-${environment}/*"
+        "arn:aws:s3:::spark-match-sam-artifacts-${environment}/*"
       ]
     },
     {
@@ -281,9 +237,8 @@
         "logs:DeleteSubscriptionFilter"
       ],
       "Resource": [
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/backend/${environment}/*",
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/*",
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-backend-*-${environment}"
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/${environment}/*",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-identity-*-${environment}"
       ]
     },
     {
@@ -302,28 +257,6 @@
       "Effect": "Allow",
       "Action": "sts:GetCallerIdentity",
       "Resource": "*"
-    },
-    {
-      "Sid": "SqsDLQ",
-      "Effect": "Allow",
-      "Action": [
-        "sqs:CreateQueue",
-        "sqs:DeleteQueue",
-        "sqs:GetQueueAttributes",
-        "sqs:SetQueueAttributes",
-        "sqs:AddPermission",
-        "sqs:RemovePermission",
-        "sqs:TagQueue",
-        "sqs:UntagQueue",
-        "sqs:ListQueueTags",
-        "sqs:SendMessage",
-        "sqs:ReceiveMessage",
-        "sqs:DeleteMessage",
-        "sqs:GetQueueUrl"
-      ],
-      "Resource": [
-        "arn:aws:sqs:us-east-1:681526276858:spark-match-backend-*-${environment}"
-      ]
     }
   ]
 }

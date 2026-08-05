@@ -24,19 +24,25 @@ azs                  = ["us-east-1a", "us-east-1b"]
 public_subnet_cidrs  = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnet_cidrs = ["10.0.10.0/24", "10.0.11.0/24"]
 
-# Prod: NAT HA (1 NAT por AZ) para que la caida de una AZ no deje a las
-# Lambdas sin salida a internet. Costo extra: ~$64/mes (2 NAT Gateway + 2 EIP).
+# Prod (checkpoint de costos 2026-08-04): NAT unico en vez de HA. Con
+# enable_nat_ha=true, la caida de una AZ no deja a las Lambdas sin salida a
+# internet, pero cuesta 2 NAT Gateway + 2 EIP (~$73/mes). NAT unico ahorra
+# ~$36.50/mes (1 NAT + 1 EIP) a cambio de un unico punto de fallo por NAT;
+# revisar si el trafico real de prod justifica volver a HA.
 enable_nat_gateway = true
-enable_nat_ha      = true
+enable_nat_ha      = false
 
 ###############################################################################
 # Endpoints (modulo endpoints - se usara en Fase 1.5)
 ###############################################################################
 
-# Prod: cobertura completa de interface endpoints + S3 gateway para mantener
-# trafico AWS privado (sin atravesar NAT ni internet). Costo: ~$72/mes (10
-# interface endpoints x $0.01/h).
-enable_all_endpoints_by_default = true
+# Prod (checkpoint de costos 2026-08-04): solo los interface endpoints
+# realmente usados, en 1 AZ (ver interface_endpoint_subnet_ids en main.tf).
+# Con NAT presente, el resto del trafico AWS sale por NAT sin problema.
+# Antes: 11 endpoints x 2 AZ = 22 ENI (~$160.60/mes). Ahora: 4 endpoints x 1
+# AZ = 4 ENI (~$29.20/mes). Ahorro: ~$131.40/mes.
+enable_all_endpoints_by_default = false
+enabled_endpoints               = ["secretsmanager", "events", "ssm", "bedrock-runtime"]
 enable_s3_gateway_endpoint      = true
 
 # Flow logs: activado en prod para auditoria y debugging. Costo estimado

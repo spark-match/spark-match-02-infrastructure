@@ -91,6 +91,16 @@ variable "rds_security_group_id" {
   }
 }
 
+variable "vpc_endpoints_security_group_id" {
+  description = "ID del SG de los interface VPC endpoints (output de modules/security-groups). El modulo le agrega una rule de ingress 443 desde el SG del agente. Es obligatoria aunque las tasks tengan IP publica: los endpoints tienen private DNS habilitado, asi que ssm/secretsmanager resuelven a IPs privadas para TODA la VPC y el trafico nunca sale a internet."
+  type        = string
+
+  validation {
+    condition     = can(regex("^sg-[0-9a-f]{8,17}$", var.vpc_endpoints_security_group_id))
+    error_message = "vpc_endpoints_security_group_id debe tener formato sg-<hex>."
+  }
+}
+
 variable "alb_ingress_cidr_blocks" {
   description = "CIDRs autorizados a alcanzar el ALB en el puerto 80. Default 0.0.0.0/0 porque el agente se consume desde el navegador (frontend en CloudFront) sin IP fija. La autorizacion real la hace el JWT que valida /ag-ui, no la red."
   type        = list(string)

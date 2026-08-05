@@ -183,6 +183,30 @@ resource "aws_security_group_rule" "rds_ingress_from_agent" {
   security_group_id        = var.rds_security_group_id
 }
 
+# Contraparte en el SG de los interface VPC endpoints. Sin esto el arranque del
+# agente se CUELGA (no falla) en build_persistence(): lee
+# /spark-match/dev/config/db-secret-arn de SSM y despues el secret de Secrets
+# Manager, y esas dos llamadas nunca vuelven.
+#
+# El egress 443 del agente no alcanza: los endpoints tienen private_dns_enabled,
+# asi que ssm/secretsmanager/events resuelven a las IPs privadas del endpoint
+# para TODA la VPC -- tambien para una task con IP publica. El trafico va al
+# endpoint, el SG lo descarta sin RST, y el cliente queda esperando hasta el
+# timeout (que en el arranque no existe). De ahi el sintoma exacto: el log se
+# queda en "Waiting for application startup." y el health check nunca pasa.
+#
+# La descripcion de la rule equivalente en modules/security-groups dice
+# "from Lambdas only": esta es la que agrega al agente.
+resource "aws_security_group_rule" "endpoints_ingress_from_agent" {
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.agent.id
+  description              = "Allow HTTPS to VPC endpoints from the deep-agent Fargate tasks"
+  security_group_id        = var.vpc_endpoints_security_group_id
+}
+
 ###############################################################################
 # Application Load Balancer
 ###############################################################################

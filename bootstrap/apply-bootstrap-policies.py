@@ -33,14 +33,22 @@ POLICIES_DIR = Path(__file__).parent / "policies"
 # Limite duro de AWS para el documento de una managed policy.
 MAX_MANAGED_POLICY_BYTES = 6144
 
+# stem -> (rol destino, descripcion). El rol se formatea con {env}.
 POLICIES = {
     "spark-match-tf-apply-refresh": (
+        "spark-match-terraform-apply-{env}",
         "Describe/list que el refresh de terraform necesita en {env}, mas el "
-        "arreglo de los patrones de SSM y Logs"
+        "arreglo de los patrones de SSM y Logs",
     ),
     "spark-match-tf-apply-compute": (
+        "spark-match-terraform-apply-{env}",
         "ECS/ELBv2/ECR + PassRole a ecs-tasks + service-linked roles para los "
-        "modulos ecr y agent-service en {env}"
+        "modulos ecr y agent-service en {env}",
+    ),
+    "spark-match-tf-plan-read": (
+        "spark-match-terraform-plan-{env}",
+        "Lectura de todo y escritura de nada, para que terraform plan pueda "
+        "refrescar el state en {env}",
     ),
 }
 
@@ -83,17 +91,18 @@ def main() -> int:
     args = parser.parse_args()
 
     env = args.environment
-    role = f"spark-match-terraform-apply-{env}"
     rendered = {stem: render(stem, env) for stem in POLICIES}
 
-    print(f"Rol destino: {role}\n")
     for stem, doc in rendered.items():
+        role = POLICIES[stem][0].format(env=env)
         body = json.dumps(doc, separators=(",", ":"))
-        print(f"--- {stem}-{env}: {len(doc['Statement'])} statements, {len(body)} bytes ---")
+        print(f"--- {stem}-{env} -> {role}")
+        print(f"    {len(doc['Statement'])} statements, {len(body)} bytes")
         for statement in doc["Statement"]:
-            actions = statement["Action"]
+            actions = statement.get("Action") or statement.get("NotAction")
             actions = [actions] if isinstance(actions, str) else actions
-            print(f"  {statement['Sid']:35s} {len(actions):3d} acciones")
+            effect = statement["Effect"]
+            print(f"    {statement['Sid']:35s} {effect:6s} {len(actions):3d} acciones")
     print()
 
     if not args.apply:
@@ -101,12 +110,17 @@ def main() -> int:
         return 0
 
     iam = boto3.Session(profile_name=args.profile).client("iam")
+    roles = set()
     for stem, doc in rendered.items():
+        role_template, description = POLICIES[stem]
+        role = role_template.format(env=env)
+        roles.add(role)
         print(f"{stem}-{env}:")
-        upsert(iam, f"{stem}-{env}", doc, role, POLICIES[stem].format(env=env))
+        upsert(iam, f"{stem}-{env}", doc, role, description.format(env=env))
 
     print("\nListo. Verifica con:")
-    print(f"  aws iam list-attached-role-policies --role-name {role} --profile {args.profile}")
+    for role in sorted(roles):
+        print(f"  aws iam list-attached-role-policies --role-name {role} --profile {args.profile}")
     return 0
 
 

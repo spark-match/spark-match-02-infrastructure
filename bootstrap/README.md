@@ -27,6 +27,21 @@ igual que hace `templatefile()` en `modules/oidc-github`. Se aplican con
 Se adjuntan como **managed policies**, no editando el inline `ApplyPolicy` de 18
 statements que ya existe. Es aditivo y se revierte con un `detach-role-policy`.
 
+## Las tres policies
+
+| Archivo | Rol destino | Para que |
+|---|---|---|
+| `spark-match-tf-apply-refresh.json` | `terraform-apply-{env}` | Los describe/list que el refresh necesita, mas los arreglos de patron de SSM y Logs y los permisos de escritura que faltaban |
+| `spark-match-tf-apply-compute.json` | `terraform-apply-{env}` | ECS, ELBv2, ECR, `PassRole` a ecs-tasks y service-linked roles, para los modulos `ecr` y `agent-service` |
+| `spark-match-tf-plan-read.json` | `terraform-plan-{env}` | Lectura de todo, escritura de nada |
+
+El rol de **plan** tenia el mismo problema que el de apply y por la misma razon:
+nunca se habia ejercitado de verdad. Su policy usa comodines en los verbos de
+lectura (`s3:Get*`, `ec2:Describe*`) y un statement `Deny` explicito sobre
+cualquier accion fuera de esa lista. Descubrir los permisos de a uno cuesta una
+corrida de CI por permiso, y en un rol que no puede mutar nada el costo de ser
+generoso con la lectura es bajo.
+
 ## El fallo que motiva esto
 
 El `terraform apply` de dev llevaba tiempo siendo un no-op silencioso:

@@ -32,7 +32,10 @@
         "ecs:RegisterTaskDefinition",
         "ecs:DeregisterTaskDefinition",
         "ecs:DescribeTaskDefinition",
-        "ecs:ListTaskDefinitions"
+        "ecs:ListTaskDefinitions",
+        "ecs:TagResource",
+        "ecs:UntagResource",
+        "ecs:ListTagsForResource"
       ],
       "Resource": "*"
     },

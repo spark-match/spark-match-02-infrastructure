@@ -157,7 +157,24 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   tags = local.common_tags
 
-  depends_on = [aws_s3_bucket_ownership_controls.frontend]
+  # aws_s3_bucket_acl.access_logs es obligatorio aca aunque parezca redundante.
+  # `logging_config` solo referencia aws_s3_bucket.access_logs.bucket_domain_name,
+  # asi que la unica arista implicita que Terraform deduce es contra el BUCKET,
+  # no contra su ACL. Pero CloudFront standard logging exige que el bucket
+  # destino tenga ACLs habilitadas para poder escribir el grant FULL_CONTROL de
+  # awslogsdelivery, y desde abril 2023 todo bucket S3 nace con
+  # BucketOwnerEnforced (ACLs deshabilitadas). Sin esta arista, Terraform puede
+  # emitir CreateDistribution antes del ownership_controls + acl del bucket de
+  # logs y AWS responde InvalidArgument. En dev no exploto por suerte en el
+  # orden, no por garantia.
+  #
+  # Con una sola entrada basta: aws_s3_bucket_acl.access_logs ya declara
+  # depends_on sobre aws_s3_bucket_ownership_controls.access_logs, asi que el
+  # ownership entra en el grafo por transitividad.
+  depends_on = [
+    aws_s3_bucket_ownership_controls.frontend,
+    aws_s3_bucket_acl.access_logs,
+  ]
 }
 
 resource "aws_s3_bucket_policy" "frontend" {

@@ -72,10 +72,39 @@ locals {
   }
 
   environment_variables = merge(local.base_environment_variables, var.extra_environment_variables)
+
+  # `secrets` en vez de `environment`: el agente de ECS resuelve el valor al
+  # arrancar la task y lo inyecta como env var en el contenedor. Asi la key
+  # no aparece en `describe-task-definition`, que es lectura publica para
+  # cualquiera con acceso al cluster.
+  container_secrets = var.tavily_secret_name == null ? [] : [
+    {
+      name      = "SPARK_TAVILY_API_KEY"
+      valueFrom = data.aws_secretsmanager_secret.tavily[0].arn
+    }
+  ]
 }
 
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
+
+# El VALOR de la API key se crea fuera de Terraform (consola o
+# `aws secretsmanager create-secret`) y aqui solo se lee el ARN.
+#
+# No es pereza: un `aws_secretsmanager_secret_version` guardaria la key EN
+# CLARO dentro del tfstate, y el tfstate vive en S3 -- cualquiera con acceso
+# al bucket la leeria, y quedaria ademas en cada version del objeto. Es el
+# mismo agujero que ya tiene modules/secrets-bootstrap con el JWT, salvo que
+# ese valor lo genera Terraform y este lo emite un tercero.
+#
+# Un data source falla el plan si el secret no existe, de ahi el count: con
+# tavily_secret_name = null el ambiente se levanta sin Tavily y web_search
+# cae a DuckDuckGo.
+data "aws_secretsmanager_secret" "tavily" {
+  count = var.tavily_secret_name == null ? 0 : 1
+
+  name = var.tavily_secret_name
+}
 
 ###############################################################################
 # Security groups
@@ -393,6 +422,37 @@ resource "aws_iam_role_policy" "execution_kms" {
   policy = data.aws_iam_policy_document.execution_kms[0].json
 }
 
+# Va en el EXECUTION role, no en el task role: quien resuelve el bloque
+# `secrets` es el agente de ECS durante el arranque de la task, antes de que
+# exista proceso de Python. Con el permiso en el task role la task muere en
+# PROVISIONING con ResourceInitializationError.
+#
+# AmazonECSTaskExecutionRolePolicy (adjunta arriba) NO trae
+# secretsmanager:GetSecretValue; solo cubre pull de ECR y logs.
+#
+# Sin statement de KMS a proposito: si el secret usa la key gestionada por AWS
+# (`aws/secretsmanager`, el default al crearlo), su key policy ya permite el
+# descifrado a quien tenga GetSecretValue. Y si se crea con la CMK del
+# proyecto, execution_kms de arriba ya da kms:Decrypt sobre ella.
+data "aws_iam_policy_document" "execution_secrets" {
+  count = var.tavily_secret_name == null ? 0 : 1
+
+  statement {
+    sid       = "ReadTavilyApiKey"
+    effect    = "Allow"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = [data.aws_secretsmanager_secret.tavily[0].arn]
+  }
+}
+
+resource "aws_iam_role_policy" "execution_secrets" {
+  count = var.tavily_secret_name == null ? 0 : 1
+
+  name   = "${var.project_name}-agentcore-exec-secrets-${var.environment}"
+  role   = aws_iam_role.execution.id
+  policy = data.aws_iam_policy_document.execution_secrets[0].json
+}
+
 ###############################################################################
 # Observabilidad
 ###############################################################################
@@ -475,6 +535,8 @@ resource "aws_ecs_task_definition" "this" {
           value = local.environment_variables[key]
         }
       ]
+
+      secrets = local.container_secrets
 
       logConfiguration = {
         logDriver = "awslogs"

@@ -38,6 +38,30 @@ resource "aws_ecr_repository" "this" {
     scan_on_push = var.scan_on_push
   }
 
+  # `latest` tiene que poder reescribirse; el resto no.
+  #
+  # El pipeline del agente publica `latest,<sha>` en cada build. Con el
+  # repositorio en IMMUTABLE puro, el primer push crea `latest` y TODOS los
+  # siguientes mueren con "The image tag 'latest' already exists ... and
+  # cannot be overwritten because the tag is immutable" -- despues de haber
+  # subido las capas, asi que ademas deja imagenes sin tag acumulandose.
+  #
+  # Bajar todo el repositorio a MUTABLE seria tirar la propiedad que
+  # realmente importa: que un `<sha>` ya desplegado no pueda cambiar de
+  # digest bajo los pies. Esa es la que protege el rollback y la auditoria.
+  # `latest` no la necesita porque nadie despliega por ese tag: el pipeline
+  # rota ECS por digest, y el unico consumidor de `latest` es el
+  # container_image de bootstrap de la task definition, que solo se lee en
+  # el primer apply de un entorno nuevo.
+  dynamic "image_tag_mutability_exclusion_filter" {
+    for_each = endswith(var.image_tag_mutability, "_WITH_EXCLUSION") ? var.mutable_tag_filters : []
+
+    content {
+      filter      = image_tag_mutability_exclusion_filter.value
+      filter_type = "WILDCARD"
+    }
+  }
+
   # Con kms_key_arn = null se cae al default de ECR (AES256 con key
   # administrada por AWS, sin costo). El bloque se emite igual en ambos casos
   # para que el `encryption_type` quede explicito en el state y un cambio

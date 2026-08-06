@@ -48,13 +48,30 @@ variable "kms_key_arn" {
 }
 
 variable "image_tag_mutability" {
-  description = "Si los tags de imagen pueden reescribirse. IMMUTABLE por defecto: un tag ya publicado nunca cambia de digest, lo que hace que el rollout a ECS sea reproducible y auditable."
+  description = "Si los tags de imagen pueden reescribirse. IMMUTABLE_WITH_EXCLUSION por defecto: todo tag es inmutable salvo los que liste mutable_tag_filters (por defecto solo `latest`)."
   type        = string
-  default     = "IMMUTABLE"
+  default     = "IMMUTABLE_WITH_EXCLUSION"
 
   validation {
-    condition     = contains(["IMMUTABLE", "MUTABLE"], var.image_tag_mutability)
-    error_message = "image_tag_mutability debe ser IMMUTABLE o MUTABLE."
+    condition = contains(
+      ["IMMUTABLE", "MUTABLE", "IMMUTABLE_WITH_EXCLUSION", "MUTABLE_WITH_EXCLUSION"],
+      var.image_tag_mutability
+    )
+    error_message = "image_tag_mutability debe ser IMMUTABLE, MUTABLE, IMMUTABLE_WITH_EXCLUSION o MUTABLE_WITH_EXCLUSION."
+  }
+}
+
+variable "mutable_tag_filters" {
+  description = "Tags exentos de la regla de mutabilidad. Solo aplica con los modos *_WITH_EXCLUSION; en IMMUTABLE/MUTABLE se ignora."
+  type        = list(string)
+  default     = ["latest"]
+
+  validation {
+    condition = alltrue([
+      for pattern in var.mutable_tag_filters :
+      can(regex("^[0-9a-zA-Z._*-]{1,128}$", pattern))
+    ])
+    error_message = "Cada filtro debe ser 1-128 caracteres de [0-9a-zA-Z._*-] (formato que acepta la API de ECR)."
   }
 }
 

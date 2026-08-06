@@ -10,7 +10,20 @@
 #
 # Binding to env `dev` (no condicional): apply corre en push a dev (ref = dev)
 # o workflow_dispatch (ref = dev). Ambos pasan la branch policy del env.
-# `vars.AWS_APPLY_ROLE_ARN` resuelve al env-scoped var (dev ARN).
+# OJO con `vars.AWS_APPLY_ROLE_ARN`: NO resuelve al env-scoped var, aunque
+# esta linea lo afirmara hasta el 2026-08-06. Un job con `uses:` no puede
+# declarar `environment:`, asi que el bloque `with:` se evalua sin environment
+# y esa expresion solo ve variables de repositorio y de organizacion.
+#
+# Esto funciona por un accidente afortunado: NO existe una variable de
+# repositorio con ese nombre, el input queda vacio, y el reusable cae en su
+# fallback `secrets.AWS_APPLY_ROLE_ARN`, que si se resuelve dentro del
+# environment. Si alguien crea una variable de repositorio asi llamada, este
+# workflow empezara a usarla en silencio.
+#
+# El mismo malentendido dejo plan-prod con 8 fallos y 0 exitos; ahi la variable
+# de repositorio SI existe y apunta a dev. Ver la cabecera de
+# terraform-plan-prod.yml.
 #
 # Reusable workflow origen:
 #   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-apply.yml

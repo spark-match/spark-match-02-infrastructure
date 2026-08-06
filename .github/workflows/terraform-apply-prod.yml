@@ -45,6 +45,12 @@ jobs:
       gh-environment: production
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
+      # Esta expresion resuelve VACIA: el bloque `with:` se evalua sin
+      # environment (un job con `uses:` no puede declarar uno), y no hay
+      # variable de repositorio con ese nombre. El rol acaba llegando por el
+      # fallback del reusable, `secrets.AWS_APPLY_ROLE_ARN`, que si se resuelve
+      # dentro del environment `production`. Funciona, pero por accidente.
+      # Ver la cabecera de terraform-plan-prod.yml antes de tocarlo.
       apply-role-arn: ${{ vars.AWS_APPLY_ROLE_ARN }}
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-prod

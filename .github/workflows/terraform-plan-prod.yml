@@ -6,12 +6,40 @@
 #
 # Binding de env CONDICIONAL via `${{}}`:
 #   - workflow_dispatch: environment = 'production' (bind to env con branch
-#     policy, OK porque el ref = `main`). `vars.AWS_PLAN_ROLE_ARN` resuelve
-#     al env-scoped var (prod ARN) - precedence sobre repo-wide.
+#     policy, OK porque el ref = `main`).
 #
-# El role ARN se pasa como string (no secret) via `vars.AWS_PLAN_ROLE_ARN`.
-# ARNs son identifiers, no credentials. Ver AGENTS.md para la regla de
-# precedence de vars (env-scoped > repo-wide).
+# EL ROLE ARN VA LITERAL, Y NO ES POR PEREZA
+#
+# Este workflow tenia `plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN }}` y la
+# cabecera afirmaba que esa expresion resolvia "al env-scoped var (prod ARN),
+# precedence sobre repo-wide". Eso NO ocurre, y por eso plan-prod acumulaba
+# ejecuciones y ningun exito.
+#
+# El motivo: un job que llama a un reusable (`uses:`) NO puede declarar
+# `environment:` en si mismo; GitHub lo prohibe. Aqui `environment` es un
+# INPUT que solo ata el environment DENTRO del reusable. Asi que la expresion
+# del bloque `with:` se evalua en el contexto del job llamador, que no tiene
+# environment, y `vars.AWS_PLAN_ROLE_ARN` cae al valor de nivel repositorio.
+#
+# Ese valor de repositorio es el rol de DEV, y a proposito: plan-dev tambien
+# corre en pull requests, donde no hay environment y solo puede recibir el ARN
+# por input. O sea que plan-prod estaba asumiendo el rol de dev contra el
+# bucket de estado de prod. Falla en `terraform init` con AccessDenied, porque
+# `spark-match-terraform-plan-dev` solo tiene acceso a
+# `spark-match-tfstate-dev`. Ruidoso, no silencioso, pero roto.
+#
+# Se pone el ARN literal en vez de otra variable porque una variable vuelve a
+# abrir la puerta al mismo sombreado, y porque el account ID ya esta en 15
+# ficheros de este repo (`live/prod/terraform.tfvars`, `live/prod/main.tf`,
+# `modules/oidc-github/policies/prod/*`). Un ARN es un identificador, no una
+# credencial: ver ADR-0002. El valor coincide con la variable
+# `AWS_PLAN_ROLE_ARN` del environment `production`.
+#
+# Los apply NO tienen esta trampa: pasan el rol por el bloque `secrets:` del
+# `workflow_call`, que es otra via de resolucion. Lo que si tiene apply-prod
+# es un problema propio y distinto -- mapea `secrets.AWS_APPLY_ROLE_ARN_PROD`,
+# que no existe ni a nivel de repositorio ni de environment -- y este cambio
+# NO lo arregla. Va aparte.
 #
 # Si el repo luego crece y se quiere plan prod en PR a `main` solamente
 # (repo admins), se puede agregar el trigger `pull_request` con un check
@@ -39,7 +67,9 @@ jobs:
       environment: ${{ github.event_name != 'pull_request' && 'production' || '' }}
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
-      plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN }}
+      # Literal a proposito. Ver la nota de cabecera antes de convertirlo en
+      # una variable: `vars.AWS_PLAN_ROLE_ARN` aqui resuelve al rol de DEV.
+      plan-role-arn: arn:aws:iam::681526276858:role/spark-match-terraform-plan-prod
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate

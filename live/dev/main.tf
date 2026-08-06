@@ -506,6 +506,10 @@ module "agent_service" {
   log_retention_days = var.agent_log_retention_days
   kms_key_arn        = module.kms.kms_key_arn
 
+  # API key de Tavily para web_search. El valor lo pone un humano en Secrets
+  # Manager (docs/runbook-tavily.md); aqui solo viaja el nombre.
+  tavily_secret_name = var.agent_tavily_secret_name
+
   # false en dev: permite `terraform destroy` mientras se itera.
   enable_deletion_protection = var.agent_enable_deletion_protection
 }

@@ -217,10 +217,21 @@ variable "cors_allowed_origins" {
   default     = "[]"
 }
 
+variable "tavily_secret_name" {
+  description = "Nombre del secret de Secrets Manager que guarda la API key de Tavily, como string plano. El VALOR se crea fuera de Terraform a proposito (ver el comentario de data.aws_secretsmanager_secret.tavily): aqui solo se resuelve el ARN para inyectarlo como SPARK_TAVILY_API_KEY. En null el agente no recibe la key y web_search cae a DuckDuckGo."
+  type        = string
+  default     = null
+}
+
 variable "max_web_searches_per_session" {
-  description = "Limite de busquedas web por sesion (Tavily). 0 en v1: no hay secret de Tavily aprovisionado todavia, y con 0 el agente no intenta usar la herramienta."
+  description = "Limite de busquedas web por sesion (SPARK_MAX_WEB_SEARCHES_PER_SESSION). OJO: 0 NO desactiva la herramienta, desactiva el LIMITE -- src/tools/web_search/handler.py trata cap <= 0 como ilimitado. La descripcion anterior afirmaba lo contrario y dejo a dev con busquedas sin tope."
   type        = number
-  default     = 0
+  default     = 6
+
+  validation {
+    condition     = var.max_web_searches_per_session >= 0
+    error_message = "max_web_searches_per_session no puede ser negativo (0 = sin limite)."
+  }
 }
 
 variable "log_level" {

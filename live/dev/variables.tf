@@ -243,6 +243,15 @@ variable "agent_enable_deletion_protection" {
   default     = false
 }
 
+# El secret hay que crearlo A MANO antes de setear esta variable; Terraform
+# solo lo lee. El procedimiento esta en docs/runbook-tavily.md. Mientras siga
+# en null el agente levanta igual y web_search cae a DuckDuckGo.
+variable "agent_tavily_secret_name" {
+  description = "Nombre del secret de Secrets Manager con la API key de Tavily (p.ej. spark-match-dev-tavily-api-key). null = sin Tavily."
+  type        = string
+  default     = null
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

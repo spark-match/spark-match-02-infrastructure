@@ -589,3 +589,5 @@ aws sns subscribe \
 ```
 
 AWS envía un email de confirmación que debe ser aceptado. Una vez confirmado, el email recibe todas las alertas del budget.
+
+<!-- diagnostico temporal de disparo de checks -->

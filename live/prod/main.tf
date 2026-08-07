@@ -344,7 +344,23 @@ module "ssm_bootstrap" {
   db_connection_url   = module.rds_postgres.connection_url
 
   idempotency_table_name = module.dynamodb_idempotency.table_name
-  cors_allowed_origins   = var.cors_allowed_origins
+
+  # Derivado del output de CloudFront, no de una variable. Antes esto era
+  # `var.cors_allowed_origins`, cuyo valor en terraform.tfvars era un
+  # placeholder invalido con una marca de pendiente que pedia reemplazarlo por
+  # el dominio real antes del primer apply. Ese pendiente no se podia cumplir:
+  # el dominio ES el de la distribucion CloudFront, que no existe hasta que se
+  # aplique este mismo fichero. Huevo y gallina.
+  #
+  # module "agent_service" (mas abajo) ya lo hacia bien; solo este se habia
+  # quedado con el placeholder, y de aqui pasaba al parametro SSM
+  # /spark-match/prod/cors-allowed-origins que leen las Lambdas del backend.
+  #
+  # OJO con el formato: NO se puede copiar el `jsonencode([...])` del agente.
+  # Los dos consumidores esperan cosas distintas -- el agente un array JSON en
+  # SPARK_CORS_ORIGINS, y ssm_bootstrap una cadena separada por comas (en dev
+  # recibe "*"). Aqui va string plano.
+  cors_allowed_origins = "https://${module.frontend_hosting.frontend_distribution_domain_name}"
 
   # VpcConfig para las Lambdas del backend (ADR 0002 seccion 5).
   private_subnet_ids       = module.networking.private_subnet_ids

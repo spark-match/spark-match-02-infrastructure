@@ -81,19 +81,30 @@ sam_artifacts_force_destroy = false
 # (JWT, credenciales RDS) contra borrado accidental/definitivo.
 secrets_recovery_window_in_days = 30
 
-# TODO: reemplazar por el dominio real de spark-match-04-frontend antes del
-# primer apply real a prod. El frontend aun no existe/despliega, por lo que
-# este es un placeholder deliberadamente invalido (no debe resolver a un
-# origen real hasta que se actualice).
-cors_allowed_origins = "https://TODO-set-real-frontend-domain.spark-match.example"
+# cors_allowed_origins ya no se declara aqui. El valor es el dominio de la
+# distribucion CloudFront, que no se conoce hasta que este mismo fichero se
+# aplique, asi que ninguna constante podia ser correcta. Ahora se deriva del
+# output del modulo en main.tf. Ver la nota junto a module "ssm_bootstrap".
 
 # 0 en prod: la cuenta AWS 681526276858 tiene guardrails de "Free Tier
 # account" (distinto del free-tier clasico) que rechazan CreateDBInstance con
 # FreeTierRestrictionError si backup_retention_period > 0. Prod usa LA MISMA
 # cuenta AWS que dev (ver AGENTS.md tabla Multi-env), por lo que el mismo
-# guardrail aplica. Riesgo operacional conocido y aceptado por ahora: sin
-# backups automaticos de RDS en prod. Revisar antes del primer apply real
-# (upgrade de cuenta AWS, o cuenta separada para prod).
+# guardrail aplica.
+#
+# DECISION TOMADA, no pendiente. Este comentario decia "revisar antes del
+# primer apply real (upgrade de cuenta AWS, o cuenta separada para prod)".
+# Se reviso el 2026-08-07 y la respuesta es que se queda en 0: spark-match es
+# un proyecto de curso y el objetivo es ejercitar las tecnologias, no sostener
+# un servicio con compromiso de recuperacion. Se descartaron explicitamente
+# sacar la cuenta del plan Free Tier y montar snapshots manuales -- estos
+# ultimos SI serian posibles, porque el guardrail solo rechaza la retencion
+# automatica, pero no se consideran necesarios.
+#
+# Consecuencia, dicha sin adornos: prod no tiene backups de base de datos. Si
+# se pierde la instancia, se pierden los datos. Si algun dia esto deja de ser
+# un proyecto de curso, esta es la primera linea que hay que cambiar, y exige
+# antes sacar la cuenta del Free Tier o mover prod a una cuenta propia.
 rds_backup_retention_period_days = 0
 
 # db.t4g.small (2GiB RAM): punto de partida conservador, mas grande que dev

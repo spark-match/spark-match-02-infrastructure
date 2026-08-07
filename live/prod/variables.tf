@@ -148,14 +148,15 @@ variable "secrets_recovery_window_in_days" {
   }
 }
 
-variable "cors_allowed_origins" {
-  description = "Origenes CORS permitidos por el backend, comma-separated. TODO: reemplazar el placeholder por el dominio real de spark-match-04-frontend antes del primer apply real a prod (el frontend aun no existe/despliega)."
-  type        = string
-  default     = "https://TODO-set-real-frontend-domain.spark-match.example"
-}
+# cors_allowed_origins no se declara en prod. A diferencia de dev, donde el
+# valor es la constante "*", en prod el origen permitido es el dominio de la
+# distribucion CloudFront, que no existe hasta que se aplique este mismo
+# directorio. Ninguna constante podia ser correcta, y el placeholder que habia
+# aqui arrastraba un TODO imposible de cumplir. Se deriva del output del
+# modulo en main.tf; ver la nota junto a module "ssm_bootstrap".
 
 variable "rds_backup_retention_period_days" {
-  description = "Dias de retencion de backups automaticos de RDS. 0 en prod (igual que dev): la cuenta AWS 681526276858 tiene guardrails de 'Free Tier account' que rechazan CreateDBInstance (FreeTierRestrictionError) si este valor es > 0, y prod usa LA MISMA cuenta que dev (ver AGENTS.md tabla Multi-env). Esto es un riesgo operacional conocido y aceptado por ahora -- sin backups automaticos de RDS en prod. Revisar antes del primer apply real: upgrade del tipo de cuenta AWS, o cuenta separada para prod, para poder usar >= 7 dias."
+  description = "Dias de retencion de backups automaticos de RDS. Se queda en 0 en prod, igual que dev: la cuenta AWS 681526276858 tiene guardrails de 'Free Tier account' que rechazan CreateDBInstance con FreeTierRestrictionError si este valor es > 0, y prod usa LA MISMA cuenta que dev (ver AGENTS.md tabla Multi-env). DECISION TOMADA el 2026-08-07, no pendiente: spark-match es un proyecto de curso y el objetivo es ejercitar las tecnologias, no sostener un servicio con compromiso de recuperacion. Se descartaron sacar la cuenta del plan Free Tier y montar snapshots manuales. Consecuencia: prod no tiene backups de base de datos; si se pierde la instancia, se pierden los datos. Cambiar esta linea exige antes sacar la cuenta del Free Tier o mover prod a una cuenta propia."
   type        = number
   default     = 0
 

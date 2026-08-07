@@ -1,0 +1,67 @@
+# =============================================================================
+# Terraform Destroy (dev) - manual only
+# =============================================================================
+# Baja la infraestructura de `dev`. SOLO se dispara a mano desde la UI
+# (Actions -> este workflow -> Run workflow) o con `gh workflow run`. No hay
+# trigger por push: nada que se mergee puede destruir un ambiente.
+#
+# Dos guardas independientes, las dos del reusable:
+#
+#   1. `confirm_destroy` debe valer exactamente `DESTROY-DEV`. El reusable
+#      compara contra `DESTROY-<ENV en mayusculas>` y aborta si no coincide.
+#      Es el gate de "si, de verdad": obliga a escribir el nombre del ambiente
+#      a mano en vez de darle a un boton.
+#   2. El GH Environment `dev`. No tiene required reviewers a proposito (es el
+#      ambiente de iteracion), de ahi `auto-approve: true`. Para prod ver
+#      terraform-destroy-prod.yml, que si pasa por revisor.
+#
+# `dry_run` viene en true por defecto: la accion por defecto del boton es
+# ENSENAR que se destruiria (`terraform plan -destroy`), no destruirlo. Hay que
+# desmarcarlo explicitamente para que el destroy ocurra de verdad.
+#
+# Reusable workflow origen:
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-destroy.yml
+# =============================================================================
+
+name: terraform-destroy-dev
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: "Escribe DESTROY-DEV para confirmar. Cualquier otra cosa aborta el job."
+        type: string
+        required: true
+      dry_run:
+        description: "Solo plan -destroy, sin aplicar. Desmarcalo para destruir de verdad."
+        type: boolean
+        required: false
+        default: true
+      reason:
+        description: "Por que se baja el ambiente (queda en el log del run)"
+        type: string
+        required: false
+        default: "manual teardown"
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  destroy-dev:
+    name: destroy-dev
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-destroy.yml@main
+    with:
+      environment: dev
+      gh-environment: dev
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/dev
+      aws-region: ${{ vars.AWS_REGION }}
+      apply-role-arn-secret: AWS_APPLY_ROLE_ARN
+      terraform-version: ${{ vars.TF_VERSION }}
+      backend-bucket: spark-match-tfstate-dev
+      backend-key: dev/terraform.tfstate
+      confirm-destroy-token: ${{ inputs.confirm_destroy }}
+      dry-run: ${{ inputs.dry_run }}
+      auto-approve: true
+    secrets:
+      AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN }}

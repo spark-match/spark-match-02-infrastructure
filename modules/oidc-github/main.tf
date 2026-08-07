@@ -16,27 +16,35 @@ locals {
   # emitidos para X-env. Asi, spark-match-sam-deploy-dev NO puede ser
   # asumido por un workflow que apunte a environment:prod en el sub claim.
   #
-  # Format: `repo:OWNER@USERID/REPO@REPOID:event` (formato actual de GitHub
-  # Actions con numeric IDs; ver AGENTS.md item 4 de "Reglas duras").
-  # Usamos `@*` como wildcard para los IDs numericos, lo que matchea tanto
-  # para repos privados como publicos. Sin `@*`, los tokens de GH Actions
-  # son rechazados por la trust policy.
+  # Formato REAL del sub claim, verificado empiricamente el 2026-08-04
+  # decodificando el JWT de OIDC emitido por GitHub Actions en un job real
+  # (audience sts.amazonaws.com, evento pull_request):
+  #   repo:spark-match/spark-match-03-backend:pull_request
+  # Es el formato estandar documentado por GitHub -- NO incluye IDs
+  # numericos de owner/repo en ningun punto. El comentario anterior de este
+  # archivo (que asumia `repo:OWNER@USERID/REPO@REPOID:event` y un wildcard
+  # `@*`) era incorrecto: con ese patron, `AssumeRoleWithWebIdentity` es
+  # rechazado siempre (confirmado: ningun deploy OIDC habia funcionado nunca
+  # en la cuenta). repository_owner_id/repository_id SI viajan en el token,
+  # pero como claims separados (`repository_owner_id`, `repository_id`), no
+  # interpolados en `sub`.
   #
-  # Verificado contra el sub claim emitido por GH Actions:
-  #   repo:spark-match@82984150/spark-match-03-backend@1285525572:pull_request
+  # github_environment_name existe porque el GH Environment real de prod se
+  # llama "production" (no "prod") mientras que `environment` nombra los
+  # recursos AWS como "prod" -- ver variables.tf.
   sam_deploy_sub_patterns = flatten([
     for repo in var.sam_deploy_github_repos : [
-      "repo:${repo}@*:ref:refs/heads/dev",
-      "repo:${repo}@*:ref:refs/heads/main",
-      "repo:${repo}@*:environment:${var.environment}",
+      "repo:${repo}:ref:refs/heads/dev",
+      "repo:${repo}:ref:refs/heads/main",
+      "repo:${repo}:environment:${coalesce(var.github_environment_name, var.environment)}",
     ]
   ])
 
   bedrock_deploy_sub_patterns = flatten([
     for repo in var.bedrock_deploy_github_repos : [
-      "repo:${repo}@*:ref:refs/heads/dev",
-      "repo:${repo}@*:ref:refs/heads/main",
-      "repo:${repo}@*:environment:${var.environment}",
+      "repo:${repo}:ref:refs/heads/dev",
+      "repo:${repo}:ref:refs/heads/main",
+      "repo:${repo}:environment:${coalesce(var.github_environment_name, var.environment)}",
     ]
   ])
 }

@@ -506,6 +506,10 @@ module "agent_service" {
   log_retention_days = var.agent_log_retention_days
   kms_key_arn        = module.kms.kms_key_arn
 
+  # Va en pareja con kms_key_arn. El modulo no puede deducirlo del ARN porque
+  # es un atributo computado y `count` no admite valores desconocidos en plan.
+  enable_kms_encryption = true
+
   # API key de Tavily para web_search. El valor lo pone un humano en Secrets
   # Manager (docs/runbook-tavily.md); aqui solo viaja el nombre.
   tavily_secret_name = var.agent_tavily_secret_name

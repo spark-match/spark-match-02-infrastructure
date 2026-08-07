@@ -31,6 +31,7 @@ resource "random_id" "jwt_secret" {
 }
 
 resource "aws_secretsmanager_secret" "jwt_secret" {
+  # checkov:skip=CKV2_AWS_57:rotacion automatica no configurada. Rotar el secreto de firma de JWT invalidaria todos los tokens emitidos y exige coordinar la rotacion con el backend; fuera del alcance actual. Mismo criterio que modules/rds-postgres.
   name                    = local.secret_name
   description             = "HS256 signing secret para JWTs emitidos por spark-match-03-backend (${var.environment})."
   kms_key_id              = var.kms_key_arn

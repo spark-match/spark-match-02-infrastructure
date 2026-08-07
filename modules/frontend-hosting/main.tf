@@ -254,6 +254,7 @@ resource "aws_s3_bucket_public_access_block" "access_logs" {
 }
 
 resource "aws_s3_bucket_ownership_controls" "access_logs" {
+  # checkov:skip=CKV2_AWS_65:BucketOwnerPreferred en vez de BucketOwnerEnforced, o sea ACLs habilitadas, a proposito. La entrega de logs estandar de CloudFront (awslogsdelivery) exige el ACL log-delivery-write sobre el bucket destino, y con BucketOwnerEnforced AWS la rechaza. Ver el comentario de aws_s3_bucket_acl.access_logs justo debajo.
   bucket = aws_s3_bucket.access_logs.id
 
   rule {

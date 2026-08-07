@@ -676,6 +676,7 @@ resource "aws_cloudfront_distribution" "agent" {
   # checkov:skip=CKV2_AWS_32:response headers policy no configurada en v1; el agente ya emite sus propios security headers via SecurityHeadersMiddleware.
   # checkov:skip=CKV2_AWS_42:sin dominio custom todavia -- se usa el certificado default de CloudFront. Ese ES el objetivo de este recurso.
   # checkov:skip=CKV2_AWS_47:WAFv2 con regla Log4j -- depende de WAF (mismo defer que CKV_AWS_68).
+  # checkov:skip=CKV_AWS_305:sin default_root_object a proposito. Esta distribucion no sirve un sitio estatico: su unico origin es el ALB del agente y todo lo que expone son rutas de API (/ag-ui, /health, /sessions). No hay index.html que servir en la raiz, asi que la regla no aplica. El frontend, que si es estatico, es otra distribucion y otro modulo.
   # checkov:skip=CKV_AWS_86:access logging de CloudFront requiere bucket dedicado; follow-up junto con el del ALB (CKV_AWS_91).
   count = var.enable_cloudfront ? 1 : 0
 

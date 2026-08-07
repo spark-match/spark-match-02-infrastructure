@@ -97,6 +97,7 @@ resource "aws_s3_bucket_policy" "sam_artifacts_https_only" {
 # tiempo (siempre se puede re-generar el zip desde el commit correspondiente
 # via CI). Expira versiones no-actuales para no acumular costo de storage.
 resource "aws_s3_bucket_lifecycle_configuration" "sam_artifacts" {
+  # checkov:skip=CKV_AWS_300:abort_incomplete_multipart_upload no implementado. Los artefactos de SAM son paquetes pequenos que sube el CI de una vez; el coste de uploads incompletos es despreciable. Mismo criterio que modules/frontend-hosting.
   bucket = aws_s3_bucket.sam_artifacts.id
 
   rule {
@@ -117,6 +118,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "sam_artifacts" {
 ###############################################################################
 
 resource "aws_s3_bucket" "access_logs" {
+  # checkov:skip=CKV_AWS_145:log bucket cifrado con SSE-S3 (AES256). SSE-KMS exigiria dar permisos sobre la CMK al servicio de entrega de logs (logging.s3.amazonaws.com); no aplica a un bucket destino de access logs. Mismo criterio que modules/frontend-hosting.
+  # checkov:skip=CKV_AWS_21:versioning no habilitado en un log bucket. Cada entrada de log generaria una version y los logs son regenerables. Mismo criterio que modules/frontend-hosting.
   # checkov:skip=CKV_AWS_144:log bucket, replication innecesaria.
   # checkov:skip=CKV2_AWS_62:log bucket, event notifications innecesarias.
   # checkov:skip=CKV_AWS_18:este ES el bucket de logs; logging sobre si mismo es circular y no aporta valor (excepcion estandar de la industria para buckets destino de access logs).
@@ -152,6 +155,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "access_logs" {
 }
 
 resource "aws_s3_bucket_lifecycle_configuration" "access_logs" {
+  # checkov:skip=CKV_AWS_300:abort_incomplete_multipart_upload no implementado en el log bucket. Los logs son append-only y casi nunca hay uploads multipart; el coste de uploads incompletos es despreciable. Mismo criterio que modules/frontend-hosting.
   bucket = aws_s3_bucket.access_logs.id
 
   rule {

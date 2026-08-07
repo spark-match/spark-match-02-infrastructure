@@ -31,8 +31,22 @@ name: continuous-integration-terraform-security-scan
 # Sin `paths:` a proposito: este workflow publica los 14 contextos
 # `checkov-*`, todos requeridos, y un check requerido que no se publica
 # bloquea el pull request para siempre. Ver la nota larga en ci.yml.
+# El trigger de `push` no es opcional: sin el, la linea base de code scanning
+# nunca se actualiza y el "N new alerts in this pull request" deja de
+# significar nada.
+#
+# GitHub calcula las alertas nuevas de un PR comparando su analisis contra el
+# de la rama base. Ese analisis solo se graba cuando el workflow corre sobre un
+# push a la rama. Sin `push:`, la base se quedo congelada el 2026-08-01 con 7
+# categorias y 10 resultados, mientras cada PR subia 18 categorias actuales. El
+# resultado: el #192 reportaba "2 errors and 41 warnings" nuevos, y la mayoria
+# no eran hallazgos sino categorias que la rama no habia visto nunca. Las 7
+# alertas que si constaban estaban todas `dismissed` y tres apuntaban a
+# `modules/security`, un modulo borrado el 2026-08-01.
 on:
   pull_request:
+    branches: [main, dev]
+  push:
     branches: [main, dev]
   workflow_dispatch:
 
@@ -82,26 +96,46 @@ jobs:
 
       - name: run-checkov
         working-directory: ${{ matrix.path }}
+        # SIN `--soft-fail` NI `|| true`. NO LOS VUELVAS A ANADIR.
+        #
+        # Este step tenia las dos cosas, y ademas el upload de abajo tenia
+        # `continue-on-error: true`. Tres capas independientes que garantizaban
+        # que el job no pudiera fallar nunca. Los 14 contextos `checkov-*` son
+        # REQUERIDOS en el ruleset, asi que eran catorce puertas incapaces de
+        # cerrarse: su verde significaba "el job termino", no "no hay
+        # hallazgos". Medido el 2026-08-07: 262 de 262 en success sobre los 20
+        # ultimos PR.
+        #
+        # El `|| true` era ademas peor que redundante. `--soft-fail` ya evita
+        # el fallo por hallazgos, asi que el `|| true` solo podia tragarse otra
+        # cosa: que checkov reventara por un error de sintaxis, se quedara sin
+        # memoria o ni se instalara. Con el upload silenciado tambien, un
+        # escaneo que NUNCA CORRIO se veia identico a uno limpio.
+        #
+        # Al quitarlos, el job falla si hay hallazgos. Los que existen hoy
+        # estan todos justificados con `checkov:skip` en el recurso concreto,
+        # que es donde se lee junto al codigo que lo motiva. Si aparece uno
+        # nuevo hay dos salidas honestas: arreglarlo, o anadir su skip con el
+        # motivo escrito. Silenciar la herramienta entera no es una de ellas.
         run: |
-          # soft-fail permite que el job continue aunque haya findings; el SARIF
-          # igual se sube a code scanning para visibilidad.
           mkdir -p checkov-output
           checkov \
             --directory . \
             --framework terraform \
             --output cli \
             --output sarif \
-            --output-file-path checkov-output \
-            --soft-fail \
-            || true
+            --output-file-path checkov-output
 
       - name: upload-sarif-to-code-scanning
+        # `if: always()` se queda: si checkov encuentra algo y falla el step de
+        # arriba, el SARIF tiene que subirse igual para que las alertas se vean
+        # en code scanning. Lo que se quita es `continue-on-error`, que hacia
+        # que un fallo de la subida pasara desapercibido.
         if: always()
         uses: github/codeql-action/upload-sarif@v4.37.4
         with:
           sarif_file: ${{ matrix.path }}/checkov-output/results_sarif.sarif
           category: checkov-${{ matrix.path }}
-        continue-on-error: true
 
       - name: upload-raw-logs-as-artifact
         if: always()

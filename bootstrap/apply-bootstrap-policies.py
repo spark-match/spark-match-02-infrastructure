@@ -83,20 +83,76 @@ def trust_documents(env: str) -> dict[str, dict]:
     return documents
 
 
+def _subs(document: dict) -> list[str]:
+    """Los `sub` de una trust policy, siempre como lista.
+
+    AWS devuelve el claim como string cuando el valor es uno solo y como lista
+    cuando son varios. Sin normalizar, un `set(...)` sobre el string itera
+    caracteres, y `len(...)` cuenta caracteres.
+    """
+    value = document["Statement"][0]["Condition"]["StringLike"][SUB_CLAIM]
+    return [value] if isinstance(value, str) else list(value)
+
+
+def _canonical(document: dict) -> str:
+    """Forma comparable de una trust policy.
+
+    Misma asimetria string/lista que arriba: sin aplanarla, el documento que
+    mandamos y el que AWS devuelve salen distintos aunque digan lo mismo.
+    """
+    document = json.loads(json.dumps(document))
+    for statement in document.get("Statement", []):
+        condition = statement.get("Condition", {}).get("StringLike", {})
+        if isinstance(condition.get(SUB_CLAIM), str):
+            condition[SUB_CLAIM] = [condition[SUB_CLAIM]]
+    return json.dumps(document, sort_keys=True)
+
+
+def _write_backup(current: dict, backup_dir: Path, role: str) -> Path:
+    """Guarda la policy vigente SIN pisar un respaldo anterior.
+
+    El nombre sin sufijo se escribe una sola vez, y es el que de verdad
+    querrias recuperar: el estado anterior a la primera ejecucion. Las
+    siguientes llevan sufijo incremental.
+
+    Pisarlo fue un fallo real. El 2026-08-07 el script corrio dos veces sobre
+    los mismos roles y el segundo respaldo -- ya con la policy nueva -- tapo al
+    original. El fichero seguia ahi y el script seguia imprimiendo "respaldo en
+    ...", asi que la marcha atras parecia cubierta cuando ya no lo estaba. Es
+    la misma forma que el resto de fallos en abierto de este proyecto: la senal
+    de que algo esta protegido sobrevive a la proteccion.
+    """
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup = backup_dir / f"{role}.json"
+    serial = 1
+    while backup.exists():
+        backup = backup_dir / f"{role}.{serial}.json"
+        serial += 1
+    backup.write_text(json.dumps(current, indent=2), encoding="utf-8")
+    return backup
+
+
 def update_trust(iam, role: str, doc: dict, backup_dir: Path) -> None:
     """Reemplaza la trust policy del rol, guardando antes la actual.
 
     `update_assume_role_policy` no es un merge: sustituye el documento entero.
     Por eso el respaldo va ANTES y, si falla, no se escribe nada -- mismo
     contrato que el reconciliador de rulesets en 01-devops.
-    """
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    current = iam.get_role(RoleName=role)["Role"]["AssumeRolePolicyDocument"]
-    backup = backup_dir / f"{role}.json"
-    backup.write_text(json.dumps(current, indent=2), encoding="utf-8")
 
-    before = current["Statement"][0]["Condition"]["StringLike"][SUB_CLAIM]
-    after = doc["Statement"][0]["Condition"]["StringLike"][SUB_CLAIM]
+    Si lo vigente ya coincide con lo versionado no se toca nada: ni respaldo ni
+    llamada a IAM. Volver a correr el script sobre un rol ya reconciliado es
+    entonces un no-op de verdad, y no una escritura que ademas se lleva por
+    delante el respaldo util.
+    """
+    current = iam.get_role(RoleName=role)["Role"]["AssumeRolePolicyDocument"]
+
+    if _canonical(current) == _canonical(doc):
+        print("  sin cambios   lo vigente ya es lo versionado")
+        return
+
+    backup = _write_backup(current, backup_dir, role)
+    before = _subs(current)
+    after = _subs(doc)
     print(f"  respaldo en   {backup}")
     print(f"  sub claims    {len(before)} -> {len(after)}")
     for gone in sorted(set(before) - set(after)):
@@ -158,9 +214,8 @@ def main() -> int:
 
     trust = trust_documents(env)
     for role, doc in trust.items():
-        subs = doc["Statement"][0]["Condition"]["StringLike"][SUB_CLAIM]
         print(f"--- trust de {role}")
-        for sub in subs:
+        for sub in _subs(doc):
             print(f"    {sub}")
     print()
 

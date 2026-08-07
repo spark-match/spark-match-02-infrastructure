@@ -63,8 +63,35 @@ controla la branch policy del propio environment en GitHub.
     python bootstrap/apply-bootstrap-policies.py prod --apply
 
 El script hace `update-assume-role-policy`, que **reemplaza** el documento
-entero. Antes de escribir guarda el actual en `backups/trust/` para que revertir
-sea un `aws iam update-assume-role-policy --policy-document file://<backup>`.
+entero: no fusiona nada con lo que hubiera antes.
+
+Correrlo dos veces seguidas no escribe la segunda vez. Compara lo vigente con
+lo versionado y, si coinciden, imprime `sin cambios` y no llama a IAM.
+
+## Volver atras
+
+La marcha atras es **re-aplicar lo que hay en este directorio**, no un fichero
+suelto de un respaldo. Estos cuatro JSON son la fuente de verdad; el respaldo
+es una copia local y de conveniencia.
+
+Antes de sobreescribir, el script guarda la policy vigente en `backups/trust/`,
+que esta en `.gitignore`. El nombre sin sufijo es el estado anterior a la
+**primera** ejecucion; las veces siguientes van a `<rol>.1.json`, `<rol>.2.json`
+y asi. Nunca pisa un respaldo anterior, y esa parte importa: el 2026-08-07 si
+lo pisaba, el script corrio dos veces sobre los mismos roles y el respaldo
+acabo conteniendo la policy nueva. Seguia imprimiendo `respaldo en ...` y el
+fichero seguia ahi, asi que la marcha atras parecia cubierta cuando ya no lo
+estaba.
+
+Si hace falta restaurar un respaldo concreto:
+
+    aws iam update-assume-role-policy --role-name <rol> \
+      --policy-document file://backups/trust/<rol>.json \
+      --profile spark-match-admin
+
+Los doce patrones que habia antes de versionar esto estan transcritos mas
+arriba, asi que el estado previo se puede reconstruir a mano aunque no quede
+ningun respaldo.
 
 ## Si un despliegue deja de poder asumir el rol
 
@@ -74,6 +101,7 @@ el real, sin adivinar:
 
     gh run view <run-id> --log | grep -i "sub\|assume"
 
-Y si hace falta desbloquear ya, el respaldo del rol correspondiente restaura el
-estado anterior en un comando. No editar a mano en la consola de IAM: eso es
-como llegamos a los doce patrones.
+Y si hace falta desbloquear ya, corrige el JSON de este directorio y vuelve a
+aplicarlo. No editar a mano en la consola de IAM: eso es exactamente como
+llegamos a los doce patrones, y un arreglo que no pasa por aqui se pierde en
+cuanto alguien vuelva a correr el script.

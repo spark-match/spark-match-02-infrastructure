@@ -45,6 +45,12 @@ POLICIES = {
         "ECS/ELBv2/ECR + PassRole a ecs-tasks + service-linked roles para los "
         "modulos ecr y agent-service en {env}",
     ),
+    "spark-match-tf-apply-create": (
+        "spark-match-terraform-apply-{env}",
+        "Creacion inicial de recursos en {env}: buckets de aplicacion, "
+        "distribuciones CloudFront, RDS, secrets, tablas DynamoDB, bus de "
+        "EventBridge, NAT/EIP/flow logs y el data source del OIDC provider",
+    ),
     "spark-match-tf-plan-read": (
         "spark-match-terraform-plan-{env}",
         "Lectura de todo y escritura de nada, para que terraform plan pueda "

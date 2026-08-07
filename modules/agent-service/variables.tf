@@ -133,7 +133,7 @@ variable "cloudfront_origin_read_timeout" {
 # CloudFront lo ignora mientras se use el certificado por defecto, y aun asi
 # se declaraba "para que el dia que llegue el dominio quede en el valor
 # correcto sin tocar el modulo". El precio de esa comodidad, medido el
-# 2026-08-07, era que todos los apply del repo arrastraban un cambio fantasma
+# 2026-08-07, era que cada apply del repo arrastraba un cambio fantasma
 # que se aplicaba sin surtir efecto. Se elimina; vuelve el dia que haya
 # certificado ACM, junto con `acm_certificate_arn` y `ssl_support_method`.
 

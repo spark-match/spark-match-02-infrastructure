@@ -735,8 +735,8 @@ resource "aws_cloudfront_distribution" "agent" {
     # La descripcion de la variable ya avisaba de esto y aun asi se declaraba,
     # con el argumento de "que el dia que llegue el dominio quede en el valor
     # correcto sin tocar el modulo". El precio de esa comodidad, medido el
-    # 2026-08-07, era que TODOS los apply de este repo arrastraban dos cambios
-    # fantasma que se aplicaban y no surtian efecto. No compensa.
+    # 2026-08-07, era que cada apply de este repo arrastraba dos cambios
+    # fantasma que se aplicaban sin surtir efecto. No compensa.
   }
 
   tags = local.common_tags

@@ -47,15 +47,13 @@
 
 name: continuous-integration-terraform-plan-dev
 
+# Sin `paths:` a proposito: este workflow publica `plan-dev / plan-`, que es
+# un check requerido, y un check requerido que no se publica bloquea el pull
+# request para siempre. Ver la nota larga en ci.yml.
 on:
   pull_request:
     branches: [main, dev]
     types: [opened, synchronize, reopened]
-    paths:
-      - "**.tf"
-      - "**.tfvars"
-      - ".github/workflows/**"
-      - "docs/**"
   workflow_dispatch:
 
 permissions:

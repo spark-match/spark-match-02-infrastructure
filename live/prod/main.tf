@@ -492,6 +492,11 @@ module "agent_service" {
   log_retention_days = var.agent_log_retention_days
   kms_key_arn        = module.kms.kms_key_arn
 
+  # Va en pareja con kms_key_arn. El modulo no puede deducirlo del ARN porque
+  # es un atributo computado y `count` no admite valores desconocidos en plan.
+  # Es justo lo que rompio el primer plan-prod que llego a ejecutarse.
+  enable_kms_encryption = true
+
   # true en prod: protege el ALB (y con el, el DNS publicado en SSM) contra
   # un destroy accidental.
   enable_deletion_protection = var.agent_enable_deletion_protection

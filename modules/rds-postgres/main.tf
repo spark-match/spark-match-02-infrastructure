@@ -52,6 +52,10 @@ resource "random_password" "master" {
 }
 
 resource "aws_db_instance" "main" {
+  # checkov:skip=CKV2_AWS_30:query logging (log_statement/log_min_duration_statement) no activado. Exige un parameter group propio y multiplica la ingesta de CloudWatch Logs; el presupuesto de la cuenta es $200/mes. Se puede activar puntualmente para diagnosticar.
+  # checkov:skip=CKV_AWS_157:Multi-AZ desactivado. Duplica el coste de la instancia y spark-match es un proyecto de curso sin compromiso de disponibilidad. Decision del mismo orden que rds_backup_retention_period_days=0, documentada en live/prod/terraform.tfvars.
+  # checkov:skip=CKV_AWS_293:deletion_protection se controla por ambiente via var.deletion_protection. prod lo activa; dev lo deja en false a proposito para poder recrear el entorno mientras se itera. Checkov escanea el modulo aislado y solo ve el default.
+  # checkov:skip=CKV_AWS_353:performance insights desactivado. Tiene coste por instancia y no aporta en un proyecto de curso sin carga real. Mismo criterio de coste que Multi-AZ.
   # checkov:skip=CKV_AWS_161:IAM database authentication no se usa en este POC; auth via password + Secrets Manager (arquitectura ya definida en BACKEND-DEPLOY.md).
   # checkov:skip=CKV_AWS_118:enhanced monitoring (requiere IAM role + costo extra) diferido; Performance Insights disponible via var.performance_insights_enabled.
   # checkov:skip=CKV_AWS_129:log exports a CloudWatch desactivados por default para minimizar costo en dev; activar con var.enabled_cloudwatch_logs_exports si se necesita debug.
@@ -110,6 +114,7 @@ resource "aws_db_instance" "main" {
 }
 
 resource "aws_secretsmanager_secret" "db_credentials" {
+  # checkov:skip=CKV2_AWS_57:rotacion automatica no configurada. Exige una Lambda de rotacion con acceso de red a la instancia RDS, que es un componente de infraestructura entero fuera del alcance actual. La credencial la genera terraform con random_password y no se comparte fuera del secret.
   name                    = local.db_credentials_arn
   description             = "Credenciales de conexion a RDS Postgres para spark-match-03-backend (${var.environment})."
   kms_key_id              = var.kms_key_arn

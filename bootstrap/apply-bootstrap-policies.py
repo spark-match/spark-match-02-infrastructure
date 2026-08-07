@@ -30,6 +30,9 @@ except ImportError:  # pragma: no cover - guia al usuario, no es logica de negoc
 
 ACCOUNT = "681526276858"
 POLICIES_DIR = Path(__file__).parent / "policies"
+TRUST_DIR = Path(__file__).parent / "trust"
+BACKUP_DIR = Path(__file__).parent.parent / "backups" / "trust"
+SUB_CLAIM = "token.actions.githubusercontent.com:sub"
 # Limite duro de AWS para el documento de una managed policy.
 MAX_MANAGED_POLICY_BYTES = 6144
 
@@ -63,6 +66,48 @@ def render(stem: str, env: str) -> dict:
     """Lee el JSON e interpola ${environment}, igual que templatefile() de Terraform."""
     raw = (POLICIES_DIR / f"{stem}.json").read_text(encoding="utf-8")
     return json.loads(raw.replace("${environment}", env))
+
+
+def trust_documents(env: str) -> dict[str, dict]:
+    """Devuelve {nombre-de-rol: documento} para las trust policies de este env.
+
+    Una por rol y sin plantillas a proposito. Los cuatro roles NO comparten
+    forma: `plan-dev` necesita ademas `:pull_request`, porque su caller pasa el
+    environment vacio en pull requests, y los de prod no lo necesitan en
+    absoluto. Un fichero por rol hace que esa diferencia se lea, en vez de
+    esconderse en un condicional. Ver bootstrap/trust/README.md.
+    """
+    documents = {}
+    for path in sorted(TRUST_DIR.glob(f"*-{env}.json")):
+        documents[path.stem] = json.loads(path.read_text(encoding="utf-8"))
+    return documents
+
+
+def update_trust(iam, role: str, doc: dict, backup_dir: Path) -> None:
+    """Reemplaza la trust policy del rol, guardando antes la actual.
+
+    `update_assume_role_policy` no es un merge: sustituye el documento entero.
+    Por eso el respaldo va ANTES y, si falla, no se escribe nada -- mismo
+    contrato que el reconciliador de rulesets en 01-devops.
+    """
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    current = iam.get_role(RoleName=role)["Role"]["AssumeRolePolicyDocument"]
+    backup = backup_dir / f"{role}.json"
+    backup.write_text(json.dumps(current, indent=2), encoding="utf-8")
+
+    before = current["Statement"][0]["Condition"]["StringLike"][SUB_CLAIM]
+    after = doc["Statement"][0]["Condition"]["StringLike"][SUB_CLAIM]
+    print(f"  respaldo en   {backup}")
+    print(f"  sub claims    {len(before)} -> {len(after)}")
+    for gone in sorted(set(before) - set(after)):
+        print(f"    quita  {gone}")
+    for added in sorted(set(after) - set(before)):
+        print(f"    anade  {added}")
+
+    iam.update_assume_role_policy(
+        RoleName=role, PolicyDocument=json.dumps(doc, separators=(",", ":"))
+    )
+    print(f"  actualizada   {role}")
 
 
 def upsert(iam, name: str, doc: dict, role: str, description: str) -> None:
@@ -111,6 +156,14 @@ def main() -> int:
             print(f"    {statement['Sid']:35s} {effect:6s} {len(actions):3d} acciones")
     print()
 
+    trust = trust_documents(env)
+    for role, doc in trust.items():
+        subs = doc["Statement"][0]["Condition"]["StringLike"][SUB_CLAIM]
+        print(f"--- trust de {role}")
+        for sub in subs:
+            print(f"    {sub}")
+    print()
+
     if not args.apply:
         print("DRY-RUN: no se aplico nada. Volve a correr con --apply.")
         return 0
@@ -124,9 +177,23 @@ def main() -> int:
         print(f"{stem}-{env}:")
         upsert(iam, f"{stem}-{env}", doc, role, description.format(env=env))
 
+    # Las trust policies van DESPUES de los permisos. Si algo falla a mitad, el
+    # rol se queda con permisos nuevos y confianza vieja, que es inocuo: sigue
+    # asumiendose igual. Al reves -- confianza nueva y permisos viejos -- el
+    # despliegue arranca y muere a medio apply.
+    for role, doc in trust.items():
+        print(f"{role} (trust):")
+        update_trust(iam, role, doc, BACKUP_DIR)
+
     print("\nListo. Verifica con:")
-    for role in sorted(roles):
+    for role in sorted(roles | set(trust)):
         print(f"  aws iam list-attached-role-policies --role-name {role} --profile {args.profile}")
+    print("\nY las trust policies con:")
+    for role in sorted(trust):
+        print(
+            f"  aws iam get-role --role-name {role} --profile {args.profile} "
+            f"--query 'Role.AssumeRolePolicyDocument.Statement[0].Condition.StringLike'"
+        )
     return 0
 
 

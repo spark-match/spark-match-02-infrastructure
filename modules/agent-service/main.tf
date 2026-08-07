@@ -399,8 +399,13 @@ resource "aws_iam_role_policy_attachment" "execution_managed" {
 # Descifrado de la CMK: necesario para bajar las capas de la imagen si el
 # repositorio ECR esta cifrado con KMS, y para escribir en el log group
 # cifrado con la misma key.
+#
+# El count va sobre `enable_kms_encryption` y NO sobre `kms_key_arn == null`.
+# Ese ARN viene de module.kms, o sea que es un atributo computado, y terraform
+# no puede resolver un count que dependa de algo que no conoce hasta el apply.
+# Ver la nota junto a la variable en variables.tf.
 data "aws_iam_policy_document" "execution_kms" {
-  count = var.kms_key_arn == null ? 0 : 1
+  count = var.enable_kms_encryption ? 1 : 0
 
   statement {
     sid    = "DecryptProjectCMK"
@@ -415,7 +420,7 @@ data "aws_iam_policy_document" "execution_kms" {
 }
 
 resource "aws_iam_role_policy" "execution_kms" {
-  count = var.kms_key_arn == null ? 0 : 1
+  count = var.enable_kms_encryption ? 1 : 0
 
   name   = "${var.project_name}-agentcore-exec-kms-${var.environment}"
   role   = aws_iam_role.execution.id
@@ -671,6 +676,7 @@ resource "aws_cloudfront_distribution" "agent" {
   # checkov:skip=CKV2_AWS_32:response headers policy no configurada en v1; el agente ya emite sus propios security headers via SecurityHeadersMiddleware.
   # checkov:skip=CKV2_AWS_42:sin dominio custom todavia -- se usa el certificado default de CloudFront. Ese ES el objetivo de este recurso.
   # checkov:skip=CKV2_AWS_47:WAFv2 con regla Log4j -- depende de WAF (mismo defer que CKV_AWS_68).
+  # checkov:skip=CKV_AWS_305:sin default_root_object a proposito. Esta distribucion no sirve un sitio estatico: su unico origin es el ALB del agente y todo lo que expone son rutas de API (/ag-ui, /health, /sessions). No hay index.html que servir en la raiz, asi que la regla no aplica. El frontend, que si es estatico, es otra distribucion y otro modulo.
   # checkov:skip=CKV_AWS_86:access logging de CloudFront requiere bucket dedicado; follow-up junto con el del ALB (CKV_AWS_91).
   count = var.enable_cloudfront ? 1 : 0
 

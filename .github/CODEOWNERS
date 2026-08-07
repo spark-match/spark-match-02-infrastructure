@@ -10,17 +10,44 @@
 #   @spark-match/devops        Miembros: dbarretol, ahincho
 #   @spark-match/product-owners Miembros: dbarretol, FabiTaparaQuispe, ahincho
 #
-# Convencion (replicada desde spark-match-01-devops PR #8):
-#   - NO usamos catch-all (*) porque GitHub ACUMULA los code owners de
-#     TODAS las reglas que matchean un path. Si tenemos `* @devops` y
-#     ademas `README.md @product-owners`, entonces README.md requiere
-#     aprobacion de ambos equipos.
-#   - Cada path del repo debe estar listado explicitamente.
-#   - Si se crea un path nuevo, agregar una linea aqui antes de mergearlo.
+# Convencion (revisada el 2026-08-07, ver mas abajo):
+#   - Hay un catch-all `*` como PRIMERA regla, y las reglas especificas van
+#     despues para afinar por path.
+#   - Aun asi, cada path relevante deberia estar listado explicitamente: el
+#     catch-all es la red de seguridad, no la politica.
+#
+# POR QUE SE ANADIO EL CATCH-ALL
+#
+# Esta cabecera decia antes que NO se usaba catch-all "porque GitHub ACUMULA
+# los code owners de TODAS las reglas que matchean un path". Eso no es como
+# funciona: en CODEOWNERS gana el ULTIMO patron que casa, no la union de
+# todos. Con `* @devops` primero y `/README.md @a @b` despues, README.md
+# pertenece a @a y @b, no a los tres.
+#
+# Y aunque la premisa fuera cierta, aqui daria igual: ningun path de este
+# fichero pertenece a @product-owners en exclusiva -- todos los que lo
+# mencionan llevan tambien @devops. Asi que anadir `* @devops` no puede
+# cambiar los duenos de ninguna regla existente en ninguna de las dos
+# interpretaciones. Se comprobo antes de tocarlo.
+#
+# Lo que si arregla es el hueco. Sin catch-all, un path no listado no tiene
+# dueno, y `require_code_owner_review` sobre el se satisface trivialmente.
+# Medido el 2026-08-07: `bootstrap/` (donde viven las policies de IAM que se
+# aplican a los roles de terraform) y `tasks/` no tenian dueno, y de los 16
+# modulos solo 6 estaban declarados. La regla "si se crea un path nuevo,
+# agregar una linea aqui" depende de que alguien se acuerde, y llevaba diez
+# modulos sin cumplirse.
 #
 # Nota: el autor del PR no puede aprobar su propio PR, ni siquiera siendo
 # CODE OWNER (regla de GitHub). Un PR abierto por ahincho necesita la
 # aprobacion de cualquier otro miembro del team.
+
+# =============================================================================
+# Catch-all: red de seguridad para todo path no listado abajo
+# =============================================================================
+# Va primero a proposito: las reglas siguientes son mas especificas y tienen
+# precedencia sobre esta.
+*                                            @spark-match/devops
 
 # =============================================================================
 # Documentos de governance en raiz

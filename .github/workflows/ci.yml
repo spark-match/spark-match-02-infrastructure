@@ -1,21 +1,36 @@
 name: continuous-integration-ci
 
+# SIN `paths:` A PROPOSITO. NO LO VUELVAS A ANADIR.
+#
+# Un filtro de `paths` y un check requerido son incompatibles por
+# construccion. Si el filtro no casa, el workflow no corre; si no corre, el
+# check no se publica; y un check requerido que no se publica deja el pull
+# request en "Expected - waiting for status to be reported" para siempre. La
+# unica salida es el bypass de admin, con lo que el gate deja de ser el check
+# y pasa a ser la disciplina de quien puede saltarselo.
+#
+# No es teorico. Con la lista que habia aqui, 57 de los 161 ficheros del
+# repositorio no disparaban ninguno de los 20 contextos requeridos que
+# dependen de estos tres workflows. Entre ellos, `bootstrap/**`, que es donde
+# viven las policies de IAM -- o sea que el cambio mas frecuente del repo era
+# justo el que se mergeaba sin verificar. Medido el 2026-08-07: los PR #187 y
+# #189 se mergearon con 1 de 21 checks.
+#
+# Es ademas el tercer incidente del mismo tipo en este proyecto. Los otros dos
+# estan documentados en el manifiesto de governance de 01-devops: el check
+# fantasma `commitlint-main`, que solo existia en push, y el CI de 07-article,
+# que un filtro de paths podia saltarse. Los tres comparten la forma: la
+# verificacion falla en abierto y en silencio.
+#
+# El coste de quitarlo es que todo PR corre todo, unos 225 s, de los que 200 s
+# se los lleva `terraform-validate` por hacer un init por modulo en serie. Si
+# algun dia molesta, la solucion NO es volver a poner `paths:`, sino filtrar
+# DENTRO del job: un primer step que decida si hay trabajo y salga en verde si
+# no lo hay. Asi el check se sigue publicando.
 on:
   pull_request:
     branches: [main, dev]
     types: [opened, synchronize, reopened]
-    paths:
-      - "**.tf"
-      - "**.tfvars"
-      - ".tflint.hcl"
-      - ".github/workflows/**"
-      - ".pre-commit-config.yaml"
-      - ".commitlintrc.json"
-      - ".pre-commit-hooks/**"
-      - "tests/bats/**"
-      - "docs/**"
-      - "AGENTS.md"
-      - "README.md"
   workflow_dispatch:
 
 permissions:

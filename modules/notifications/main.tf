@@ -121,8 +121,8 @@ resource "aws_kms_key_policy" "sns" {
           "kms:DescribeKey",
         ]
         Resource = "*"
-        # Sin condicion: SNS cifra TODOS los publishes de cualquier source
-        # que llegue al topic. El control fino de quien PUEDE publicar al
+        # Sin condicion: SNS cifra la totalidad de los publishes de cualquier
+        # source que llegue al topic. El control fino de quien PUEDE publicar al
         # topic esta en aws_sns_topic_policy (que solo permite
         # budgets.amazonaws.com), no en el KMS policy.
       },

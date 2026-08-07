@@ -30,9 +30,16 @@
 # AWS_APPLY_ROLE_ARN NO se duplica porque apply solo corre en workflow_dispatch,
 # que siempre bindea al env correspondiente.
 #
-# Para PR omite backend-bucket -> el reusable workflow usa -backend=false
-# (state bucket no existe para project fresh). Para dispatch incluye backend
-# (verifica contra state real).
+# backend-bucket va SIEMPRE, tambien en PRs. Antes se omitia en PRs con el
+# argumento de que "el state bucket no existe para project fresh": eso era
+# cierto en el bootstrap y dejo de serlo hace mucho. El efecto era que el
+# reusable inicializaba con -backend=false y despues corria `terraform plan`,
+# que sin backend muere con "Backend initialization required". El job igual
+# quedaba verde porque la receta trataba exit 1 como "sin cambios" -- o sea
+# que ningun plan de PR verifico nada nunca. Ver 01-devops#313.
+#
+# El rol de plan esta hecho para esto: su trust policy incluye `pull_request`
+# y tiene s3:GetObject sobre el state pero NO s3:PutObject.
 #
 # Reusable workflow origen:
 #   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-plan.yml
@@ -66,6 +73,6 @@ jobs:
       aws-region: ${{ vars.AWS_REGION }}
       plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN }}
       terraform-version: ${{ vars.TF_VERSION }}
-      backend-bucket: ${{ github.event_name == 'workflow_dispatch' && 'spark-match-tfstate-dev' || '' }}
-      backend-key: ${{ github.event_name == 'workflow_dispatch' && 'dev/terraform.tfstate' || '' }}
+      backend-bucket: spark-match-tfstate-dev
+      backend-key: dev/terraform.tfstate
       comment-on-pr: ${{ github.event_name == 'pull_request' }}

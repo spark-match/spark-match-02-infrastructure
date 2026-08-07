@@ -19,6 +19,12 @@ variable "environment" {
   }
 }
 
+variable "github_environment_name" {
+  description = "Nombre del GitHub Environment que los callers usan en el sub claim (`repo:OWNER/REPO:environment:NAME`). Por defecto igual a `environment`, pero en prod el GH Environment real se llama 'production' mientras que `environment` (usado para nombrar recursos AWS) es 'prod' -- deben poder divergir."
+  type        = string
+  default     = null
+}
+
 variable "tags" {
   description = "Tags adicionales aplicados a todos los recursos del modulo."
   type        = map(string)

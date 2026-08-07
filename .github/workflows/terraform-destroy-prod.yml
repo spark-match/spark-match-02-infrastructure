@@ -1,0 +1,75 @@
+# =============================================================================
+# Terraform Destroy (prod) - manual only
+# =============================================================================
+# Baja la infraestructura de `prod`. SOLO se dispara a mano desde la UI
+# (Actions -> este workflow -> Run workflow) o con `gh workflow run`. No hay
+# trigger por push: nada que se mergee puede destruir produccion.
+#
+# Tres guardas, no dos como en dev:
+#
+#   1. `confirm_destroy` debe valer exactamente `DESTROY-PROD`. El reusable
+#      compara contra `DESTROY-<ENV en mayusculas>` y aborta si no coincide.
+#   2. El GH Environment `production`, que tiene required reviewers. De ahi
+#      `auto-approve: false`: el job se queda esperando aprobacion humana antes
+#      de tocar nada. Es la diferencia real con dev.
+#   3. `dry_run` en true por defecto, igual que en dev.
+#
+# `environment: prod` (no `production`): el token de confirmacion se construye
+# a partir de este valor, y el repo usa `prod` en var.environment, en el nombre
+# del IAM role y en la key del state. `gh-environment` es distinto a proposito
+# porque el GH Environment se llama `production`; misma asimetria que en
+# terraform-apply-prod.yml.
+#
+# Reusable workflow origen:
+#   spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-destroy.yml
+# =============================================================================
+
+name: terraform-destroy-prod
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_destroy:
+        description: "Escribe DESTROY-PROD para confirmar. Cualquier otra cosa aborta el job."
+        type: string
+        required: true
+      dry_run:
+        description: "Solo plan -destroy, sin aplicar. Desmarcalo para destruir de verdad."
+        type: boolean
+        required: false
+        default: true
+      reason:
+        description: "Por que se baja produccion (queda en el log del run)"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  destroy-prod:
+    name: destroy-prod
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-terraform-destroy.yml@main
+    with:
+      environment: prod
+      gh-environment: production
+      working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
+      aws-region: ${{ vars.AWS_REGION }}
+      apply-role-arn-secret: AWS_APPLY_ROLE_ARN
+      terraform-version: ${{ vars.TF_VERSION }}
+      backend-bucket: spark-match-tfstate-prod
+      backend-key: prod/terraform.tfstate
+      confirm-destroy-token: ${{ inputs.confirm_destroy }}
+      dry-run: ${{ inputs.dry_run }}
+      auto-approve: false
+    secrets:
+      # Nombre SIN sufijo, resuelto desde el GH Environment `production`, igual
+      # que dev resuelve el suyo desde el environment `dev`.
+      #
+      # OJO: ese secret todavia NO existe. El environment `production` tiene
+      # AWS_APPLY_ROLE_ARN como *variable* pero no como *secret*, asi que este
+      # workflow fallara al asumir el role hasta que se cree. Ver el PR para el
+      # comando exacto. terraform-apply-prod.yml tiene el mismo problema y
+      # ademas busca AWS_APPLY_ROLE_ARN_PROD, que no existe en ningun nivel.
+      AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN }}

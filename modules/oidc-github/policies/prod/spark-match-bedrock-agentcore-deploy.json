@@ -59,6 +59,32 @@
       ]
     },
     {
+      "Sid": "ECSTaskDefinitionManage",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:RegisterTaskDefinition",
+        "ecs:DescribeTaskDefinition",
+        "ecs:DeregisterTaskDefinition"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ECSServiceDeploy",
+      "Effect": "Allow",
+      "Action": [
+        "ecs:DescribeServices",
+        "ecs:UpdateService",
+        "ecs:DescribeTasks",
+        "ecs:ListTasks",
+        "ecs:TagResource"
+      ],
+      "Resource": [
+        "arn:aws:ecs:us-east-1:681526276858:cluster/spark-match-${environment}",
+        "arn:aws:ecs:us-east-1:681526276858:service/spark-match-${environment}/spark-match-agent-${environment}",
+        "arn:aws:ecs:us-east-1:681526276858:task/spark-match-${environment}/*"
+      ]
+    },
+    {
       "Sid": "CloudWatchLogsManageAgent",
       "Effect": "Allow",
       "Action": [
@@ -152,7 +178,7 @@
         "secretsmanager:DescribeSecret"
       ],
       "Resource": [
-        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match/agent-*-${environment}"
+        "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match-${environment}-*"
       ]
     },
     {

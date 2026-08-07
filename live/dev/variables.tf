@@ -165,6 +165,93 @@ variable "rds_backup_retention_period_days" {
   }
 }
 
+###############################################################################
+# Variables para modules/frontend-hosting + modules/oidc-frontend
+###############################################################################
+
+variable "frontend_force_destroy" {
+  description = "Si permitir que terraform destroy borre el bucket frontend aunque tenga objetos. true en dev para iterar rapido; false en prod (proteger deploys vigentes)."
+  type        = bool
+  default     = true
+}
+
+variable "frontend_access_logs_retention_days" {
+  description = "Dias antes de expirar los CloudFront access logs en el bucket access-logs del frontend. 30 en dev, 90 en prod."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.frontend_access_logs_retention_days >= 1
+    error_message = "frontend_access_logs_retention_days debe ser >= 1."
+  }
+}
+
+variable "frontend_noncurrent_version_expiration_days" {
+  description = "Dias antes de expirar versiones no-actuales del bucket frontend. 30 en dev, 90 en prod."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.frontend_noncurrent_version_expiration_days >= 1
+    error_message = "frontend_noncurrent_version_expiration_days debe ser >= 1."
+  }
+}
+
+###############################################################################
+# Variables para modules/ecr + modules/agent-service (spark-match-08-deep-agent)
+###############################################################################
+
+variable "enable_agent_service" {
+  description = "Si crear el repositorio ECR y el servicio ECS del deep-agent. Interruptor de costo: apagarlo destruye el ALB (~$17.50/mes) y las tasks Fargate (~$18/mes). En dev conviene apagarlo una vez que prod este validado."
+  type        = bool
+  default     = true
+}
+
+variable "agent_ecr_force_delete" {
+  description = "Si permitir que `terraform destroy` borre el repositorio ECR aunque tenga imagenes. true en dev (las imagenes se reconstruyen desde el pipeline), false en prod."
+  type        = bool
+  default     = true
+}
+
+variable "agent_task_cpu" {
+  description = "CPU units de la task Fargate del agente (512 = 0.5 vCPU)."
+  type        = number
+  default     = 512
+}
+
+variable "agent_task_memory" {
+  description = "Memoria en MiB de la task Fargate del agente."
+  type        = number
+  default     = 1024
+}
+
+variable "agent_desired_count" {
+  description = "Cuantas tasks del agente correr. 1 alcanza para dev: el estado de conversacion vive en Postgres (schema `agent`), no en memoria."
+  type        = number
+  default     = 1
+}
+
+variable "agent_log_retention_days" {
+  description = "Retencion del log group del servicio del agente. 30 en dev, 365 en prod (CKV_AWS_338)."
+  type        = number
+  default     = 30
+}
+
+variable "agent_enable_deletion_protection" {
+  description = "Si proteger el ALB del agente contra borrado. false en dev (permite iterar con terraform destroy), true en prod."
+  type        = bool
+  default     = false
+}
+
+# El secret hay que crearlo A MANO antes de setear esta variable; Terraform
+# solo lo lee. El procedimiento esta en docs/runbook-tavily.md. Mientras siga
+# en null el agente levanta igual y web_search cae a DuckDuckGo.
+variable "agent_tavily_secret_name" {
+  description = "Nombre del secret de Secrets Manager con la API key de Tavily (p.ej. spark-match-dev-tavily-api-key). null = sin Tavily."
+  type        = string
+  default     = null
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

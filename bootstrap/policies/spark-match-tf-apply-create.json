@@ -1,0 +1,159 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "S3CreateApplicationBuckets",
+      "Effect": "Allow",
+      "Action": [
+        "s3:CreateBucket",
+        "s3:DeleteBucket",
+        "s3:PutBucketTagging",
+        "s3:GetBucketTagging",
+        "s3:PutBucketVersioning",
+        "s3:GetBucketVersioning",
+        "s3:PutEncryptionConfiguration",
+        "s3:GetEncryptionConfiguration",
+        "s3:PutBucketLogging",
+        "s3:GetBucketLogging",
+        "s3:PutBucketPublicAccessBlock",
+        "s3:GetBucketPublicAccessBlock",
+        "s3:PutLifecycleConfiguration",
+        "s3:GetLifecycleConfiguration",
+        "s3:PutBucketPolicy",
+        "s3:GetBucketPolicy",
+        "s3:DeleteBucketPolicy",
+        "s3:PutBucketAcl",
+        "s3:GetBucketAcl",
+        "s3:GetBucketCORS",
+        "s3:GetBucketWebsite",
+        "s3:GetReplicationConfiguration",
+        "s3:GetBucketObjectLockConfiguration",
+        "s3:GetBucketRequestPayment",
+        "s3:GetBucketNotification"
+      ],
+      "Resource": [
+        "arn:aws:s3:::spark-match-*-${environment}",
+        "arn:aws:s3:::spark-match-*-${environment}-*"
+      ]
+    },
+    {
+      "Sid": "CloudFrontCreateDistributions",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:CreateDistribution",
+        "cloudfront:DeleteDistribution"
+      ],
+      "Resource": "arn:aws:cloudfront::681526276858:distribution/*"
+    },
+    {
+      "Sid": "IAMReadOidcProvider",
+      "Effect": "Allow",
+      "Action": "iam:ListOpenIDConnectProviders",
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMGetOidcProvider",
+      "Effect": "Allow",
+      "Action": "iam:GetOpenIDConnectProvider",
+      "Resource": "arn:aws:iam::681526276858:oidc-provider/token.actions.githubusercontent.com"
+    },
+    {
+      "Sid": "RDSCreateAndModify",
+      "Effect": "Allow",
+      "Action": [
+        "rds:CreateDBInstance",
+        "rds:ModifyDBInstance",
+        "rds:DeleteDBInstance",
+        "rds:CreateDBSubnetGroup",
+        "rds:ModifyDBSubnetGroup",
+        "rds:DeleteDBSubnetGroup",
+        "rds:AddTagsToResource",
+        "rds:RemoveTagsFromResource",
+        "rds:CreateDBSnapshot",
+        "rds:DescribeDBSnapshots"
+      ],
+      "Resource": [
+        "arn:aws:rds:us-east-1:681526276858:db:spark-match-${environment}-*",
+        "arn:aws:rds:us-east-1:681526276858:subgrp:spark-match-${environment}-*",
+        "arn:aws:rds:us-east-1:681526276858:snapshot:spark-match-${environment}-*",
+        "arn:aws:rds:us-east-1:681526276858:pg:*",
+        "arn:aws:rds:us-east-1:681526276858:og:*",
+        "arn:aws:rds:us-east-1:681526276858:secgrp:*"
+      ]
+    },
+    {
+      "Sid": "SecretsManagerCreate",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret",
+        "secretsmanager:DeleteSecret",
+        "secretsmanager:UpdateSecretVersionStage"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match-${environment}-*"
+    },
+    {
+      "Sid": "DynamoDBCreateTable",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:CreateTable",
+        "dynamodb:DeleteTable"
+      ],
+      "Resource": "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-${environment}-*"
+    },
+    {
+      "Sid": "EventBridgeCreateBus",
+      "Effect": "Allow",
+      "Action": [
+        "events:CreateEventBus",
+        "events:DescribeEventBus",
+        "events:DeleteEventBus",
+        "events:TagResource",
+        "events:UntagResource"
+      ],
+      "Resource": "arn:aws:events:us-east-1:681526276858:event-bus/spark-match-events-${environment}"
+    },
+    {
+      "Sid": "EC2NatEipAndFlowLogs",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:AllocateAddress",
+        "ec2:ReleaseAddress",
+        "ec2:CreateNatGateway",
+        "ec2:DeleteNatGateway",
+        "ec2:CreateFlowLogs",
+        "ec2:DeleteFlowLogs"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "LogsManageVpcFlowLogGroup",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:PutRetentionPolicy",
+        "logs:DeleteRetentionPolicy",
+        "logs:TagResource",
+        "logs:UntagResource",
+        "logs:ListTagsForResource",
+        "logs:AssociateKmsKey",
+        "logs:DisassociateKmsKey"
+      ],
+      "Resource": [
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/vpc/spark-match-${environment}",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/vpc/spark-match-${environment}:*"
+      ]
+    },
+    {
+      "Sid": "KMSEncryptViaSsm",
+      "Effect": "Allow",
+      "Action": "kms:Encrypt",
+      "Resource": "arn:aws:kms:us-east-1:681526276858:key/*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": "ssm.us-east-1.amazonaws.com"
+        }
+      }
+    }
+  ]
+}

@@ -123,6 +123,19 @@
       "Resource": "arn:aws:sns:us-east-1:681526276858:spark-match-*"
     },
     {
+      "Sid": "SNSAccountTopicSubscribe",
+      "Effect": "Allow",
+      "Action": [
+        "sns:Subscribe",
+        "sns:Unsubscribe",
+        "sns:SetSubscriptionAttributes"
+      ],
+      "Resource": [
+        "arn:aws:sns:us-east-1:681526276858:spark-match-budget-alerts",
+        "arn:aws:sns:us-east-1:681526276858:spark-match-budget-alerts:*"
+      ]
+    },
+    {
       "Sid": "RDSDescribe",
       "Effect": "Allow",
       "Action": [

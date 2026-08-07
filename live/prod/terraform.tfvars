@@ -107,10 +107,27 @@ secrets_recovery_window_in_days = 30
 # antes sacar la cuenta del Free Tier o mover prod a una cuenta propia.
 rds_backup_retention_period_days = 0
 
-# db.t4g.small (2GiB RAM): punto de partida conservador, mas grande que dev
-# (db.t4g.micro, 1GiB) sin sobre-aprovisionar antes de tener datos reales de
-# carga. Ajustar segun metricas post-launch.
-db_instance_class = "db.t4g.small"
+# db.t4g.micro, igual que dev. Decia db.t4g.small "como punto de partida
+# conservador", y el primer apply real de prod lo tumbo el 2026-08-07:
+#
+#   FreeTierRestrictionError: This instance size isn't available with free
+#   plan accounts. To remove all limitations, upgrade your account plan.
+#
+# Es el MISMO guardrail que ya obligo a poner la retencion de backups a 0
+# treinta lineas mas arriba. Aquel se razono y este se paso por alto, porque
+# el guardrail no aparece en el plan: `terraform plan` da los 125 recursos por
+# buenos y el rechazo solo llega al crear la instancia de verdad.
+#
+# Se mantiene la decision ya tomada de no sacar la cuenta del plan Free Tier:
+# spark-match es un proyecto de curso y el objetivo es ejercitar las
+# tecnologias. Asi que la talla baja a la que el plan si admite, que es la
+# misma que lleva dev funcionando.
+#
+# Consecuencia: prod y dev tienen la misma capacidad de base de datos (1GiB).
+# Si algun dia esto deja de ser un proyecto de curso, esta linea y la de
+# `rds_backup_retention_period_days` se cambian juntas, y las dos exigen antes
+# sacar la cuenta del Free Tier o mover prod a una cuenta propia.
+db_instance_class = "db.t4g.micro"
 
 ###############################################################################
 # Frontend hosting (modules/frontend-hosting + modules/oidc-frontend)

@@ -229,12 +229,14 @@
       "Effect": "Allow",
       "Action": [
         "kms:Decrypt",
-        "kms:GenerateDataKey"
+        "kms:GenerateDataKey",
+        "kms:DescribeKey"
       ],
       "Resource": "arn:aws:kms:us-east-1:681526276858:key/*",
       "Condition": {
         "StringEquals": {
           "kms:ViaService": [
+            "dynamodb.us-east-1.amazonaws.com",
             "secretsmanager.us-east-1.amazonaws.com",
             "ssm.us-east-1.amazonaws.com"
           ]

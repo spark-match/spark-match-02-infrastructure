@@ -1,0 +1,245 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SSMManageConfigTree",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath",
+        "ssm:GetParameterHistory",
+        "ssm:PutParameter",
+        "ssm:DeleteParameter",
+        "ssm:DeleteParameters",
+        "ssm:AddTagsToResource",
+        "ssm:RemoveTagsFromResource",
+        "ssm:ListTagsForResource",
+        "ssm:LabelParameterVersion"
+      ],
+      "Resource": "arn:aws:ssm:us-east-1:681526276858:parameter/spark-match/${environment}/*"
+    },
+    {
+      "Sid": "SSMDescribeGlobal",
+      "Effect": "Allow",
+      "Action": "ssm:DescribeParameters",
+      "Resource": "*"
+    },
+    {
+      "Sid": "LogsManageSparkMatchTree",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:DeleteLogGroup",
+        "logs:PutRetentionPolicy",
+        "logs:DeleteRetentionPolicy",
+        "logs:TagResource",
+        "logs:UntagResource",
+        "logs:ListTagsForResource",
+        "logs:AssociateKmsKey",
+        "logs:DisassociateKmsKey"
+      ],
+      "Resource": "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/*"
+    },
+    {
+      "Sid": "LogsDescribeGlobal",
+      "Effect": "Allow",
+      "Action": [
+        "logs:DescribeLogGroups",
+        "logs:ListTagsLogGroup"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SecretsManagerManage",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:DescribeSecret",
+        "secretsmanager:GetResourcePolicy",
+        "secretsmanager:ListSecretVersionIds",
+        "secretsmanager:GetSecretValue",
+        "secretsmanager:PutSecretValue",
+        "secretsmanager:UpdateSecret",
+        "secretsmanager:TagResource",
+        "secretsmanager:UntagResource"
+      ],
+      "Resource": "arn:aws:secretsmanager:us-east-1:681526276858:secret:spark-match-${environment}-*"
+    },
+    {
+      "Sid": "DynamoDBManage",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:DescribeTable",
+        "dynamodb:DescribeTimeToLive",
+        "dynamodb:DescribeContinuousBackups",
+        "dynamodb:DescribeContributorInsights",
+        "dynamodb:DescribeTableReplicaAutoScaling",
+        "dynamodb:ListTagsOfResource",
+        "dynamodb:UpdateTable",
+        "dynamodb:UpdateTimeToLive",
+        "dynamodb:UpdateContinuousBackups",
+        "dynamodb:TagResource",
+        "dynamodb:UntagResource"
+      ],
+      "Resource": "arn:aws:dynamodb:us-east-1:681526276858:table/spark-match-${environment}-*"
+    },
+    {
+      "Sid": "EventBridgeArchiveAndTags",
+      "Effect": "Allow",
+      "Action": [
+        "events:DescribeArchive",
+        "events:ListArchives",
+        "events:CreateArchive",
+        "events:UpdateArchive",
+        "events:DeleteArchive",
+        "events:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SQSManage",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:GetQueueAttributes",
+        "sqs:GetQueueUrl",
+        "sqs:ListQueueTags",
+        "sqs:SetQueueAttributes",
+        "sqs:CreateQueue",
+        "sqs:DeleteQueue",
+        "sqs:TagQueue",
+        "sqs:UntagQueue"
+      ],
+      "Resource": "arn:aws:sqs:us-east-1:681526276858:spark-match-*"
+    },
+    {
+      "Sid": "SNSDescribe",
+      "Effect": "Allow",
+      "Action": [
+        "sns:GetTopicAttributes",
+        "sns:ListTagsForResource",
+        "sns:GetSubscriptionAttributes",
+        "sns:ListSubscriptionsByTopic"
+      ],
+      "Resource": "arn:aws:sns:us-east-1:681526276858:spark-match-*"
+    },
+    {
+      "Sid": "SNSAccountTopicSubscribe",
+      "Effect": "Allow",
+      "Action": [
+        "sns:Subscribe",
+        "sns:Unsubscribe",
+        "sns:SetSubscriptionAttributes"
+      ],
+      "Resource": [
+        "arn:aws:sns:us-east-1:681526276858:spark-match-budget-alerts",
+        "arn:aws:sns:us-east-1:681526276858:spark-match-budget-alerts:*"
+      ]
+    },
+    {
+      "Sid": "RDSDescribe",
+      "Effect": "Allow",
+      "Action": [
+        "rds:DescribeDBInstances",
+        "rds:DescribeDBClusters",
+        "rds:DescribeDBSubnetGroups",
+        "rds:DescribeDBParameterGroups",
+        "rds:DescribeDBParameters",
+        "rds:ListTagsForResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudFrontManage",
+      "Effect": "Allow",
+      "Action": [
+        "cloudfront:GetOriginAccessControl",
+        "cloudfront:GetOriginAccessControlConfig",
+        "cloudfront:ListOriginAccessControls",
+        "cloudfront:CreateOriginAccessControl",
+        "cloudfront:UpdateOriginAccessControl",
+        "cloudfront:DeleteOriginAccessControl",
+        "cloudfront:ListTagsForResource",
+        "cloudfront:GetDistribution",
+        "cloudfront:GetDistributionConfig",
+        "cloudfront:UpdateDistribution",
+        "cloudfront:TagResource",
+        "cloudfront:UntagResource"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "S3OwnershipControls",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketOwnershipControls",
+        "s3:PutBucketOwnershipControls"
+      ],
+      "Resource": "arn:aws:s3:::spark-match-*"
+    },
+    {
+      "Sid": "S3BucketExistenceRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket",
+        "s3:GetBucketLocation",
+        "s3:GetAccelerateConfiguration",
+        "s3:GetAnalyticsConfiguration",
+        "s3:GetIntelligentTieringConfiguration",
+        "s3:GetInventoryConfiguration",
+        "s3:GetMetricsConfiguration"
+      ],
+      "Resource": "arn:aws:s3:::spark-match-*"
+    },
+    {
+      "Sid": "BudgetsManage",
+      "Effect": "Allow",
+      "Action": [
+        "budgets:ViewBudget",
+        "budgets:ViewBudgetAction",
+        "budgets:DescribeBudgetPerformanceHistory",
+        "budgets:ListTagsForResource",
+        "budgets:TagResource",
+        "budgets:UntagResource",
+        "budgets:ModifyBudget"
+      ],
+      "Resource": "arn:aws:budgets::681526276858:budget/*"
+    },
+    {
+      "Sid": "IAMTrustPolicyAndInstanceProfiles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:UpdateAssumeRolePolicy",
+        "iam:ListInstanceProfilesForRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::681526276858:role/spark-match-*-${environment}",
+        "arn:aws:iam::681526276858:role/spark-match-*-${environment}-*"
+      ]
+    },
+    {
+      "Sid": "EC2ModifyVpcEndpoints",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:ModifyVpcEndpoint"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "KMSDecryptViaAwsServices",
+      "Effect": "Allow",
+      "Action": [
+        "kms:Decrypt",
+        "kms:GenerateDataKey"
+      ],
+      "Resource": "arn:aws:kms:us-east-1:681526276858:key/*",
+      "Condition": {
+        "StringEquals": {
+          "kms:ViaService": [
+            "secretsmanager.us-east-1.amazonaws.com",
+            "ssm.us-east-1.amazonaws.com"
+          ]
+        }
+      }
+    }
+  ]
+}

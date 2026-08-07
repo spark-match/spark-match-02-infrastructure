@@ -66,9 +66,15 @@ variable "enable_nat_ha" {
 ###############################################################################
 
 variable "enable_all_endpoints_by_default" {
-  description = "Si crear todos los interface endpoints (SSM, ECR, Logs, Secrets, Bedrock, KMS, STS, events, etc.). true en prod para mantener trafico AWS privado (sin atravesar NAT ni internet). Costo ~$72/mes (10-11 interface endpoints x $0.01/h)."
+  description = "Si crear todos los interface endpoints (SSM, ECR, Logs, Secrets, Bedrock, KMS, STS, events, etc.). false en prod (checkpoint de costos 2026-08-04): con NAT presente, solo los servicios realmente usados necesitan endpoint dedicado -- el resto sale por NAT. Los 11 endpoints x 2 AZ costaban ~$160.60/mes (22 ENI); con enabled_endpoints explicito + 1 sola AZ el costo baja a ~$29.20/mes."
   type        = bool
-  default     = true
+  default     = false
+}
+
+variable "enabled_endpoints" {
+  description = "Lista explicita de interface endpoints a crear (con enable_all_endpoints_by_default=false). Prod necesita secretsmanager (credenciales RDS), events (PutEvents a EventBridge), ssm (config ADR-0002 para Lambdas en VPC) y bedrock-runtime (el deep-agent invoca Bedrock desde subnets privadas)."
+  type        = list(string)
+  default     = ["secretsmanager", "events", "ssm", "bedrock-runtime"]
 }
 
 variable "enable_flow_logs" {
@@ -120,12 +126,10 @@ variable "bedrock_deploy_github_repos" {
 ###############################################################################
 # Variables para modules de Fase 2 (storage, secrets, events, dynamodb, rds, ssm)
 ###############################################################################
-# Nota: enabled_endpoints e interface_endpoint_subnet_ids (usadas en dev) NO
-# se declaran aca a proposito: con enable_all_endpoints_by_default=true el
-# modulo endpoints ignora enabled_endpoints, y con
-# interface_endpoint_subnet_ids sin pasar (default []) usa automaticamente
-# TODAS las private_subnet_ids (ambas AZs) -- exactamente lo que prod quiere
-# para alta disponibilidad. Ver modules/endpoints/main.tf locals.
+# Nota: interface_endpoint_subnet_ids no se declara como variable aca -- se
+# calcula inline en main.tf con slice(module.networking.private_subnet_ids,
+# 0, 1) (1 sola AZ, mismo patron que live/dev/main.tf) para el recorte de
+# costos del checkpoint 2026-08-04.
 
 variable "sam_artifacts_force_destroy" {
   description = "Si permitir que terraform destroy borre el bucket de artefactos SAM aunque tenga objetos. false en prod (evita borrado accidental de artefactos de deploy vigentes; a diferencia de dev que usa true para iterar rapido)."
@@ -144,14 +148,15 @@ variable "secrets_recovery_window_in_days" {
   }
 }
 
-variable "cors_allowed_origins" {
-  description = "Origenes CORS permitidos por el backend, comma-separated. TODO: reemplazar el placeholder por el dominio real de spark-match-04-frontend antes del primer apply real a prod (el frontend aun no existe/despliega)."
-  type        = string
-  default     = "https://TODO-set-real-frontend-domain.spark-match.example"
-}
+# cors_allowed_origins no se declara en prod. A diferencia de dev, donde el
+# valor es la constante "*", en prod el origen permitido es el dominio de la
+# distribucion CloudFront, que no existe hasta que se aplique este mismo
+# directorio. Ninguna constante podia ser correcta, y el placeholder que habia
+# aqui arrastraba una marca de pendiente imposible de cumplir. Se deriva del
+# output del modulo en main.tf; ver la nota junto a module "ssm_bootstrap".
 
 variable "rds_backup_retention_period_days" {
-  description = "Dias de retencion de backups automaticos de RDS. 0 en prod (igual que dev): la cuenta AWS 681526276858 tiene guardrails de 'Free Tier account' que rechazan CreateDBInstance (FreeTierRestrictionError) si este valor es > 0, y prod usa LA MISMA cuenta que dev (ver AGENTS.md tabla Multi-env). Esto es un riesgo operacional conocido y aceptado por ahora -- sin backups automaticos de RDS en prod. Revisar antes del primer apply real: upgrade del tipo de cuenta AWS, o cuenta separada para prod, para poder usar >= 7 dias."
+  description = "Dias de retencion de backups automaticos de RDS. Se queda en 0 en prod, igual que dev: la cuenta AWS 681526276858 tiene guardrails de 'Free Tier account' que rechazan CreateDBInstance con FreeTierRestrictionError si este valor es > 0, y prod usa LA MISMA cuenta que dev (ver AGENTS.md tabla Multi-env). DECISION TOMADA el 2026-08-07, no pendiente: spark-match es un proyecto de curso y el objetivo es ejercitar las tecnologias, no sostener un servicio con compromiso de recuperacion. Se descartaron sacar la cuenta del plan Free Tier y montar snapshots manuales. Consecuencia: prod no tiene backups de base de datos; si se pierde la instancia, se pierden los datos. Cambiar esta linea exige antes sacar la cuenta del Free Tier o mover prod a una cuenta propia."
   type        = number
   default     = 0
 
@@ -165,6 +170,84 @@ variable "db_instance_class" {
   description = "Clase de instancia RDS para prod. db.t4g.small (2GiB RAM) como punto de partida conservador -- mas grande que dev (db.t4g.micro, 1GiB) pero sin sobre-aprovisionar antes de tener datos reales de carga. Ajustar segun metricas post-launch."
   type        = string
   default     = "db.t4g.small"
+}
+
+###############################################################################
+# Variables para modules/frontend-hosting + modules/oidc-frontend
+###############################################################################
+
+variable "frontend_force_destroy" {
+  description = "Si permitir que terraform destroy borre el bucket frontend aunque tenga objetos. false en prod (proteger deploys vigentes); true en dev para iterar rapido."
+  type        = bool
+  default     = false
+}
+
+variable "frontend_access_logs_retention_days" {
+  description = "Dias antes de expirar los CloudFront access logs en el bucket access-logs del frontend. 90 en prod (auditoria)."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = var.frontend_access_logs_retention_days >= 1
+    error_message = "frontend_access_logs_retention_days debe ser >= 1."
+  }
+}
+
+variable "frontend_noncurrent_version_expiration_days" {
+  description = "Dias antes de expirar versiones no-actuales del bucket frontend. 90 en prod (auditoria)."
+  type        = number
+  default     = 90
+
+  validation {
+    condition     = var.frontend_noncurrent_version_expiration_days >= 1
+    error_message = "frontend_noncurrent_version_expiration_days debe ser >= 1."
+  }
+}
+
+###############################################################################
+# Variables para modules/ecr + modules/agent-service (spark-match-08-deep-agent)
+###############################################################################
+
+variable "enable_agent_service" {
+  description = "Si crear el repositorio ECR y el servicio ECS del deep-agent. Interruptor de costo: apagarlo destruye el ALB (~$17.50/mes) y las tasks Fargate (~$18/mes). true en prod: el agente es parte del producto."
+  type        = bool
+  default     = true
+}
+
+variable "agent_ecr_force_delete" {
+  description = "Si permitir que `terraform destroy` borre el repositorio ECR aunque tenga imagenes. false en prod: protege la imagen que esta corriendo en el servicio."
+  type        = bool
+  default     = false
+}
+
+variable "agent_task_cpu" {
+  description = "CPU units de la task Fargate del agente (512 = 0.5 vCPU). Punto de partida conservador; ajustar segun metricas reales de latencia de Bedrock."
+  type        = number
+  default     = 512
+}
+
+variable "agent_task_memory" {
+  description = "Memoria en MiB de la task Fargate del agente."
+  type        = number
+  default     = 1024
+}
+
+variable "agent_desired_count" {
+  description = "Cuantas tasks del agente correr. 1 en el arranque de prod: el estado de conversacion vive en Postgres (schema `agent`), no en memoria, asi que escalar es solo subir este numero cuando el trafico lo justifique."
+  type        = number
+  default     = 1
+}
+
+variable "agent_log_retention_days" {
+  description = "Retencion del log group del servicio del agente. 365 en prod: mismo minimo de 1 anio que exige CKV_AWS_338 para el resto de los log groups productivos."
+  type        = number
+  default     = 365
+}
+
+variable "agent_enable_deletion_protection" {
+  description = "Si proteger el ALB del agente contra borrado. true en prod: el DNS del ALB queda publicado en SSM y consumido por el frontend, un destroy accidental cortaria el chat."
+  type        = bool
+  default     = true
 }
 
 locals {

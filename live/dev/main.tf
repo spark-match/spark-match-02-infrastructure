@@ -13,7 +13,7 @@
 #   - module "endpoints"       -> S3 gateway + interface endpoints (secretsmanager, events)
 #   - module "oidc_github"     -> OIDC provider + 4 IAM roles
 #
-# Fase 2 (activa, ADR 0002 — cross-repo config contract):
+# Fase 2 (activa, ADR 0002 â€” cross-repo config contract):
 #   - module "storage_sam_artifacts"  -> S3 bucket de artefactos SAM
 #   - module "secrets_bootstrap"      -> Secrets Manager (JWT signing key)
 #   - module "eventbridge_bus"        -> EventBridge bus custom + archive + DLQ
@@ -53,7 +53,7 @@ module "networking" {
   public_subnet_cidrs  = var.public_subnet_cidrs
   private_subnet_cidrs = var.private_subnet_cidrs
 
-  # NAT desactivado en dev: ver comentario del modulo arriba (ADR 0002 §4).
+  # NAT desactivado en dev: ver comentario del modulo arriba (ADR 0002 Â§4).
   enable_nat_gateway = var.enable_nat_gateway
   enable_nat_ha      = var.enable_nat_ha
 
@@ -195,9 +195,9 @@ module "security_groups" {
 # Module: endpoints
 ###############################################################################
 # VPC endpoints para que las Lambdas del backend (dentro de VPC, ver ADR 0002
-# §4) no salgan por NAT para hablar con AWS.
+# Â§4) no salgan por NAT para hablar con AWS.
 #
-# Decision dev (ADR 0002 §4):
+# Decision dev (ADR 0002 Â§4):
 #   - Interface endpoints: solo `secretsmanager` (leer credenciales frescas de
 #     RDS) y `events` (PutEvents a EventBridge). Desplegados en 1 sola AZ (no
 #     las 2) para reducir costo: ~$14.60/mes (2 endpoints x 1 AZ) en vez de
@@ -206,10 +206,10 @@ module "security_groups" {
 #   - CloudWatch Logs y X-Ray no requieren VPC endpoint (viajan por el plano
 #     de control de Lambda, no por la ENI de la funcion).
 #   - `ssm` NO esta en la lista: el runtime del backend lee env vars
-#     inyectadas en deploy-time via `{{resolve:ssm:}}`, no relee SSM (ADR 0002 §3).
+#     inyectadas en deploy-time via `{{resolve:ssm:}}`, no relee SSM (ADR 0002 Â§3).
 #
 # El SG que se pasa (`endpoints_security_group_id`) es el mismo que se creo en
-# module.security, y permite ingress 443 desde sg-lambda (regla que también se
+# module.security, y permite ingress 443 desde sg-lambda (regla que tambiÃ©n se
 # creo en module.security via `aws_security_group_rule.endpoints_ingress_from_lambda`).
 ###############################################################################
 
@@ -227,7 +227,7 @@ module "endpoints" {
   # SG de VPC endpoints (creado en module.security_groups, con ingress 443 desde sg-lambda).
   endpoints_security_group_id = module.security_groups.sg_endpoints_id
 
-  # Decision dev (ADR 0002 §4): solo secretsmanager + events, en 1 AZ.
+  # Decision dev (ADR 0002 Â§4): solo secretsmanager + events, en 1 AZ.
   enable_all_endpoints_by_default = var.enable_all_endpoints_by_default
   enabled_endpoints               = var.enabled_endpoints
   enable_s3_gateway_endpoint      = var.enable_s3_gateway_endpoint
@@ -373,4 +373,143 @@ module "ssm_bootstrap" {
   lambda_security_group_id = module.security_groups.sg_lambda_id
 
   kms_key_arn = module.kms.kms_key_arn
+}
+
+###############################################################################
+# Module: frontend_hosting
+###############################################################################
+# Bucket S3 + CloudFront + OAC para servir el build estatico de
+# spark-match-04-frontend. Versioning ON, public access block 4 flags true,
+# SSE-S3 por default (SSE-KMS opt-in via enable_kms_encryption). Logica
+# paralela a modules/storage_sam_artifacts pero adaptada a CloudFront:
+# OAC de tipo "s3" con sigv4 en lugar de public bucket policy, y bucket
+# access-logs separado para los CloudFront access logs.
+###############################################################################
+
+module "frontend_hosting" {
+  source = "../../modules/frontend-hosting"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  force_destroy                      = var.frontend_force_destroy
+  access_logs_retention_days         = var.frontend_access_logs_retention_days
+  noncurrent_version_expiration_days = var.frontend_noncurrent_version_expiration_days
+}
+
+###############################################################################
+# Module: oidc_frontend
+###############################################################################
+# Role OIDC asumido por spark-match-04-frontend en CI/CD para subir
+# assets al bucket frontend + invalidar la distribucion CloudFront.
+# El sub claim restringe a refs/heads/{dev,main} segun environment + el
+# environment de GitHub (development/production).
+###############################################################################
+
+module "oidc_frontend" {
+  source = "../../modules/oidc-frontend"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  bucket_arn             = module.frontend_hosting.frontend_bucket_arn
+  access_logs_bucket_arn = module.frontend_hosting.access_logs_bucket_arn
+  distribution_arn       = module.frontend_hosting.frontend_distribution_arn
+}
+
+###############################################################################
+# Module: ecr
+###############################################################################
+# Repositorio `spark-match-agent-advisor-dev` donde spark-match-08-deep-agent
+# publica la imagen ARM64 del agente. El nombre cae dentro del allowlist IAM
+# `spark-match-agent-*-dev` de la policy spark-match-bedrock-agentcore-deploy.
+###############################################################################
+
+module "ecr" {
+  count = var.enable_agent_service ? 1 : 0
+
+  source = "../../modules/ecr"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn = module.kms.kms_key_arn
+
+  # true en dev: permite `terraform destroy` sin vaciar el repositorio a mano
+  # (las imagenes son recreables desde el pipeline).
+  force_delete = var.agent_ecr_force_delete
+}
+
+###############################################################################
+# Module: agent_service
+###############################################################################
+# Cluster ECS + task definition Fargate ARM64 + servicio detras de un ALB
+# publico para spark-match-08-deep-agent.
+#
+# Decision dev: las tasks corren en las subnets PUBLICAS con IP publica
+# (assign_public_ip=true). dev no tiene NAT gateway (enable_nat_gateway=false),
+# asi que es la unica forma de que la task llegue a ECR, Bedrock y Secrets
+# Manager sin agregar ~$36.50/mes de NAT. El SG del agente sigue rechazando
+# todo ingress que no venga del SG del ALB, por lo que la IP publica no expone
+# el contenedor.
+#
+# El agente de dev es la validacion previa al rollout productivo. Una vez
+# validado prod se puede apagar con enable_agent_service=false (ahorra el
+# Fargate ~$18/mes + el ALB ~$17.50/mes).
+###############################################################################
+
+module "agent_service" {
+  count = var.enable_agent_service ? 1 : 0
+
+  source = "../../modules/agent-service"
+
+  project_name = var.project_name
+  environment  = var.environment
+  aws_region   = var.aws_region
+
+  vpc_id   = module.networking.vpc_id
+  vpc_cidr = var.vpc_cidr
+
+  # El ALB exige >= 2 AZs; las tasks van en las mismas subnets publicas
+  # (ver el comentario de la decision dev arriba).
+  alb_subnet_ids     = module.networking.public_subnet_ids
+  service_subnet_ids = module.networking.public_subnet_ids
+  assign_public_ip   = true
+
+  # El modulo agrega la rule de ingress 5432 sobre este SG para que el
+  # checkpointer de LangGraph (schema `agent`) llegue a RDS.
+  rds_security_group_id           = module.security_groups.sg_rds_id
+  vpc_endpoints_security_group_id = module.security_groups.sg_endpoints_id
+
+  # Task role: los permisos que usa el codigo del agente en runtime (Bedrock,
+  # Secrets Manager, SSM). El execution role lo crea el propio modulo.
+  agentcore_runtime_role_arn = module.oidc_github.agentcore_runtime_role_arn
+
+  # `latest`, no `bootstrap`: el pipeline de spark-match-08-deep-agent publica
+  # con `image-tags-input: 'latest,__GITHUB_SHA_SHORT__'`, o sea NUNCA existe un
+  # tag `bootstrap`. Apuntar ahi dejaba al servicio en CannotPullContainerError
+  # indefinidamente ("...:bootstrap: not found", 7 reintentos por task).
+  container_image    = "${module.ecr[0].repository_url}:latest"
+  ecr_repository_url = module.ecr[0].repository_url
+
+  task_cpu      = var.agent_task_cpu
+  task_memory   = var.agent_task_memory
+  desired_count = var.agent_desired_count
+
+  # Origenes que el agente acepta: el dominio CloudFront de dev + el dev
+  # server de Angular para poder probar el chat en local contra el agente real.
+  cors_allowed_origins = jsonencode([
+    "https://${module.frontend_hosting.frontend_distribution_domain_name}",
+    "http://localhost:4200",
+  ])
+
+  log_retention_days = var.agent_log_retention_days
+  kms_key_arn        = module.kms.kms_key_arn
+
+  # API key de Tavily para web_search. El valor lo pone un humano en Secrets
+  # Manager (docs/runbook-tavily.md); aqui solo viaja el nombre.
+  tavily_secret_name = var.agent_tavily_secret_name
+
+  # false en dev: permite `terraform destroy` mientras se itera.
+  enable_deletion_protection = var.agent_enable_deletion_protection
 }

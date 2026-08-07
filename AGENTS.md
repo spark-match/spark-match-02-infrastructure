@@ -462,6 +462,70 @@ afecta al historial ni al estado de `dev`/`main`.
 
 **Accion recomendada**: ninguna. Documentado solo para consciencia.
 
+### FU-4: bootstrap del role `spark-match-terraform-apply-dev` requiere scope IAM ampliado (medium)
+
+**Incidente (2026-08-04)**: durante el primer apply dev de `modules/frontend-hosting`,
+el OIDC assume role funciono pero `terraform plan` fallo con `AccessDenied` en
+multiples servicios:
+
+- `s3:GetLifecycleConfiguration`, `s3:GetBucketPolicy`, `s3:GetBucketLogging`
+  sobre `spark-match-sam-artifacts-dev-access-logs` y `spark-match-sam-artifacts-dev`
+  (storage-sam-artifacts).
+- `events:DescribeEventBus` sobre `spark-match-events-dev` (eventbridge-bus).
+- `SNS:GetTopicAttributes` sobre `spark-match-budget-alerts` (notifications).
+- `iam:ListOpenIDConnectProviders` sobre `arn:aws:iam::681526276858:oidc-provider/*`
+  (oidc-github).
+- `cloudfront:CreateDistribution`, `cloudfront:CreateOriginAccessControl`,
+  `cloudfront:CreateInvalidation` (frontend-hosting).
+
+**Causa raiz**: la policy inline `ApplyPolicy` del role
+`spark-match-terraform-apply-dev` (creada durante el bootstrap inicial de la
+cuenta, antes de que los modulos `frontend-hosting` y `oidc-frontend`
+existieran) solo permitia acciones S3 sobre `arn:aws:s3:::spark-match-tfstate-dev`.
+No anticipaba que Terraform aplicaria refresh sobre otros buckets `spark-match-*-dev*`
+y tampoco incluia CloudFront, SNS, EventBridge, IAM read ni Budgets read.
+
+**Fix aplicado manualmente** (via `boto3.put_role_policy`, NO via Terraform):
+la policy `ApplyPolicy` ahora tiene **18 statements** vs los 8 originales.
+Nuevos statements: `S3ObjectManagementDev`, `CloudFrontManagementDev`,
+`EventBridgeManagementDev`, `SNSManagementDev`, `IAMReadForOIDCAndRoles`,
+`BudgetsReadDev`, `SSMReadDev`, `SecretsManagerReadDev`, `DynamoDBManagementDev`,
+`RDSReadDev`. `S3BucketManagementDev` expandido a 6 buckets dev explicitos
+(`tfstate`, `sam-artifacts`, `sam-artifacts-access-logs`, `frontend`,
+`frontend-access-logs`, `rag-documents`).
+
+**Estado actual**: el apply dev completo (17 recursos nuevos) **funciono**.
+Los outputs de `live/dev/outputs.tf::frontend_*` ya estan consumidos por
+`spark-match-04-frontend` (3 secrets set en env `development`).
+
+**Trabajo pendiente** (no bloqueante, pero importante para evitar drift silencioso):
+
+1. **Migrar la policy `ApplyPolicy` a un modulo Terraform** (`modules/iam-terraform-roles` o
+   similar) que cree/actualice el role via `aws_iam_role` + `aws_iam_role_policy`. Asi
+   cualquier drift del scope IAM queda visible en `terraform plan` antes de CI.
+   **Razon para NO hacerlo ahora**: el role actualmente NO es 100% Terraform-managed
+   (fue bootstrapped manualmente). El primer apply de un modulo que asuma
+   ownership del role haria drift destroy/recreate del role, lo cual rompe
+   workflows en vuelo. Plan: hacer el modulo, hacer un `terraform import` del
+   role existente, y migrar la policy inline a una `aws_iam_policy_document`
+   data source. Sesion dedicada.
+
+2. **Misma expansion para `spark-match-terraform-apply-prod`** cuando se haga
+   el primer apply a prod (agregar los buckets `spark-match-*-prod*` al scope S3).
+   Por ahora prod esta en code-only, no aplicado.
+
+3. **Pitfall**: la edicion manual via PowerShell + awscli (`aws iam put-role-policy
+   --policy-document file://...`) FALLA con `MalformedPolicyDocument` aunque el
+   JSON sea valido. Causa: el archivo JSON tiene BOM UTF-8 al inicio, lo cual
+   AWS IAM rechaza. Workaround usado: Python con `boto3.put_role_policy(PolicyDocument=json.dumps(...))`.
+   Si vuelves a editar IAM policies localmente, usa Python, no awscli+PS.
+
+**Referencia**: PRs #151 (caller fix) y #152 (frontend-hosting fixes)
+del repo `spark-match-02-infrastructure`. Apply exitoso verificado en
+run `30938746947` y en ejecucion local posterior con `terraform apply`.
+
+## Reglas duras (no negociables)
+
 ## Reglas duras (no negociables)
 
 1. **Nunca** pegar AKIA / ASIA / access keys literales en archivos
@@ -618,7 +682,7 @@ workflow runs antiguos y complica búsquedas en GitHub UI.
 >    `tests/bats/commitlint-config.bats` (drift detector) lo detectan
 >    antes de CI.
 
-### Scope enum (25 infra scopes)
+### Scope enum (26 infra scopes)
 
 Los scopes permitidos viven en `.commitlintrc.json` bajo `scope-enum` Y
 en `.pre-commit-hooks/commit-msg.sh` (regex). Deben estar sincronizados
@@ -626,7 +690,7 @@ en `.pre-commit-hooks/commit-msg.sh` (regex). Deben estar sincronizados
 
 | Capa | Scopes |
 |---|---|
-| **Módulos** (componentes Terraform) | `oidc`, `networking`, `security`, `endpoints`, `kms`, `notifications`, `iam`, `observability`, `rds`, `lambda`, `budget`, `storage`, `secrets`, `events`, `dynamodb`, `ssm` |
+| **Módulos** (componentes Terraform) | `oidc`, `networking`, `security`, `endpoints`, `kms`, `notifications`, `iam`, `observability`, `rds`, `lambda`, `budget`, `storage`, `secrets`, `events`, `dynamodb`, `ssm`, `frontend` |
 | **Capas Terraform** | `live`, `modules`, `terraform` |
 | **Generales** | `ci`, `deps`, `docs`, `governance`, `scripts`, `repo` |
 

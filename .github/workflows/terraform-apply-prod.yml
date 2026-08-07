@@ -8,7 +8,55 @@
 # GH Environment `production`: con required reviewers `@spark-match/devops`,
 # auto-approve=false. Requiere aprobacion humana en la GH Environment.
 #
-# IAM role: `spark-match-terraform-apply-prod` (write, scope prod).
+# `prevent_self_review` esta en `false` A PROPOSITO, no por descuido. El
+# equipo devops tiene dos miembros y en la practica solo uno despliega; con
+# self-review prohibido cada despliegue a produccion quedaria esperando a la
+# otra persona. Ya ocurrio: un run se quedo 3 dias en `waiting` y detras se
+# encadenaron 14 runs cancelandose entre si por concurrencia. La puerta es
+# una pausa deliberada, no una revision cruzada. Queda escrito para que nadie
+# lea "required reviewers: devops" y asuma cuatro ojos.
+#
+# EL ROLE ARN VA COMO INPUT LITERAL, NO POR EL BLOQUE `secrets:`
+#
+# Este workflow mapeaba `AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN_PROD }}`
+# y ese secret NO EXISTE en ningun nivel: el repositorio no tiene ni un solo
+# secret de Actions, tampoco esta en los environments ni en la organizacion.
+# La expresion resolvia a cadena vacia y `configure-aws-credentials` se
+# quedaba sin rol que asumir. Resultado medido: 20 ejecuciones en toda la
+# historia de este workflow, ninguna con exito.
+#
+# El secret que SI existe se llama `AWS_APPLY_ROLE_ARN` (sin sufijo) y vive
+# con scope de environment en `production`. Desde aqui no sirve: el bloque
+# `secrets:` del caller se evalua SIN environment, porque quien enlaza el
+# environment es el job del reusable
+# (`environment: ${{ inputs.gh-environment || inputs.environment-name || inputs.environment }}`),
+# no este job. Es la misma trampa que tenia plan-prod, documentada en
+# terraform-plan-prod.yml: un valor con scope de environment es invisible en
+# el `with:`/`secrets:` de quien llama.
+#
+# El reusable ya ofrece la salida buena y la marca como preferida:
+#
+#   role-to-assume: ${{ inputs.apply-role-arn != '' && inputs.apply-role-arn
+#                       || secrets.AWS_APPLY_ROLE_ARN }}
+#
+# `apply-role-arn` es un input de tipo string: se evalua sin depender del
+# environment y no puede quedarse vacio por sombreado. Un ARN es un
+# identificador, no una credencial (ADR-0002), y el account ID ya aparece en
+# 15 ficheros de este repositorio.
+#
+# Se quita ademas `apply-role-arn-secret`, que el propio reusable declara
+# como DEPRECATED y dice ignorar.
+#
+# Lo que este cambio NO arregla: `live/prod` no se ha aplicado nunca (el
+# bucket de estado esta vacio), asi que el primer apply no sera un despliegue
+# sino la creacion de produccion entera desde cero. Revisar el plan antes.
+#
+# IAM role: `spark-match-terraform-apply-prod` (write, scope prod). Sus
+# managed policies (`spark-match-tf-apply-compute-prod` y
+# `-refresh-prod`) se crearon el 2026-08-06 con
+# `python bootstrap/apply-bootstrap-policies.py prod --apply`; antes el rol
+# existia pero sin ninguna policy adjunta, o sea sin permisos para crear nada.
+# Esas policies NO las gestiona Terraform a proposito: ver bootstrap/README.md.
 # Naming: el repo usa `prod` consistentemente (var.environment, IAM role,
 # S3 bucket, working dir). La GH Environment real se llama `production`
 # (alias legacy). El input `gh-environment` permite mapear el nombre
@@ -45,7 +93,9 @@ jobs:
       gh-environment: production
       working-directory: ${{ vars.WORKING_DIRECTORY_PREFIX }}/prod
       aws-region: ${{ vars.AWS_REGION }}
-      apply-role-arn: ${{ vars.AWS_APPLY_ROLE_ARN }}
+      # Literal a proposito. Ver la nota de cabecera antes de convertirlo en
+      # `vars.` o en un secret: con scope de environment no se resuelve aqui.
+      apply-role-arn: arn:aws:iam::681526276858:role/spark-match-terraform-apply-prod
       terraform-version: ${{ vars.TF_VERSION }}
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate

@@ -116,31 +116,76 @@ git diff --stat origin/main origin/dev
 Si el diff NO esta vacio, significa que main perdio cambios de dev. NO
 avanzar hasta reconciliar (abrir PR de sync correctivo).
 
-### 5. Por que `git log` muestra divergencia aunque el contenido sea igual
+### 5. Fast-forward de `dev` a `main` (OBLIGATORIO, cierra el ciclo)
 
-El sync a `main` usa `git merge --squash origin/dev`. Esto crea UN commit
-en `main` que NO tiene como ancestros a los commits originales de `dev`.
-
-Consecuencia:
+Una vez verificado el paso 4, `dev` se pone en el MISMO commit que `main`:
 
 ```bash
-git log origin/main..origin/dev   # 30+ commits (esperado, no es bug)
-git log origin/dev..origin/main   # 0..1 commits (sync commit)
+git fetch origin
+git rev-parse origin/main^{tree} origin/dev^{tree}   # los dos hashes DEBEN coincidir
+gh pr list --base dev --state open                   # DEBE estar vacio
+
+# quitar refs/heads/dev del ruleset 18893016, empujar, y devolverlo
+git push --force origin <sha-de-main>:refs/heads/dev
 ```
 
-**Esto es esperado** y NO indica desactualizacion. La verificacion de
-sincronizacion real es el paso 4: `git diff --stat origin/main origin/dev`
-(espera vacio).
+Despues: `ahead: 0, behind: 0`.
+
+**Por que hace falta un paso explicito.** El sync usa `git merge --squash`,
+que crea en `main` UN commit nuevo sin los commits de `dev` como ancestros.
+Sin este paso las dos ramas nunca comparten SHA, y la cuenta de divergencia
+crece indefinidamente: el 2026-08-07 marcaba `109 ahead, 33 behind` con el
+contenido identico. Un numero que solo sube y nunca significa nada acaba
+ignorandose, y con el se ignora el dia que si signifique algo.
+
+Con el fast-forward la cuenta pasa a medir algo util -- **cuanto hay en dev
+sin promover a produccion**:
+
+| Momento | ahead / behind |
+|---|---|
+| Recien sincronizado | 0 / 0 |
+| Tras 3 PRs a dev | 3 / 0 |
+| Tras el siguiente sync | 0 / 0 |
+
+**Tres avisos, los tres medidos el 2026-08-07.**
+
+1. El `push` va con el SHA literal de `main`, no con un nombre de rama. Si
+   algo se moviera entre la verificacion y el empujon, empujas lo que
+   revisaste y no otra cosa.
+
+2. **Verificar los dos hashes de arbol ANTES.** Es lo que convierte esto en
+   una operacion sin riesgo: si coinciden, ningun fichero cambia en ningun
+   sitio y no hay trabajo que perder. Si NO coinciden, el paso 4 fallo y
+   este empujon destruiria cambios. No continuar.
+
+3. El push dispara `terraform-apply-dev`, y `commitlint` puede fallar. La
+   primera vez fallo linteando dos commits del 13 de julio que llevaban
+   meses en `main`: al reescribir `dev`, GitHub reporto el push con un rango
+   que incluia historia que dev no tenia. A partir del segundo ciclo solo
+   lintea el commit de promocion.
+
+El ruleset hay que tocarlo porque `non_fast_forward` bloquea el empujon y el
+bypass de `OrganizationAdmin` esta en modo `pull_request`, o sea que NO
+cubre pushes directos. Guardar el ruleset antes (`gh api ... > backup.json`)
+y devolverlo INMEDIATAMENTE despues; la ventana en que `dev` queda sin
+proteccion debe durar segundos.
 
 ### Anti-patterns
 
 - **Sincronizar main <- dev con `git merge --no-ff`**: deja un merge commit
-  con dos parents, complica la lectura del historial. Use siempre
-  `--squash` para sync PRs.
-- **Sincronizar dev <- main (`git merge origin/main` en dev)**: rompe el
-  flujo canonico. Solo valido en emergencias operativas documentadas.
-- **Asumir que `git log` divergente = desactualizacion**: falso. Validar
-  siempre con `git diff --stat`.
+  con dos parents y choca con `required_linear_history` del ruleset. Use
+  siempre `--squash` para sync PRs.
+- **Hacer el fast-forward ANTES de que el PR de sync este mergeado**: pone
+  `dev` en un `main` que todavia no tiene los cambios, o sea que los borra
+  de dev. El orden es 3 -> 4 -> 5, sin excepciones.
+- **Dejar el ruleset abierto "para el siguiente sync"**: la ventana sin
+  proteccion se abre y se cierra en la misma sesion. Si el paso 5 se
+  interrumpe, lo primero es restaurar el ruleset, no reintentar el push.
+- **Asumir que `git log` divergente = desactualizacion**: sigue siendo
+  falso. La verificacion de contenido es `git diff --stat`, y `check-sync.yml`
+  compara contenido justamente por eso. Lo que cambia desde 2026-08-07 es
+  que ahora la divergencia TAMPOCO deberia existir, asi que si la ves fuera
+  del hueco entre PRs, algo se salto el paso 5.
 
 ### Workflow automatizado (futuro)
 

@@ -75,16 +75,16 @@ variable "price_class" {
   }
 }
 
-variable "min_protocol_version" {
-  description = "Minimum TLS protocol version para viewers de CloudFront."
-  type        = string
-  default     = "TLSv1.2_2021"
-
-  validation {
-    condition     = contains(["TLSv1.2_2018", "TLSv1.2_2019", "TLSv1.2_2021", "TLSv1.3_2025"], var.min_protocol_version)
-    error_message = "min_protocol_version invalido. Valores permitidos: TLSv1.2_2018, TLSv1.2_2019, TLSv1.2_2021, TLSv1.3_2025."
-  }
-}
+# Aqui habia `min_protocol_version`. Se elimina porque su unico consumidor,
+# el bloque `viewer_certificate` de aws_cloudfront_distribution.frontend, ya
+# no la usa: con el certificado por defecto de CloudFront el valor es inerte
+# y solo producia deriva permanente. La nota completa esta junto a ese bloque
+# en main.tf. Se quita en vez de dejarla huerfana porque .tflint.hcl tiene
+# activo `terraform_unused_declarations`.
+#
+# Cuando llegue el dominio custom, esta variable vuelve junto con
+# `acm_certificate_arn` y `ssl_support_method`, que es cuando el valor pasa a
+# significar algo.
 
 variable "enable_kms_encryption" {
   description = "Si cifrar el bucket frontend con SSE-KMS usando la CMK del proyecto (module.kms). false por default (AES256)."

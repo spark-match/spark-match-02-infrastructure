@@ -261,7 +261,7 @@ variable "log_retention_days" {
 }
 
 variable "kms_key_arn" {
-  description = "ARN de la CMK del proyecto para cifrar el log group del servicio y permitir al execution role descifrar las capas de la imagen ECR. Si null, el log group usa el cifrado default de CloudWatch Logs."
+  description = "ARN de la CMK del proyecto para cifrar el log group del servicio y permitir al execution role descifrar las capas de la imagen ECR. Si null, el log group usa el cifrado default de CloudWatch Logs. Para condicionar recursos a que exista, usa enable_kms_encryption: este valor suele venir de module.kms y no se conoce hasta el apply."
   type        = string
   default     = null
 
@@ -269,6 +269,32 @@ variable "kms_key_arn" {
     condition     = var.kms_key_arn == null || can(regex("^arn:aws[a-z]*:kms:", var.kms_key_arn))
     error_message = "kms_key_arn debe ser null o un ARN valido de KMS."
   }
+}
+
+# Existe porque `count` no puede depender de un valor computado.
+#
+# Los recursos que dan permiso sobre la CMK usaban
+# `count = var.kms_key_arn == null ? 0 : 1`. Los callers pasan
+# `kms_key_arn = module.kms.kms_key_arn`, que es un atributo de otro modulo,
+# asi que terraform no sabe si es null hasta despues del apply y aborta:
+#
+#     Error: Invalid count argument
+#     The "count" value depends on resource attributes that cannot be
+#     determined until apply
+#
+# En `dev` nunca se vio porque la CMK ya existia en el state y el valor si era
+# conocido al planificar. Aparecio el 2026-08-07 en el primer `plan-prod` que
+# llego a ejecutarse, sobre un ambiente vacio -- el escenario en el que ningun
+# atributo se conoce todavia.
+#
+# Este flag es un booleano plano que sale de tfvars, o sea conocido siempre.
+# Va en `false` por defecto para no cambiar el comportamiento de un caller que
+# no lo declare y no pase CMK; los dos ambientes de este repo lo ponen en true
+# junto al `kms_key_arn`.
+variable "enable_kms_encryption" {
+  description = "Si crear los permisos del execution role sobre la CMK del proyecto. Debe ir en true exactamente cuando se pasa kms_key_arn. Es un input aparte, y no una comprobacion sobre kms_key_arn, porque ese valor viene de otro modulo y no se conoce en tiempo de plan."
+  type        = bool
+  default     = false
 }
 
 variable "enable_container_insights" {

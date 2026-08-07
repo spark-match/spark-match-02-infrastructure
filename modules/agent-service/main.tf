@@ -399,8 +399,13 @@ resource "aws_iam_role_policy_attachment" "execution_managed" {
 # Descifrado de la CMK: necesario para bajar las capas de la imagen si el
 # repositorio ECR esta cifrado con KMS, y para escribir en el log group
 # cifrado con la misma key.
+#
+# El count va sobre `enable_kms_encryption` y NO sobre `kms_key_arn == null`.
+# Ese ARN viene de module.kms, o sea que es un atributo computado, y terraform
+# no puede resolver un count que dependa de algo que no conoce hasta el apply.
+# Ver la nota junto a la variable en variables.tf.
 data "aws_iam_policy_document" "execution_kms" {
-  count = var.kms_key_arn == null ? 0 : 1
+  count = var.enable_kms_encryption ? 1 : 0
 
   statement {
     sid    = "DecryptProjectCMK"
@@ -415,7 +420,7 @@ data "aws_iam_policy_document" "execution_kms" {
 }
 
 resource "aws_iam_role_policy" "execution_kms" {
-  count = var.kms_key_arn == null ? 0 : 1
+  count = var.enable_kms_encryption ? 1 : 0
 
   name   = "${var.project_name}-agentcore-exec-kms-${var.environment}"
   role   = aws_iam_role.execution.id

@@ -347,10 +347,10 @@ module "ssm_bootstrap" {
 
   # Derivado del output de CloudFront, no de una variable. Antes esto era
   # `var.cors_allowed_origins`, cuyo valor en terraform.tfvars era un
-  # placeholder invalido con un TODO de "reemplazar por el dominio real antes
-  # del primer apply". Ese TODO no se podia cumplir: el dominio ES el de la
-  # distribucion CloudFront, que no existe hasta que se aplique este mismo
-  # fichero. Huevo y gallina.
+  # placeholder invalido con una marca de pendiente que pedia reemplazarlo por
+  # el dominio real antes del primer apply. Ese pendiente no se podia cumplir:
+  # el dominio ES el de la distribucion CloudFront, que no existe hasta que se
+  # aplique este mismo fichero. Huevo y gallina.
   #
   # module "agent_service" (mas abajo) ya lo hacia bien; solo este se habia
   # quedado con el placeholder, y de aqui pasaba al parametro SSM

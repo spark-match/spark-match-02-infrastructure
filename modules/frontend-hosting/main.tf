@@ -106,6 +106,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   # checkov:skip=CKV_AWS_68:WAF no esta en el scope actual. Plan: AWS WAF WebACL compartido por todas las distribuciones del proyecto en una sesion dedicada (costo ~$5/mes + $1/mes por regla).
   # checkov:skip=CKV2_AWS_32:response headers policy no configurada en esta fase (defer). El comportamiento por default de CloudFront ya sirve HTML estatico de forma segura.
   # checkov:skip=CKV2_AWS_42:custom SSL certificate requiere dominio custom (sin aliases en esta fase, defer). Se usa cloudfront_default_certificate=true (*.cloudfront.net) hasta que se asigne un dominio custom.
+  # checkov:skip=CKV_AWS_174:esta distribucion ACEPTA TLSv1 y no hay forma de evitarlo aqui. Con cloudfront_default_certificate AWS fuerza el minimo a TLSv1 e ignora minimum_protocol_version; solo un certificado ACM propio (o sea, un dominio custom: mismo bloqueo que CKV2_AWS_42) lo cambia. Este skip aparece el 2026-08-07 al QUITAR `minimum_protocol_version = "TLSv1.2_2021"` del viewer_certificate. Antes checkov pasaba, pero pasaba por lo que el codigo DECIA, no por lo que AWS aplicaba: get-distribution-config devolvia TLSv1 mientras el modulo declaraba TLSv1.2_2021. Este skip es la version honesta de aquel verde.
   # checkov:skip=CKV2_AWS_47:WAFv2 con regla AMR para Log4j -- depende de WAF (mismo defer que CKV_AWS_68).
   enabled             = true
   is_ipv6_enabled     = true
@@ -159,7 +160,29 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   viewer_certificate {
     cloudfront_default_certificate = true
-    minimum_protocol_version       = var.min_protocol_version
+
+    # SIN `minimum_protocol_version`, y no es un olvido.
+    #
+    # Con el certificado por defecto de CloudFront (*.cloudfront.net) AWS
+    # FUERZA el minimo a TLSv1 e ignora en silencio lo que se le pida. El
+    # campo solo surte efecto con un certificado ACM propio, que a su vez
+    # exige un dominio custom -- el mismo motivo por el que este recurso ya
+    # lleva el skip de CKV2_AWS_42 unas lineas mas arriba.
+    #
+    # Aqui decia `minimum_protocol_version = "TLSv1.2_2021"`, y el efecto
+    # medido el 2026-08-07 fue este: cada `terraform apply` mostraba el
+    # cambio TLSv1 -> TLSv1.2_2021, decia "Modifications complete after 31s",
+    # y despues `get-distribution-config` seguia devolviendo TLSv1. O sea que
+    # la deriva era permanente: ningun plan de este repo podia salir limpio,
+    # y un plan que siempre trae ruido ensena a no leerlo -- justo lo que no
+    # quieres cuando el plan es la ultima defensa antes de tocar produccion.
+    #
+    # Al omitirlo, Terraform acepta el valor que AWS reporte y deja de haber
+    # diferencia. Lo que NO cambia es la realidad: estas distribuciones
+    # aceptan TLSv1. Eso no lo arregla ninguna linea de HCL, solo un dominio
+    # propio con su certificado ACM. Cuando llegue, hay que anadir aqui
+    # `acm_certificate_arn`, `ssl_support_method = "sni-only"` y entonces si
+    # `minimum_protocol_version`.
   }
 
   restrictions {

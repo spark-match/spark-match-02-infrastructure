@@ -129,11 +129,13 @@ variable "cloudfront_origin_read_timeout" {
   }
 }
 
-variable "min_protocol_version" {
-  description = "TLS minimo de la distribucion del agente. OJO: CloudFront lo IGNORA mientras se use cloudfront_default_certificate (fuerza TLSv1); solo aplica con certificado ACM propio. Se declara para que el dia que llegue el dominio quede en el valor correcto sin tocar el modulo."
-  type        = string
-  default     = "TLSv1.2_2021"
-}
+# Aqui habia `min_protocol_version`. Su descripcion ya avisaba de que
+# CloudFront lo ignora mientras se use el certificado por defecto, y aun asi
+# se declaraba "para que el dia que llegue el dominio quede en el valor
+# correcto sin tocar el modulo". El precio de esa comodidad, medido el
+# 2026-08-07, era que todos los apply del repo arrastraban un cambio fantasma
+# que se aplicaba sin surtir efecto. Se elimina; vuelve el dia que haya
+# certificado ACM, junto con `acm_certificate_arn` y `ssl_support_method`.
 
 variable "alb_ingress_cidr_blocks" {
   description = "CIDRs autorizados a alcanzar el ALB en el puerto 80. Default 0.0.0.0/0 porque el agente se consume desde el navegador (frontend en CloudFront) sin IP fija. La autorizacion real la hace el JWT que valida /ag-ui, no la red."

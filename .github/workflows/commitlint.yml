@@ -20,3 +20,44 @@ jobs:
       config-file: .commitlintrc.json
       help-url: "https://github.com/spark-match/spark-match-02-infrastructure/blob/dev/AGENTS.md"
       skip-release-please: true
+
+  # El job de arriba lintea los COMMITS de la rama. Este lintea el TITULO del
+  # pull request, que con squash-only es lo que de verdad acaba en dev o main:
+  # al mergear con squash, GitHub usa el titulo del PR como asunto del commit.
+  #
+  # Sin esto, un titulo invalido pasa el check del PR -- que mira los commits
+  # de la rama, no el titulo -- y falla despues, en el push, cuando ya no hay
+  # nada que hacer porque la rama esta protegida contra force-push. Paso el
+  # 2026-08-07 con "fix(bootstrap): ...": `bootstrap` no esta en la lista de
+  # scopes, el commit de la rama se habia corregido a `fix(iam)`, y el squash
+  # dejo el subject malo en dev para siempre.
+  #
+  # El manifiesto de governance de 01-devops ya documentaba esta trampa el
+  # 2026-08-04 y proponia validar el titulo a mano antes de mergear. Esto la
+  # automatiza.
+  lint-pr-title:
+    name: lint-pr-title
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: checkout
+        uses: actions/checkout@v7
+
+      - name: setup-node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: install-commitlint
+        run: npm install --no-save --no-audit --no-fund @commitlint/cli @commitlint/config-conventional
+
+      - name: lint-pr-title
+        # El titulo va por `env` y NO interpolado en el script: es texto que
+        # escribe quien abre el PR, o sea entrada no confiable, y un `${{ }}`
+        # dentro de un `run:` se sustituye antes de que bash lo vea.
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          echo "Titulo: ${PR_TITLE}"
+          printf '%s\n' "${PR_TITLE}" | npx commitlint --config .commitlintrc.json

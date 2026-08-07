@@ -28,14 +28,12 @@
 
 name: continuous-integration-terraform-security-scan
 
+# Sin `paths:` a proposito: este workflow publica los 14 contextos
+# `checkov-*`, todos requeridos, y un check requerido que no se publica
+# bloquea el pull request para siempre. Ver la nota larga en ci.yml.
 on:
   pull_request:
     branches: [main, dev]
-    paths:
-      - "**.tf"
-      - "**.tfvars"
-      - ".github/workflows/**"
-      - ".pre-commit-config.yaml"
   workflow_dispatch:
 
 permissions:

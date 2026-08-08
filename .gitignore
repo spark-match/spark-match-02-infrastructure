@@ -37,5 +37,15 @@ Thumbs.db
 # Pre-commit cache
 .cache/
 
+# Bytecode de bootstrap/apply-bootstrap-policies.py
+__pycache__/
+*.pyc
+
+# Respaldos de trust policies que escribe bootstrap/apply-bootstrap-policies.py.
+# Son estado de una maquina concreta en un momento concreto, no fuente de
+# verdad: la fuente esta en bootstrap/trust/. Se quedan fuera del repo para que
+# nadie los confunda con lo versionado ni los aplique por error.
+backups/
+
 # Terragrunt cache (si se usa en el futuro)
 .terragrunt-cache/

@@ -109,3 +109,24 @@ frontend_force_destroy = true
 # 30 en dev: rotacion rapida de los CloudFront access logs.
 frontend_access_logs_retention_days         = 30
 frontend_noncurrent_version_expiration_days = 30
+
+###############################################################################
+# Deep agent (modules/agent-service)
+###############################################################################
+
+# El VALOR de la key NO esta aqui ni en el tfstate: este es solo el nombre del
+# secret, y Terraform resuelve su ARN con un data source. El secret hay que
+# crearlo antes de aplicar esto o el plan falla. Procedimiento completo en
+# docs/runbook-tavily.md.
+#
+# Mientras estuvo en null, `web_search` caia siempre a DuckDuckGo. Medido en
+# los logs de dev el 2026-08-08, esa caida no es benigna:
+#
+#   Tavily search failed (ValueError), falling back to DuckDuckGo:
+#     TAVILY_API_KEY not configured
+#   Web search completed via DuckDuckGo (fallback): 0 results
+#
+# Cero resultados, no peores resultados. O sea que cualquier pregunta que
+# dependa de informacion actual (fechas de Beca 18, admisiones) no se podia
+# responder.
+agent_tavily_secret_name = "spark-match-dev-tavily-api-key"

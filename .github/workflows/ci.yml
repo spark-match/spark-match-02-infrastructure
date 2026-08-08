@@ -91,10 +91,34 @@ jobs:
       fail-on-quality-gate: ${{ vars.SONAR_FAIL_ON_QUALITY_GATE }}
 
   # ---------------------------------------------------------------------------
-  # Job 5: Bats (regression guards for .commitlintrc.json + the
-  # local commit-msg hook). Runs only when files under .commitlintrc.json,
-  # .pre-commit-hooks/, tests/bats/ change. Mirrors the convention in
-  # spark-match-01-devops (one bats job per consumer repo).
+  # Job 5: actionlint. Este repositorio tiene once workflows y hasta hoy
+  # (2026-08-07) ninguno pasaba por un linter, mientras 03-backend, 04-frontend
+  # y 08-deep-agent si lo hacian. La asimetria dolia mas justo aqui: los
+  # workflows de este repo son los que asumen los roles de IAM y aplican
+  # Terraform sobre produccion.
+  #
+  # Al anadirlo, actionlint 1.7.12 pasaba limpio sobre los once, asi que este
+  # job no arregla nada hoy. Lo que hace es que el proximo fallo se vea en el
+  # pull request y no en un `apply` a medio camino.
+  #
+  # NO es un check requerido todavia: para eso hay que anadir el contexto
+  # `actionlint-ci` al ruleset, que es un cambio aparte.
+  # ---------------------------------------------------------------------------
+  actionlint:
+    name: actionlint
+    uses: spark-match/spark-match-01-devops/.github/workflows/reusable-actionlint.yml@main
+    with:
+      environment-name: ci
+
+  # ---------------------------------------------------------------------------
+  # Job 6: Bats (regression guards for .commitlintrc.json + the local
+  # commit-msg hook). Mirrors the convention in spark-match-01-devops (one bats
+  # job per consumer repo).
+  #
+  # La cabecera decia "Runs only when files under .commitlintrc.json,
+  # .pre-commit-hooks/, tests/bats/ change". Era falso desde que se quitaron los
+  # `paths:` de este workflow, por el motivo que explica la nota de arriba del
+  # todo. Corre siempre, y es lo que queremos.
   # ---------------------------------------------------------------------------
   quality-bats:
     name: quality / bats

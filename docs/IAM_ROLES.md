@@ -80,8 +80,6 @@ token emitido para otro env, **no puedan** asumir el role.
     "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
     "StringLike": {
       "token.actions.githubusercontent.com:sub": [
-        "repo:spark-match/spark-match-03-backend:ref:refs/heads/dev",
-        "repo:spark-match/spark-match-03-backend:ref:refs/heads/main",
         "repo:spark-match/spark-match-03-backend:environment:${var.environment}"
       ]
     }
@@ -144,8 +142,6 @@ Resumen por servicio:
     "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
     "StringLike": {
       "token.actions.githubusercontent.com:sub": [
-        "repo:spark-match/spark-match-08-deep-agent:ref:refs/heads/dev",
-        "repo:spark-match/spark-match-08-deep-agent:ref:refs/heads/main",
         "repo:spark-match/spark-match-08-deep-agent:environment:${var.environment}"
       ]
     }
@@ -369,44 +365,59 @@ module "security" {
   (`-dev`, `-prod`) y su trust policy SOLO acepta tokens emitidos para ESE
   ambiente. Imposible confundir deploys entre envs.
 
-## Decision documentada: por que el trust policy incluye `ref:refs/heads/*` ademas de `environment:*`
+## REVERTIDO: los subs `ref:refs/heads/*` de sam-deploy y bedrock-deploy
 
-Ref: IMPROVEMENTS.md [SEC-04]
+Ref: IMPROVEMENTS.md [SEC-04]. Revisado el 2026-08-08.
 
-Los trust policies de `spark-match-sam-deploy-{env}` y
-`spark-match-bedrock-agentcore-deploy-{env}` aceptan 3 tipos de `sub` claim:
+Esta seccion registraba la decision de MANTENER tres tipos de `sub` en los
+trust policies de `spark-match-sam-deploy-{env}` y
+`spark-match-bedrock-agentcore-deploy-{env}`:
 
 1. `repo:<repo>:ref:refs/heads/dev`
 2. `repo:<repo>:ref:refs/heads/main`
 3. `repo:<repo>:environment:${environment}`
 
-**Por que NO removemos los patterns `ref:refs/heads/*` y dejamos solo `environment:*`:**
+**La justificacion no aplicaba a estos dos roles.** Decia, literalmente, que
+quitar los patrones por rama rompería el `terraform plan` en PRs, porque ese
+job no se asocia a ningun GH Environment y su token solo lleva
+`ref:refs/heads/<branch>`.
 
-El workflow `terraform-plan-dev.yml` (caller de `02-infrastructure`) corre en
-`pull_request` contra `dev` o `main`. Ese job NO se asocia a un GH Environment,
-por lo que el token OIDC emitido por GitHub Actions **no contiene** el claim
-`environment:`. Solo contiene `ref:refs/heads/<branch>` y `pull_request`.
+Eso es cierto, y por eso los roles `spark-match-terraform-{plan,apply}-{env}`
+**siguen conservando sus patrones por rama**. Pero `terraform-plan-dev.yml`
+no asume ninguno de los dos roles de los que hablaba esta seccion: usa
+`plan-role-arn: ${{ vars.AWS_PLAN_ROLE_ARN }}`, y esa variable vale
+`arn:aws:iam::681526276858:role/spark-match-terraform-plan-dev`. Los roles de
+plan/apply ni siquiera se declaran en Terraform: viven en `bootstrap/`.
 
-Si removemos los patterns `ref:refs/heads/*`, el `terraform plan` en PRs
-no podria asumir el role de plan, y el CI se romperia (no se podria validar
-un PR antes de mergear).
+Dicho de otro modo: se argumentaba a favor de una laxitud en los roles A y B
+citando una necesidad del rol C.
 
-**Trade-off aceptado:**
+**Lo que esa laxitud costaba.** Los workflows de deploy se atan a un GitHub
+Environment, y ese Environment lleva la branch policy -- `production` solo
+admite `main`. Con los subs por rama, la puerta se rodeaba entera: cualquier
+workflow corriendo en `dev` o en `main` SIN declarar environment obtenia un
+token valido. En prod eso significaba que un workflow en la rama `dev`
+--incluido uno anadido por un PR-- podia asumir el rol de deploy de
+PRODUCCION, y con el desplegar, invocar la Lambda migradora de prod o borrar
+el stack. Las mitigaciones que se citaban (`non_fast_forward`,
+`required_linear_history`, CODEOWNERS) protegen la historia de git; ninguna
+impide que un workflow legitimo de la rama `dev` pida ese token.
 
-- (+) El plan en PRs funciona sin requerir un environment explicito.
-- (-) Un token emitido por un push directo a `dev` o `main` (sin pasar por
-  un environment) puede asumir el role. Esto en la practica esta mitigado
-  por el ruleset del repo: `non_fast_forward` y `required_linear_history`
-  bloquean force-pushes, y el CODE OWNER de devops es requerido para aprobar
-  cualquier PR contra `dev` o `main`.
+**Estado actual:** los dos roles aceptan UNICAMENTE
+`repo:<repo>:environment:${github_environment_name}`. No rompe a ningun
+caller, y no es una suposicion: todos bindean environment a nivel de job, que
+es lo que hace que GitHub emita ese sub.
 
-**Alternativa futura:** si el equipo decide endurecer mas, se podria crear
-un GH Environment "plan-dev" y "plan-prod" sin required reviewers, y mover
-el caller `terraform-plan-dev.yml` para usar `environment: plan-dev` en el job
-`plan-dev`. Esto permitiria remover los patterns `ref:refs/heads/*`. Pero
-es un cambio de workflow que requiere decision explicita del equipo.
+| rol | caller | donde bindea |
+|---|---|---|
+| `sam-deploy-{env}` | `03-backend/.github/workflows/deploy.yml` | linea 84 |
+| `bedrock-agentcore-deploy-{env}` | `08-deep-agent` via reusables de `01-devops` | `reusable-container-deploy-ecr.yml:137`, `reusable-ecs-deploy.yml:119` |
 
-**Conclusion:** mantenemos los 3 patterns. La decision queda registrada en
-este documento (trazabilidad) y en el codigo de
-`modules/security/main.tf` (comentario sobre los `sam_deploy_sub_patterns`
-y `bedrock_deploy_sub_patterns`).
+Si algun dia un caller necesita desplegar sin GitHub Environment, la respuesta
+no es devolver estos patrones: es darle un Environment.
+
+**Correccion de trazabilidad:** esta seccion decia que el comentario del codigo
+vivia en `modules/security/main.tf`. Nunca estuvo ahi. Los locals
+`sam_deploy_sub_patterns` y `bedrock_deploy_sub_patterns` estan en
+`modules/oidc-github/main.tf`, que es el unico fichero del repo que los
+menciona.

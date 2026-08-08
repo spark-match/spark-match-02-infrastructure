@@ -197,12 +197,11 @@ NO esta vacio. Notifica via Slack o abre issue automatica.
 
 > **Regla operacional** (vigente desde 2026-08-04): este repo adoptó el
 > 2026-07-31 una terminología unificada "Sprint N" (para branches, tasks,
-> labels y doc headers) y un sistema de task files en
-> `tasks/infra/pending/sprint-N/`. Ambas convenciones se **revirtieron 4
-> días después** por no aportar valor operacional frente al ritmo real de
-> trabajo. PRs y commits ya mergeados que mencionan "Sprint N" NO se
-> reescriben (son historia inmutable); solo el trabajo nuevo sigue la
-> convención vigente.
+> labels y doc headers) y un sistema de task files por sprint. Ambas
+> convenciones se **revirtieron 4 días después** por no aportar valor
+> operacional frente al ritmo real de trabajo. PRs y commits ya mergeados
+> que mencionan "Sprint N" NO se reescriben (son historia inmutable); solo
+> el trabajo nuevo sigue la convención vigente.
 
 **Convención vigente:**
 
@@ -214,7 +213,7 @@ NO esta vacio. Notifica via Slack o abre issue automatica.
   trabajo de otro agente/equipo (ej: `01-devops` para un reusable workflow,
   `03-backend` para wiring de un output) se comunica **directamente en la
   conversación/chat** con el responsable. NO se crea un archivo markdown de
-  task en `tasks/infra/` para trackear el pedido.
+  task para trackear el pedido.
 - **PR labels y doc headers**: descriptivos por tema (`iac`, `governance`,
   `security`, etc.), sin número de sprint ni código de fase.
 

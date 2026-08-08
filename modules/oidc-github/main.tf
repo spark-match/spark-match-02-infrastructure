@@ -32,18 +32,42 @@ locals {
   # github_environment_name existe porque el GH Environment real de prod se
   # llama "production" (no "prod") mientras que `environment` nombra los
   # recursos AWS como "prod" -- ver variables.tf.
+  # SOLO el sub de environment. Los dos `ref:refs/heads/{dev,main}` que habia
+  # aca hacian que la proteccion del entorno fuese decorativa.
+  #
+  # El diseno es este: los workflows de deploy se atan a un GitHub Environment
+  # (`environment:` a nivel de job), y ese Environment lleva la branch policy
+  # -- `production` solo admite main. Con los subs por rama, esa puerta se
+  # podia rodear entera: cualquier workflow corriendo en dev o en main, SIN
+  # declarar environment, obtenia un token cuyo sub encajaba igual. En prod eso
+  # significaba que un workflow en la rama dev -- incluido uno anadido por un
+  # PR -- podia asumir el rol de deploy de PRODUCCION y con el desplegar,
+  # invocar la Lambda migradora o borrar el stack.
+  #
+  # La cabecera de 03-backend/.github/workflows/deploy.yml presumia de que
+  # `environment:production` es "el mas estricto de los tres matchers
+  # aceptados". Cierto, y ese era justo el problema: los otros dos se seguian
+  # aceptando, asi que el estricto no restringia nada.
+  #
+  # Quitarlos no rompe a nadie, y no es una suposicion: TODOS los consumidores
+  # bindean environment a nivel de job, que es lo que hace que GitHub emita
+  # `repo:O/R:environment:NAME` en el sub.
+  #   - sam_deploy      -> 03-backend/.github/workflows/deploy.yml:84
+  #   - bedrock_deploy  -> 08-deep-agent llama a reusables de 01-devops que
+  #                        bindean: reusable-container-deploy-ecr.yml:137 y
+  #                        reusable-ecs-deploy.yml:119, ambos
+  #                        `environment: ${inputs.environment-name}`.
+  #
+  # Si algun dia un caller necesita desplegar sin GitHub Environment, la
+  # respuesta NO es devolver estos patrones: es darle un Environment.
   sam_deploy_sub_patterns = flatten([
     for repo in var.sam_deploy_github_repos : [
-      "repo:${repo}:ref:refs/heads/dev",
-      "repo:${repo}:ref:refs/heads/main",
       "repo:${repo}:environment:${coalesce(var.github_environment_name, var.environment)}",
     ]
   ])
 
   bedrock_deploy_sub_patterns = flatten([
     for repo in var.bedrock_deploy_github_repos : [
-      "repo:${repo}:ref:refs/heads/dev",
-      "repo:${repo}:ref:refs/heads/main",
       "repo:${repo}:environment:${coalesce(var.github_environment_name, var.environment)}",
     ]
   ])

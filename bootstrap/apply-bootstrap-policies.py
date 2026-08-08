@@ -30,6 +30,9 @@ except ImportError:  # pragma: no cover - guia al usuario, no es logica de negoc
 
 ACCOUNT = "681526276858"
 POLICIES_DIR = Path(__file__).parent / "policies"
+TRUST_DIR = Path(__file__).parent / "trust"
+BACKUP_DIR = Path(__file__).parent.parent / "backups" / "trust"
+SUB_CLAIM = "token.actions.githubusercontent.com:sub"
 # Limite duro de AWS para el documento de una managed policy.
 MAX_MANAGED_POLICY_BYTES = 6144
 
@@ -63,6 +66,104 @@ def render(stem: str, env: str) -> dict:
     """Lee el JSON e interpola ${environment}, igual que templatefile() de Terraform."""
     raw = (POLICIES_DIR / f"{stem}.json").read_text(encoding="utf-8")
     return json.loads(raw.replace("${environment}", env))
+
+
+def trust_documents(env: str) -> dict[str, dict]:
+    """Devuelve {nombre-de-rol: documento} para las trust policies de este env.
+
+    Una por rol y sin plantillas a proposito. Los cuatro roles NO comparten
+    forma: `plan-dev` necesita ademas `:pull_request`, porque su caller pasa el
+    environment vacio en pull requests, y los de prod no lo necesitan en
+    absoluto. Un fichero por rol hace que esa diferencia se lea, en vez de
+    esconderse en un condicional. Ver bootstrap/trust/README.md.
+    """
+    documents = {}
+    for path in sorted(TRUST_DIR.glob(f"*-{env}.json")):
+        documents[path.stem] = json.loads(path.read_text(encoding="utf-8"))
+    return documents
+
+
+def _subs(document: dict) -> list[str]:
+    """Los `sub` de una trust policy, siempre como lista.
+
+    AWS devuelve el claim como string cuando el valor es uno solo y como lista
+    cuando son varios. Sin normalizar, un `set(...)` sobre el string itera
+    caracteres, y `len(...)` cuenta caracteres.
+    """
+    value = document["Statement"][0]["Condition"]["StringLike"][SUB_CLAIM]
+    return [value] if isinstance(value, str) else list(value)
+
+
+def _canonical(document: dict) -> str:
+    """Forma comparable de una trust policy.
+
+    Misma asimetria string/lista que arriba: sin aplanarla, el documento que
+    mandamos y el que AWS devuelve salen distintos aunque digan lo mismo.
+    """
+    document = json.loads(json.dumps(document))
+    for statement in document.get("Statement", []):
+        condition = statement.get("Condition", {}).get("StringLike", {})
+        if isinstance(condition.get(SUB_CLAIM), str):
+            condition[SUB_CLAIM] = [condition[SUB_CLAIM]]
+    return json.dumps(document, sort_keys=True)
+
+
+def _write_backup(current: dict, backup_dir: Path, role: str) -> Path:
+    """Guarda la policy vigente SIN pisar un respaldo anterior.
+
+    El nombre sin sufijo se escribe una sola vez, y es el que de verdad
+    querrias recuperar: el estado anterior a la primera ejecucion. Las
+    siguientes llevan sufijo incremental.
+
+    Pisarlo fue un fallo real. El 2026-08-07 el script corrio dos veces sobre
+    los mismos roles y el segundo respaldo -- ya con la policy nueva -- tapo al
+    original. El fichero seguia ahi y el script seguia imprimiendo "respaldo en
+    ...", asi que la marcha atras parecia cubierta cuando ya no lo estaba. Es
+    la misma forma que el resto de fallos en abierto de este proyecto: la senal
+    de que algo esta protegido sobrevive a la proteccion.
+    """
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup = backup_dir / f"{role}.json"
+    serial = 1
+    while backup.exists():
+        backup = backup_dir / f"{role}.{serial}.json"
+        serial += 1
+    backup.write_text(json.dumps(current, indent=2), encoding="utf-8")
+    return backup
+
+
+def update_trust(iam, role: str, doc: dict, backup_dir: Path) -> None:
+    """Reemplaza la trust policy del rol, guardando antes la actual.
+
+    `update_assume_role_policy` no es un merge: sustituye el documento entero.
+    Por eso el respaldo va ANTES y, si falla, no se escribe nada -- mismo
+    contrato que el reconciliador de rulesets en 01-devops.
+
+    Si lo vigente ya coincide con lo versionado no se toca nada: ni respaldo ni
+    llamada a IAM. Volver a correr el script sobre un rol ya reconciliado es
+    entonces un no-op de verdad, y no una escritura que ademas se lleva por
+    delante el respaldo util.
+    """
+    current = iam.get_role(RoleName=role)["Role"]["AssumeRolePolicyDocument"]
+
+    if _canonical(current) == _canonical(doc):
+        print("  sin cambios   lo vigente ya es lo versionado")
+        return
+
+    backup = _write_backup(current, backup_dir, role)
+    before = _subs(current)
+    after = _subs(doc)
+    print(f"  respaldo en   {backup}")
+    print(f"  sub claims    {len(before)} -> {len(after)}")
+    for gone in sorted(set(before) - set(after)):
+        print(f"    quita  {gone}")
+    for added in sorted(set(after) - set(before)):
+        print(f"    anade  {added}")
+
+    iam.update_assume_role_policy(
+        RoleName=role, PolicyDocument=json.dumps(doc, separators=(",", ":"))
+    )
+    print(f"  actualizada   {role}")
 
 
 def upsert(iam, name: str, doc: dict, role: str, description: str) -> None:
@@ -111,6 +212,13 @@ def main() -> int:
             print(f"    {statement['Sid']:35s} {effect:6s} {len(actions):3d} acciones")
     print()
 
+    trust = trust_documents(env)
+    for role, doc in trust.items():
+        print(f"--- trust de {role}")
+        for sub in _subs(doc):
+            print(f"    {sub}")
+    print()
+
     if not args.apply:
         print("DRY-RUN: no se aplico nada. Volve a correr con --apply.")
         return 0
@@ -124,9 +232,23 @@ def main() -> int:
         print(f"{stem}-{env}:")
         upsert(iam, f"{stem}-{env}", doc, role, description.format(env=env))
 
+    # Las trust policies van DESPUES de los permisos. Si algo falla a mitad, el
+    # rol se queda con permisos nuevos y confianza vieja, que es inocuo: sigue
+    # asumiendose igual. Al reves -- confianza nueva y permisos viejos -- el
+    # despliegue arranca y muere a medio apply.
+    for role, doc in trust.items():
+        print(f"{role} (trust):")
+        update_trust(iam, role, doc, BACKUP_DIR)
+
     print("\nListo. Verifica con:")
-    for role in sorted(roles):
+    for role in sorted(roles | set(trust)):
         print(f"  aws iam list-attached-role-policies --role-name {role} --profile {args.profile}")
+    print("\nY las trust policies con:")
+    for role in sorted(trust):
+        print(
+            f"  aws iam get-role --role-name {role} --profile {args.profile} "
+            f"--query 'Role.AssumeRolePolicyDocument.Statement[0].Condition.StringLike'"
+        )
     return 0
 
 

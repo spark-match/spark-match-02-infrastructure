@@ -121,6 +121,15 @@
         "arn:aws:s3:::spark-match-rag-documents-${environment}",
         "arn:aws:s3:::spark-match-rag-documents-${environment}/*"
       ]
+    },
+    {
+      "Sid": "S3OrientationReportsRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion"
+      ],
+      "Resource": "arn:aws:s3:::spark-match-reports-${environment}/reports/*"
     }
   ]
 }

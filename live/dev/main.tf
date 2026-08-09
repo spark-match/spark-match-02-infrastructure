@@ -514,6 +514,11 @@ module "agent_service" {
   # Manager (docs/runbook-tavily.md); aqui solo viaja el nombre.
   tavily_secret_name = var.agent_tavily_secret_name
 
+  # Idem para LangSmith (docs/runbook-langsmith.md). El nombre del proyecto no
+  # se pasa: el modulo lo calcula como spark-match-agent-dev, que es la
+  # convencion de un proyecto por ambiente.
+  langsmith_secret_name = var.agent_langsmith_secret_name
+
   # false en dev: permite `terraform destroy` mientras se itera.
   enable_deletion_protection = var.agent_enable_deletion_protection
 }

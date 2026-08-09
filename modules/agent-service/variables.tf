@@ -225,6 +225,18 @@ variable "tavily_secret_name" {
   default     = null
 }
 
+variable "langsmith_secret_name" {
+  description = "Nombre del secret de Secrets Manager con la API key de LangSmith, como string plano. Igual que tavily_secret_name, el VALOR se crea fuera de Terraform (ver docs/runbook-langsmith.md) y aqui solo se resuelve el ARN para inyectarlo como SPARK_LANGSMITH_API_KEY. En null el agente arranca sin tracing y SPARK_LANGSMITH_TRACING queda en false."
+  type        = string
+  default     = null
+}
+
+variable "langsmith_project" {
+  description = "Nombre del proyecto en LangSmith al que van las trazas (SPARK_LANGSMITH_PROJECT). En null se calcula como {project_name}-agent-{environment}, que es la convencion: un proyecto por ambiente para no mezclar las trazas de dev con las locales."
+  type        = string
+  default     = null
+}
+
 variable "max_web_searches_per_session" {
   description = "Limite de busquedas web por sesion (SPARK_MAX_WEB_SEARCHES_PER_SESSION). OJO: 0 NO desactiva la herramienta, desactiva el LIMITE -- src/tools/web_search/handler.py trata cap <= 0 como ilimitado. La descripcion anterior afirmaba lo contrario y dejo a dev con busquedas sin tope."
   type        = number

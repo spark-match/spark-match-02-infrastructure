@@ -58,6 +58,11 @@ locals {
   db_secret_ssm_param  = coalesce(var.db_secret_ssm_param, "${local.ssm_prefix}/db-secret-arn")
   jwt_secret_ssm_param = coalesce(var.jwt_secret_ssm_param, "${local.ssm_prefix}/jwt-secret-arn")
 
+  # Un proyecto de LangSmith por ambiente. Mezclar las trazas de dev con las
+  # del portatil de alguien es justo lo que estorba cuando algo falla en uno
+  # y no en el otro. Ver docs/runbook-langsmith.md.
+  langsmith_project = coalesce(var.langsmith_project, "${var.project_name}-agent-${var.environment}")
+
   base_environment_variables = {
     SPARK_ENVIRONMENT                  = var.environment
     SPARK_AWS_REGION                   = var.aws_region
@@ -69,6 +74,11 @@ locals {
     SPARK_LOG_LEVEL                    = var.log_level
     SPARK_API_PORT                     = tostring(var.container_port)
     SPARK_API_HOST                     = "0.0.0.0"
+    # Atado al secret y no a un flag suelto: sin key, configure_langsmith()
+    # avisa por WARNING en cada arranque y no manda nada. Un "true" sin key
+    # solo ensucia los logs prometiendo trazas que no existen.
+    SPARK_LANGSMITH_TRACING = tostring(var.langsmith_secret_name != null)
+    SPARK_LANGSMITH_PROJECT = local.langsmith_project
   }
 
   environment_variables = merge(local.base_environment_variables, var.extra_environment_variables)
@@ -77,12 +87,24 @@ locals {
   # arrancar la task y lo inyecta como env var en el contenedor. Asi la key
   # no aparece en `describe-task-definition`, que es lectura publica para
   # cualquiera con acceso al cluster.
-  container_secrets = var.tavily_secret_name == null ? [] : [
-    {
-      name      = "SPARK_TAVILY_API_KEY"
-      valueFrom = data.aws_secretsmanager_secret.tavily[0].arn
-    }
-  ]
+  container_secrets = concat(
+    var.tavily_secret_name == null ? [] : [
+      {
+        name      = "SPARK_TAVILY_API_KEY"
+        valueFrom = data.aws_secretsmanager_secret.tavily[0].arn
+      }
+    ],
+    var.langsmith_secret_name == null ? [] : [
+      {
+        name      = "SPARK_LANGSMITH_API_KEY"
+        valueFrom = data.aws_secretsmanager_secret.langsmith[0].arn
+      }
+    ],
+  )
+
+  # Se evalua sobre las variables, no sobre `container_secrets`, para que el
+  # `count` de la policy sea conocido en plan y no despues del apply.
+  has_container_secrets = var.tavily_secret_name != null || var.langsmith_secret_name != null
 }
 
 data "aws_caller_identity" "current" {}
@@ -104,6 +126,15 @@ data "aws_secretsmanager_secret" "tavily" {
   count = var.tavily_secret_name == null ? 0 : 1
 
   name = var.tavily_secret_name
+}
+
+# Misma historia que Tavily: el valor lo emite un tercero (LangSmith) y lo
+# pone un humano, aqui solo viaja el ARN. Con langsmith_secret_name = null el
+# ambiente arranca sin tracing y SPARK_LANGSMITH_TRACING queda en "false".
+data "aws_secretsmanager_secret" "langsmith" {
+  count = var.langsmith_secret_name == null ? 0 : 1
+
+  name = var.langsmith_secret_name
 }
 
 ###############################################################################
@@ -439,19 +470,24 @@ resource "aws_iam_role_policy" "execution_kms" {
 # (`aws/secretsmanager`, el default al crearlo), su key policy ya permite el
 # descifrado a quien tenga GetSecretValue. Y si se crea con la CMK del
 # proyecto, execution_kms de arriba ya da kms:Decrypt sobre ella.
+#
+# El count se decide sobre las VARIABLES y no sobre los ARN resueltos: los
+# ARN salen de data sources con count, y hacer depender un count de ellos es
+# lo que provoca el "count value depends on resource attributes that cannot
+# be determined until apply".
 data "aws_iam_policy_document" "execution_secrets" {
-  count = var.tavily_secret_name == null ? 0 : 1
+  count = local.has_container_secrets ? 1 : 0
 
   statement {
-    sid       = "ReadTavilyApiKey"
+    sid       = "ReadAgentApiKeys"
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [data.aws_secretsmanager_secret.tavily[0].arn]
+    resources = local.container_secrets[*].valueFrom
   }
 }
 
 resource "aws_iam_role_policy" "execution_secrets" {
-  count = var.tavily_secret_name == null ? 0 : 1
+  count = local.has_container_secrets ? 1 : 0
 
   name   = "${var.project_name}-agentcore-exec-secrets-${var.environment}"
   role   = aws_iam_role.execution.id

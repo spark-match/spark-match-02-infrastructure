@@ -130,3 +130,16 @@ frontend_noncurrent_version_expiration_days = 30
 # dependa de informacion actual (fechas de Beca 18, admisiones) no se podia
 # responder.
 agent_tavily_secret_name = "spark-match-dev-tavily-api-key"
+
+# API key de LangSmith. Mismo trato que la de arriba: aqui solo va el nombre,
+# el valor se crea a mano y Terraform lo lee por ARN. Ver
+# docs/runbook-langsmith.md.
+#
+# Con esto puesto, el modulo pone SPARK_LANGSMITH_TRACING=true y manda las
+# trazas al proyecto spark-match-agent-dev. Un proyecto por ambiente: las
+# trazas locales van a spark-match-agent-local y no se mezclan con estas.
+#
+# OJO con lo que se manda: una traza lleva la conversacion entera, incluida la
+# que escribe el estudiante. Si eso deja de ser aceptable, basta con volver
+# esta linea a null -- el agente sigue levantando igual, sin tracing.
+agent_langsmith_secret_name = "spark-match-dev-langsmith-api-key"

@@ -1,8 +1,9 @@
 ###############################################################################
 # Module: ssm-bootstrap
 #
-# Los 8 parametros SSM que forman el contrato cross-repo con
-# spark-match-03-backend (ver docs/adr/0002-cross-repo-config-contract-ssm-secrets.md).
+# Los 11 parametros SSM que forman el contrato cross-repo con
+# spark-match-03-backend (ver docs/adr/0002-cross-repo-config-contract-ssm-secrets.md)
+# y, desde el ADR-019 de ese mismo repo, con spark-match-08-deep-agent.
 # Este modulo NO calcula nada: recibe los valores ya resueltos (ARNs, nombre
 # de tabla, IDs de red, etc.) como variables, que el caller (live/{env}/main.tf)
 # pasa desde los outputs de modules/rds-postgres, modules/secrets-bootstrap,
@@ -95,6 +96,44 @@ resource "aws_ssm_parameter" "private_subnet_ids" {
   name  = "${local.prefix}/private-subnet-ids"
   type  = "String"
   value = join(",", var.private_subnet_ids)
+  tags  = local.common_tags
+}
+
+###############################################################################
+# Informes de orientacion (ADR-019 de spark-match-03-backend)
+#
+# Tres parametros que consumen el backend y el agente. Los dos ultimos son
+# numeros que se ajustan en caliente a proposito: cambiar cuantos informes
+# puede pedir un estudiante al dia, o cuanto perfil hace falta para generarle
+# uno, no deberia exigir un redespliegue. Quien los lea debe cachearlos en
+# proceso (el agente ya sigue ese patron con jwt_secret_cache_seconds) en vez
+# de pegarle a SSM en cada request.
+###############################################################################
+
+resource "aws_ssm_parameter" "reports_bucket" {
+  # checkov:skip=CKV_AWS_337:valor es el nombre de un bucket, no un secreto.
+  # checkov:skip=CKV2_AWS_34:mismo razonamiento que CKV_AWS_337 -- un nombre de bucket no necesita SecureString/KMS.
+  name  = "${local.prefix}/reports-bucket"
+  type  = "String"
+  value = var.reports_bucket_name
+  tags  = local.common_tags
+}
+
+resource "aws_ssm_parameter" "reports_max_per_user_per_day" {
+  # checkov:skip=CKV_AWS_337:valor es un numero de configuracion, no un secreto.
+  # checkov:skip=CKV2_AWS_34:mismo razonamiento que CKV_AWS_337.
+  name  = "${local.prefix}/reports-max-per-user-per-day"
+  type  = "String"
+  value = tostring(var.reports_max_per_user_per_day)
+  tags  = local.common_tags
+}
+
+resource "aws_ssm_parameter" "reports_min_profile_completeness" {
+  # checkov:skip=CKV_AWS_337:valor es un umbral de configuracion, no un secreto.
+  # checkov:skip=CKV2_AWS_34:mismo razonamiento que CKV_AWS_337.
+  name  = "${local.prefix}/reports-min-profile-completeness"
+  type  = "String"
+  value = tostring(var.reports_min_profile_completeness)
   tags  = local.common_tags
 }
 

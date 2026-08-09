@@ -332,6 +332,34 @@ module "rds_postgres" {
 # misma cuenta AWS.
 ###############################################################################
 
+###############################################################################
+# Module: reports_storage
+###############################################################################
+# Bucket privado donde viven los informes de orientacion (ADR-019 de
+# spark-match-03-backend). El agente sube el JSON y el PDF; el backend guarda
+# en su BD solo bucket + key + version_id y sirve el contenido por su API.
+#
+# Sin CloudFront a proposito: contenido privado que lee una sola persona, nada
+# que cachear, y ponerlo delante obligaria a signed URLs con su key pair y su
+# rotacion. No confundir con module.frontend_hosting, que si lleva CloudFront
+# porque sirve un sitio estatico publico.
+#
+# Aqui el contenido son perfiles vocacionales de estudiantes reales, asi que
+# force_destroy va en false sin discusion.
+###############################################################################
+
+module "reports_storage" {
+  source = "../../modules/reports-storage"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn   = module.kms.kms_key_arn
+  force_destroy = false
+
+  access_logs_retention_days = var.reports_access_logs_retention_days
+}
+
 module "ssm_bootstrap" {
   source = "../../modules/ssm-bootstrap"
 
@@ -365,6 +393,12 @@ module "ssm_bootstrap" {
   # VpcConfig para las Lambdas del backend (ADR 0002 seccion 5).
   private_subnet_ids       = module.networking.private_subnet_ids
   lambda_security_group_id = module.security_groups.sg_lambda_id
+
+  # Informes de orientacion (ADR-019). Los dos numeros se publican en SSM para
+  # poder ajustarlos sin redesplegar ni el backend ni el agente.
+  reports_bucket_name              = module.reports_storage.bucket_name
+  reports_max_per_user_per_day     = var.reports_max_per_user_per_day
+  reports_min_profile_completeness = var.reports_min_profile_completeness
 
   kms_key_arn = module.kms.kms_key_arn
 }

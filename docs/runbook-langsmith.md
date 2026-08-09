@@ -102,6 +102,54 @@ aws ecs update-service --cluster spark-match-dev --service spark-match-agent-dev
   --profile spark-match-admin --region us-east-1
 ```
 
+### "La revision mas nueva" puede no ser la de Terraform
+
+El `N` de arriba viene de pedir la revision mas alta de la familia. Eso alcanza
+solo si nadie mas registro una revision despues del `apply`. No es el caso si
+un push a `dev` de **spark-match-08-deep-agent** cae cerca en el tiempo:
+`deploy.yml` de ese repo corre en CUALQUIER push a `dev`, sin filtrar por que
+cambio, y su `roll ecs` lee "la task definition actual" como base para
+patchear solo la imagen.
+
+Medido el 2026-08-09: un PR de infra (esta feature, revision 18 con el
+secreto) y un PR de agente sin cambio de imagen (solo docs y un test) se
+mergearon con 23 segundos de diferencia. `deploy.yml` leyo la base UN SEGUNDO
+antes de que este `apply` terminara, registro su propia revision 19 a partir
+de esa base vieja -- sin el secreto de LangSmith -- y movio el servicio ahi.
+Encima de la revision buena, no en su lugar: la 18 con el secreto sigue
+existiendo intacta, solo que el servicio ya no apunta a ella.
+
+Nada de lo obvio lo delata. `rolloutState: COMPLETED` y el contenedor
+`HEALTHY` son ciertos en la revision 19 tambien -- el contenedor arranca bien
+sin LangSmith, solo que sin mandar trazas. Y re-correr `terraform apply` NO
+arregla nada: Terraform no ve drift (su recurso, la revision 18, sigue
+existiendo tal cual la creo) y `aws_ecs_service` tiene
+`ignore_changes = [task_definition]` a proposito, asi que el plan sale limpio
+y el `apply` se salta por no haber cambios.
+
+Como detectarlo, en vez de confiar en el numero mas alto:
+
+```bash
+# La task definition que el servicio corre AHORA MISMO, no la ultima de la
+# familia -- pueden ser distintas.
+aws ecs describe-services --cluster spark-match-dev --services spark-match-agent-dev \
+  --query 'services[0].deployments[?status==`PRIMARY`].taskDefinition' --output text \
+  --profile spark-match-admin --region us-east-1
+
+# Trae el secreto de LangSmith esa revision?
+aws ecs describe-task-definition --task-definition spark-match-agent-dev:N \
+  --query 'taskDefinition.containerDefinitions[0].secrets[?name==`SPARK_LANGSMITH_API_KEY`]' \
+  --profile spark-match-admin --region us-east-1
+```
+
+Si sale vacio, buscar hacia atras (`:N-1`, `:N-2`, ...) la revision que si lo
+tenga -- normalmente la que el propio `apply` acaba de crear -- y apuntar el
+servicio ahi a mano, igual que en la seccion anterior pero con el numero
+verificado, no el mas alto.
+
+La prueba de fuego no es el estado del servicio, es el log de arranque (ver
+"Verificar" mas abajo): `ENABLED` contra `disabled` no deja lugar a dudas.
+
 ## Verificar
 
 Que la task definition trae las dos piezas:

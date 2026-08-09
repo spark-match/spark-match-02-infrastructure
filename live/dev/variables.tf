@@ -252,6 +252,15 @@ variable "agent_tavily_secret_name" {
   default     = null
 }
 
+# Mismo trato que el de Tavily: crear el secret A MANO antes de setear esto.
+# El procedimiento esta en docs/runbook-langsmith.md. En null el agente
+# levanta igual, solo que sin mandar trazas.
+variable "agent_langsmith_secret_name" {
+  description = "Nombre del secret de Secrets Manager con la API key de LangSmith (p.ej. spark-match-dev-langsmith-api-key). null = sin tracing."
+  type        = string
+  default     = null
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

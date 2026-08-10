@@ -376,3 +376,29 @@ variable "jwt_secret_ssm_param" {
   type        = string
   default     = null
 }
+
+variable "reports_bucket_ssm_param" {
+  description = "Path del parametro SSM con el nombre del bucket de informes. Sin esto el agente usa su default, que lleva 'dev' escrito dentro y en prod apuntaria al parametro equivocado."
+  type        = string
+  default     = null
+}
+
+variable "backend_api_url" {
+  description = <<-EOT
+    URL base de la API de informes de spark-match-03-backend, sin barra final.
+    El agente la necesita para registrar y cerrar cada informe que emite
+    (ADR-019, enmienda de D4).
+
+    Va como valor literal y NO se lee de SSM, al contrario que el bucket, y el
+    motivo es la direccion de la dependencia: esa API la crea el stack de SAM
+    de 03-backend, no Terraform. Para publicarla en SSM tendria que hacerlo el
+    backend al desplegar, y eso invierte el contrato de ADR-0002 -- que dice
+    que Terraform publica y los demas leen.
+
+    En null la herramienta de informes del agente falla diciendolo y el resto
+    del agente funciona igual. Es lo correcto mientras un ambiente no tenga
+    todavia desplegado el contexto de informes.
+  EOT
+  type        = string
+  default     = null
+}

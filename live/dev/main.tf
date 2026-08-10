@@ -531,6 +531,13 @@ module "agent_service" {
   task_memory   = var.agent_task_memory
   desired_count = var.agent_desired_count
 
+  # Donde registrar los informes que emite (ADR-019). El id de la API es
+  # literal a proposito: la crea el stack de SAM de 03-backend, asi que
+  # Terraform no la conoce y no puede derivarla. Sobrevive a los updates del
+  # stack; solo cambia si alguien borra y recrea el contexto de informes, y
+  # entonces hay que actualizarlo aqui.
+  backend_api_url = var.reports_api_url
+
   # Origenes que el agente acepta: el dominio CloudFront de dev + el dev
   # server de Angular para poder probar el chat en local contra el agente real.
   cors_allowed_origins = jsonencode([

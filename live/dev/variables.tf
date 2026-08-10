@@ -283,6 +283,22 @@ variable "reports_access_logs_retention_days" {
   default     = 365
 }
 
+variable "reports_api_url" {
+  description = <<-EOT
+    URL base de la API de informes de 03-backend. El agente la necesita para
+    registrar y cerrar cada informe que emite.
+
+    Es un valor literal y no un output de otro modulo porque esa API la crea
+    el stack de SAM de 03-backend, no Terraform. Se saca del output
+    `ReportsHttpApiUrl` de `spark-match-backend-dev`, o de la consola.
+
+    En null el agente sigue funcionando y la emision de informes falla
+    diciendo que no esta configurada.
+  EOT
+  type        = string
+  default     = "https://gv0e33t224.execute-api.us-east-1.amazonaws.com/dev"
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

@@ -272,6 +272,23 @@ variable "reports_access_logs_retention_days" {
   default     = 365
 }
 
+variable "reports_api_url" {
+  description = <<-EOT
+    URL base de la API de informes de 03-backend. El agente la necesita para
+    registrar y cerrar cada informe que emite.
+
+    Es un valor literal y no un output de otro modulo porque esa API la crea
+    el stack de SAM de 03-backend, no Terraform. Se saca del output
+    `ReportsHttpApiUrl` del stack del backend.
+
+    En prod va en null todavia: solo esta desplegado el contexto `identity`,
+    asi que no hay API de informes a la que apuntar. El agente funciona igual
+    y solo la emision de informes avisa de que falta.
+  EOT
+  type        = string
+  default     = null
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

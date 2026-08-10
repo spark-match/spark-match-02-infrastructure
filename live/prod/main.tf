@@ -518,6 +518,12 @@ module "agent_service" {
   task_memory   = var.agent_task_memory
   desired_count = var.agent_desired_count
 
+  # Sin valor todavia: en prod solo esta desplegado el contexto `identity`
+  # del backend, asi que no existe una API de informes a la que registrar.
+  # Cuando se despliegue, su URL va aqui igual que en dev. Mientras tanto el
+  # agente funciona y solo la emision de informes avisa de que falta.
+  backend_api_url = var.reports_api_url
+
   # Solo el dominio CloudFront de prod (sin localhost, a diferencia de dev).
   cors_allowed_origins = jsonencode([
     "https://${module.frontend_hosting.frontend_distribution_domain_name}",

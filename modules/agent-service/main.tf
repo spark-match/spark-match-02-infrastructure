@@ -57,6 +57,9 @@ locals {
   # Se dejan como variables para poder apuntar a otro ambiente en pruebas.
   db_secret_ssm_param  = coalesce(var.db_secret_ssm_param, "${local.ssm_prefix}/db-secret-arn")
   jwt_secret_ssm_param = coalesce(var.jwt_secret_ssm_param, "${local.ssm_prefix}/jwt-secret-arn")
+  reports_bucket_ssm_param = coalesce(
+    var.reports_bucket_ssm_param, "${local.ssm_prefix}/reports-bucket"
+  )
 
   # Un proyecto de LangSmith por ambiente. Mezclar las trazas de dev con las
   # del portatil de alguien es justo lo que estorba cuando algo falla en uno
@@ -64,11 +67,16 @@ locals {
   langsmith_project = coalesce(var.langsmith_project, "${var.project_name}-agent-${var.environment}")
 
   base_environment_variables = {
-    SPARK_ENVIRONMENT                  = var.environment
-    SPARK_AWS_REGION                   = var.aws_region
-    SPARK_PERSISTENCE_BACKEND          = "postgres"
-    SPARK_DB_SECRET_SSM_PARAM          = local.db_secret_ssm_param
-    SPARK_JWT_SECRET_SSM_PARAM         = local.jwt_secret_ssm_param
+    SPARK_ENVIRONMENT          = var.environment
+    SPARK_AWS_REGION           = var.aws_region
+    SPARK_PERSISTENCE_BACKEND  = "postgres"
+    SPARK_DB_SECRET_SSM_PARAM  = local.db_secret_ssm_param
+    SPARK_JWT_SECRET_SSM_PARAM = local.jwt_secret_ssm_param
+    # Faltaba desde la fase 3 del ADR-019. El default del agente es
+    # `/spark-match/dev/config/reports-bucket`, con el ambiente escrito
+    # dentro: en prod habria buscado el parametro de dev, que ahi no existe, y
+    # la subida del informe habria fallado solo en prod.
+    SPARK_REPORTS_BUCKET_SSM_PARAM     = local.reports_bucket_ssm_param
     SPARK_CORS_ORIGINS                 = var.cors_allowed_origins
     SPARK_MAX_WEB_SEARCHES_PER_SESSION = tostring(var.max_web_searches_per_session)
     SPARK_LOG_LEVEL                    = var.log_level
@@ -81,7 +89,20 @@ locals {
     SPARK_LANGSMITH_PROJECT = local.langsmith_project
   }
 
-  environment_variables = merge(local.base_environment_variables, var.extra_environment_variables)
+  # `SPARK_BACKEND_API_URL` va aparte y no en el mapa base porque puede no
+  # existir: la task definition serializa cada entrada como {name, value}, y un
+  # `value = null` ahi es un error de la API de ECS. Un ambiente sin el
+  # contexto de informes desplegado no tiene URL que dar, y la ausencia de la
+  # variable es exactamente lo que el agente sabe interpretar.
+  backend_api_url_environment = (
+    var.backend_api_url == null ? {} : { SPARK_BACKEND_API_URL = var.backend_api_url }
+  )
+
+  environment_variables = merge(
+    local.base_environment_variables,
+    local.backend_api_url_environment,
+    var.extra_environment_variables,
+  )
 
   # `secrets` en vez de `environment`: el agente de ECS resuelve el valor al
   # arrancar la task y lo inyecta como env var en el contenedor. Asi la key

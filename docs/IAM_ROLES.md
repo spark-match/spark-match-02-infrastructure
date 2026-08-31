@@ -127,7 +127,7 @@ Resumen por servicio:
 
 ### `spark-match-bedrock-agentcore-deploy-{dev|prod}`
 
-> **Asumido por:** GitHub Actions en `spark-match/spark-match-08-deep-agent`
+> **Asumido por:** GitHub Actions en `spark-match/spark-match-07-deep-agent`
 > cuando corre `docker build + push` a ECR y `agentcore deploy`. Misma lógica
 > de sufijo por env que `sam-deploy`.
 
@@ -142,7 +142,7 @@ Resumen por servicio:
     "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
     "StringLike": {
       "token.actions.githubusercontent.com:sub": [
-        "repo:spark-match/spark-match-08-deep-agent:environment:${var.environment}"
+        "repo:spark-match/spark-match-07-deep-agent:environment:${var.environment}"
       ]
     }
   }
@@ -242,7 +242,7 @@ module "security" {
   ]
 
   bedrock_deploy_github_repos = [
-    "spark-match/spark-match-08-deep-agent",
+    "spark-match/spark-match-07-deep-agent",
   ]
 
   # KMS: 7 dias dev, 30 prod

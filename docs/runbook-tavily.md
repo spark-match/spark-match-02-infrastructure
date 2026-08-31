@@ -125,7 +125,7 @@ aws ecs update-service --cluster spark-match-dev \
 El `.env` local usa `SPARK_TAVILY_API_KEY` (prefijo `SPARK_`, igual que el
 resto de settings). Un `.env` con `TAVILY_API_KEY` a secas **no lo lee nadie** y
 el agente cae a DuckDuckGo sin avisar. Ver `.env.example` en
-spark-match-08-deep-agent.
+spark-match-07-deep-agent.
 
 ## Presupuesto de busquedas
 

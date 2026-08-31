@@ -1,7 +1,7 @@
 ###############################################################################
 # Module: ecr
 #
-# Repositorio ECR donde spark-match-08-deep-agent publica la imagen del agente
+# Repositorio ECR donde spark-match-07-deep-agent publica la imagen del agente
 # (ARM64 / Graviton, ver el Dockerfile de ese repo: ambas etapas usan
 # `--platform=linux/arm64`). El consumidor es modules/agent-service, que corre
 # la imagen en ECS Fargate.

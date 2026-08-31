@@ -45,7 +45,7 @@ variable "sam_deploy_github_repos" {
 variable "bedrock_deploy_github_repos" {
   description = "Repos GitHub permitidos en el trust policy de spark-match-bedrock-agentcore-deploy."
   type        = list(string)
-  default     = ["spark-match/spark-match-08-deep-agent"]
+  default     = ["spark-match/spark-match-07-deep-agent"]
 
   validation {
     condition     = length(var.bedrock_deploy_github_repos) > 0

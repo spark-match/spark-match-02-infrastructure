@@ -12,7 +12,7 @@
         "logs:DescribeLogStreams"
       ],
       "Resource": [
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-identity-*-${environment}",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-*-${environment}",
         "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/${environment}/*:*"
       ]
     },
@@ -121,6 +121,15 @@
         "arn:aws:s3:::spark-match-rag-documents-${environment}",
         "arn:aws:s3:::spark-match-rag-documents-${environment}/*"
       ]
+    },
+    {
+      "Sid": "S3OrientationReportsRead",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion"
+      ],
+      "Resource": "arn:aws:s3:::spark-match-reports-${environment}/reports/*"
     }
   ]
 }

@@ -127,6 +127,15 @@
         "arn:aws:s3:::spark-match-rag-documents-${environment}",
         "arn:aws:s3:::spark-match-rag-documents-${environment}/*"
       ]
+    },
+    {
+      "Sid": "S3OrientationReportsWrite",
+      "Effect": "Allow",
+      "Action": [
+        "s3:PutObject",
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::spark-match-reports-${environment}/reports/*"
     }
   ]
 }

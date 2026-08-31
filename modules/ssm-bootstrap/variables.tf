@@ -93,6 +93,33 @@ variable "private_subnet_ids" {
   }
 }
 
+variable "reports_bucket_name" {
+  description = "Nombre del bucket de informes de orientacion (output de modules/reports-storage). Se publica en SSM para que 03-backend y 08-deep-agent no lo hardcodeen."
+  type        = string
+}
+
+variable "reports_max_per_user_per_day" {
+  description = "Cuantos informes puede generar un mismo estudiante al dia. Cada generacion es una llamada al LLM mas un render de PDF, asi que es un tope de coste ademas de uno de abuso. Independiente del cap diario de peticiones al agente (SPARK_BUDGET_MAX_REQUESTS_PER_USER_PER_DAY): son unidades distintas y un informe cuesta mucho mas que un turno de chat."
+  type        = number
+  default     = 3
+
+  validation {
+    condition     = var.reports_max_per_user_per_day >= 1
+    error_message = "reports_max_per_user_per_day debe ser >= 1."
+  }
+}
+
+variable "reports_min_profile_completeness" {
+  description = "Completitud minima del StudentProfile para poder emitir un informe (0.0-1.0). El default 0.6 sale de como reparte puntos `StudentProfile.profile_completeness`: 12 en total, 9 campos mas hasta 3 intereses. Solo el RIASEC da 0.50, asi que 0.60 exige RIASEC mas dos campos de contexto. Es la puerta blanda del ADR-019 D8; la dura (tener las seis puntuaciones RIASEC) no es configurable porque sin ellas el motor no tiene entrada."
+  type        = number
+  default     = 0.6
+
+  validation {
+    condition     = var.reports_min_profile_completeness >= 0 && var.reports_min_profile_completeness <= 1
+    error_message = "reports_min_profile_completeness debe estar entre 0.0 y 1.0."
+  }
+}
+
 variable "lambda_security_group_id" {
   description = "ID del security group de Lambda (output de modules/security-groups). El backend lo necesita para el VpcConfig de sus Lambdas."
   type        = string

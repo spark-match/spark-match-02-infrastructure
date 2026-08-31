@@ -81,6 +81,7 @@ jobs:
           - modules/oidc-frontend
           - modules/ecr              # PR-I2: registry de la imagen del deep-agent
           - modules/agent-service    # PR-I2: ECS Fargate + ALB del deep-agent
+          - modules/reports-storage  # ADR-019: bucket privado de informes de orientacion
 
     steps:
       - name: checkout

@@ -250,6 +250,45 @@ variable "agent_enable_deletion_protection" {
   default     = true
 }
 
+###############################################################################
+# Informes de orientacion (ADR-019 de spark-match-03-backend)
+###############################################################################
+
+variable "reports_max_per_user_per_day" {
+  description = "Cuantos informes puede generar un mismo estudiante al dia. Cada generacion cuesta una llamada al LLM mas un render de PDF. Se publica en SSM para ajustarlo sin redesplegar."
+  type        = number
+  default     = 3
+}
+
+variable "reports_min_profile_completeness" {
+  description = "Completitud minima del perfil para poder emitir un informe (0.0-1.0). Puerta blanda del ADR-019 D8; la dura -- tener las seis puntuaciones RIASEC -- no es configurable."
+  type        = number
+  default     = 0.6
+}
+
+variable "reports_access_logs_retention_days" {
+  description = "Dias que se conservan los server access logs del bucket de informes. Son el registro de quien leyo que informe y cuando, sobre datos personales de menores."
+  type        = number
+  default     = 365
+}
+
+variable "reports_api_url" {
+  description = <<-EOT
+    URL base de la API de informes de 03-backend. El agente la necesita para
+    registrar y cerrar cada informe que emite.
+
+    Es un valor literal y no un output de otro modulo porque esa API la crea
+    el stack de SAM de 03-backend, no Terraform. Se saca del output
+    `ReportsHttpApiUrl` del stack del backend.
+
+    En prod va en null todavia: solo esta desplegado el contexto `identity`,
+    asi que no hay API de informes a la que apuntar. El agente funciona igual
+    y solo la emision de informes avisa de que falta.
+  EOT
+  type        = string
+  default     = null
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

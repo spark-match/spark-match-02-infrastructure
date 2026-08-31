@@ -18,13 +18,26 @@ Infraestructura AWS del proyecto **Spark Match** (Copiloto de Orientación Vocac
 
 ---
 
-## Estado actual (Fase 0 cerrada)
+## Estado actual
 
-Cuenta `681526276858`, región `us-east-1`. Estado validado contra AWS:
+Cuenta `681526276858`, región `us-east-1`. **Verificado el 31/08/2026.**
 
-- **Aplicado:** 2 buckets de state (`spark-match-tfstate-dev`, `spark-match-tfstate-prod`) con versionado + AES256 + PAB + lockfile nativo; OIDC provider de GitHub; **4 IAM roles OIDC** (`spark-match-terraform-{plan,apply}-{dev,prod}`) con trust policy estricto por env; 4 GH Secrets (`AWS_{PLAN,APPLY}_ROLE_ARN_{DEV,PROD}`).
-- **Aplicado (Fase 1):** módulos `security`, `networking`, `endpoints` escritos y validados con `terraform validate` (sin apply todavía).
-- **No aplicado:** cero recursos de Spark Match creados (VPC, secrets, RDS, bus, DDB, Lambda, ECR, CF stacks). Todo es greenfield.
+- **En código:** 17 módulos, compuestos en `live/dev` (17 módulos) y
+  `live/prod` (16). Cubren red, seguridad, base de datos, eventos, storage,
+  hosting del frontend, ECR, el servicio del agente y el bootstrap de
+  parámetros y secretos.
+- **Bootstrap aplicado:** 2 buckets de state con versionado, AES256, PAB y
+  lockfile nativo; OIDC provider de GitHub; 4 roles IAM
+  (`spark-match-terraform-{plan,apply}-{dev,prod}`) con trust policy estricto
+  por entorno.
+- **⚠️ La cuenta AWS está vacía.** El último `terraform plan` de `dev` reporta
+  `141 to add, 0 to change, 0 to destroy`: no queda ningún recurso desplegado.
+  Es consistente con un reset de la cuenta AWS Academy (ver ADR-003). El apply
+  falla además creando el primer recurso, porque el role
+  `spark-match-terraform-apply-dev` no tiene `sns:CreateTopic` — hay que
+  ampliar las políticas de `bootstrap/policies/` y volver a correr
+  `apply-bootstrap-policies.py` con credenciales de admin antes de que el
+  pipeline pueda reconstruir nada.
 
 ---
 
@@ -69,15 +82,23 @@ Merge a main branch
 ```
 spark-match-02-infrastructure/
 |-- modules/                      # Modulos reutilizables de Terraform
-|   |-- security/                 # (Fase 1) IAM base roles, KMS keys, security groups
-|   |-- networking/               # (Fase 1) VPC, subnets publicas/privadas, NAT
-|   |-- endpoints/                # (Fase 1) VPC interface endpoints (SSM, ECR, etc.)
-|   |-- database/                 # (Fase 2) RDS Aurora PostgreSQL Serverless v2 (vector store separado, ver ADR-008 superseded)
-|   |-- storage/                  # (Fase 2) S3 buckets definitivos
-|   |-- events/                   # (Fase 2) EventBridge bus + archive + DLQ
-|   |-- secrets/                  # (Fase 2) Secrets Manager (JWT, DB credentials)
-|   |-- monitoring/               # (Fase 2) CloudWatch + SNS
-|   |-- bedrock/                  # (Fase 4) IAM Bedrock + ECR repo del agente
+|   |-- networking/              # VPC, subnets publicas/privadas, NAT
+|   |-- security-groups/         # Security groups por servicio
+|   |-- kms/                     # Claves KMS del proyecto
+|   |-- endpoints/               # VPC interface endpoints (SSM, ECR, Secrets, ...)
+|   |-- rds-postgres/            # Instancia RDS PostgreSQL (aws_db_instance, no Aurora)
+|   |-- eventbridge-bus/         # Bus de eventos de dominio + archive + DLQ
+|   |-- dynamodb-idempotency/    # Tabla de idempotencia para los handlers Lambda
+|   |-- secrets-bootstrap/       # Secrets Manager (JWT, credenciales de BD)
+|   |-- ssm-bootstrap/           # Parametros SSM del contrato cross-repo (ADR-0002)
+|   |-- storage-sam-artifacts/   # Bucket de artefactos de SAM
+|   |-- reports-storage/         # Bucket privado de informes + logs de acceso
+|   |-- frontend-hosting/        # S3 + CloudFront para la SPA
+|   |-- ecr/                     # Registro de imagenes del agente
+|   |-- agent-service/           # ECS Fargate ARM64 + ALB del deep-agent
+|   |-- notifications/           # SNS + alertas de presupuesto
+|   |-- oidc-github/             # Roles OIDC de despliegue (SAM, agente)
+|   |-- oidc-frontend/           # Role OIDC del despliegue del frontend
 |-- live/
 |   |-- dev/                      # Instancia dev (Fase 0 cerrado)
 |   |   |-- main.tf
@@ -417,10 +438,10 @@ repo:spark-match/spark-match-02-infrastructure:environment:production
 |---|---|---|
 | **0** | Repo + `live/dev` y `live/prod` skeleton + reusable workflows + diseño de roles IAM + bootstrap de buckets | 🟢 Cerrada |
 | **1** | `modules/security` (IAM base, KMS, SG) + `modules/networking` (VPC, subnets, NAT) + `modules/endpoints` (VPC interface endpoints) | 🟢 Escritos, sin apply |
-| 1.5 | Componer `live/{dev,prod}/main.tf` con los 3 modulos + primer `terraform apply` | ⏳ Próxima |
-| 2 | `modules/database` (Aurora Serverless v2, sin pgvector) + `modules/storage` (S3) + `modules/events` (EventBridge) + `modules/secrets` + `modules/monitoring` | ⏳ |
+| 1.5 | Componer `live/{dev,prod}/main.tf` + primer `terraform apply` | 🟢 Cerrada |
+| 2 | `modules/rds-postgres` (instancia RDS, sin pgvector) + `modules/storage` (S3) + `modules/events` (EventBridge) + `modules/secrets` + `modules/monitoring` | ⏳ |
 | 3 | Deploy de `03-backend` via `sam-deploy.yml` (TF crea los SSM params que SAM consume) | ⏳ |
-| 4 | `modules/bedrock` + ECR + Dockerfile + `agentcore-deploy.yml` para `08-deep-agent` | ⏳ |
+| 4 | `modules/ecr` + `modules/agent-service` + Dockerfile + despliegue a ECS para `07-deep-agent` | 🟢 Cerrada |
 | 5 | Drift detection diario + Infracost en PRs + CODEOWNERS linter reusable | ⏳ |
 
 ---

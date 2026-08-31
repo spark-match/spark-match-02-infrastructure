@@ -78,9 +78,9 @@ module "networking" {
 # 4 IAM roles env-scoped (sufijo -prod), asumidos por GitHub Actions y AWS
 # services:
 #   - spark-match-sam-deploy-prod          (OIDC, spark-match-03-backend)
-#   - spark-match-bedrock-agentcore-deploy-prod (OIDC, spark-match-08-deep-agent)
+#   - spark-match-bedrock-agentcore-deploy-prod (OIDC, spark-match-07-deep-agent)
 #   - spark-match-lambda-runtime-prod      (Lambda service, spark-match-03-backend)
-#   - spark-match-agentcore-runtime-prod   (AgentCore service, spark-match-08-deep-agent)
+#   - spark-match-agentcore-runtime-prod   (AgentCore service, spark-match-07-deep-agent)
 #
 # El OIDC provider en si (`token.actions.githubusercontent.com`) es un
 # recurso DE CUENTA (unico, no per-environment) referenciado via data source
@@ -90,7 +90,7 @@ module "networking" {
 # Wire a GitHub:
 #   - spark-match-03-backend necesita `AWS_SAM_DEPLOY_ROLE_ARN_PROD` apuntando
 #     a module.oidc_github.sam_deploy_role_arn.
-#   - spark-match-08-deep-agent necesita `AWS_BEDROCK_DEPLOY_ROLE_ARN_PROD`
+#   - spark-match-07-deep-agent necesita `AWS_BEDROCK_DEPLOY_ROLE_ARN_PROD`
 #     apuntando a module.oidc_github.bedrock_deploy_role_arn.
 ###############################################################################
 
@@ -446,7 +446,7 @@ module "oidc_frontend" {
 # Repositorio `spark-match-agent-advisor-prod`. El nombre importa: cae dentro
 # del allowlist IAM `spark-match-agent-*-prod` de la policy
 # spark-match-bedrock-agentcore-deploy. El valor que hoy tiene configurado
-# spark-match-08-deep-agent (`spark-match-agent-advisor-production`) NO
+# spark-match-07-deep-agent (`spark-match-agent-advisor-production`) NO
 # matchea ese patron -- se corrige en el PR-DA2 de ese repo.
 ###############################################################################
 
@@ -469,7 +469,7 @@ module "ecr" {
 # Module: agent_service
 ###############################################################################
 # Cluster ECS + task definition Fargate ARM64 + servicio detras de un ALB
-# publico para spark-match-08-deep-agent.
+# publico para spark-match-07-deep-agent.
 #
 # Decision prod (a diferencia de dev): las tasks corren en las subnets
 # PRIVADAS sin IP publica. El egress a ECR/Bedrock/Secrets sale por el NAT
@@ -507,7 +507,7 @@ module "agent_service" {
   # Secrets Manager, SSM). El execution role lo crea el propio modulo.
   agentcore_runtime_role_arn = module.oidc_github.agentcore_runtime_role_arn
 
-  # `latest`, no `bootstrap`: el pipeline de spark-match-08-deep-agent publica
+  # `latest`, no `bootstrap`: el pipeline de spark-match-07-deep-agent publica
   # con `image-tags-input: 'latest,__GITHUB_SHA_SHORT__,__GITHUB_REF_NAME__'`,
   # o sea NUNCA existe un tag `bootstrap`. Apuntar ahi dejaba al servicio en
   # CannotPullContainerError indefinidamente (comprobado en dev).

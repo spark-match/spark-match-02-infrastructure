@@ -20,7 +20,7 @@ output "sam_deploy_role_name" {
 }
 
 output "bedrock_deploy_role_arn" {
-  description = "ARN del role OIDC spark-match-bedrock-agentcore-deploy. Wire a GitHub secret AWS_BEDROCK_AGENTCORE_DEPLOY_ROLE_ARN en spark-match-08-deep-agent."
+  description = "ARN del role OIDC spark-match-bedrock-agentcore-deploy. Wire a GitHub secret AWS_BEDROCK_AGENTCORE_DEPLOY_ROLE_ARN en spark-match-07-deep-agent."
   value       = aws_iam_role.bedrock_deploy.arn
 }
 

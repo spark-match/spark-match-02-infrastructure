@@ -177,7 +177,7 @@ data "aws_iam_policy_document" "bedrock_deploy_assume_role" {
 
 resource "aws_iam_role" "bedrock_deploy" {
   name                 = "${var.project_name}-bedrock-agentcore-deploy-${var.environment}"
-  description          = "Role asumido por spark-match-08-deep-agent para docker build+push a ECR y agentcore deploy en ${var.environment}. Ver docs/IAM_ROLES.md."
+  description          = "Role asumido por spark-match-07-deep-agent para docker build+push a ECR y agentcore deploy en ${var.environment}. Ver docs/IAM_ROLES.md."
   max_session_duration = var.iam_role_max_session_duration
   assume_role_policy   = data.aws_iam_policy_document.bedrock_deploy_assume_role.json
 

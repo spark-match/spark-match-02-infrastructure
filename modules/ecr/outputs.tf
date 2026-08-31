@@ -1,5 +1,5 @@
 output "repository_name" {
-  description = "Nombre del repositorio ECR (ej. spark-match-agent-advisor-dev). El workflow de deploy de spark-match-08-deep-agent lo necesita como `vars.ECR_REPOSITORY_{DEV,PROD}`."
+  description = "Nombre del repositorio ECR (ej. spark-match-agent-advisor-dev). El workflow de deploy de spark-match-07-deep-agent lo necesita como `vars.ECR_REPOSITORY_{DEV,PROD}`."
   value       = aws_ecr_repository.this.name
 }
 

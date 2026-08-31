@@ -120,7 +120,7 @@ variable "sam_deploy_github_repos" {
 variable "bedrock_deploy_github_repos" {
   description = "Repos de GitHub permitidos a asumir spark-match-bedrock-agentcore-deploy-{env}."
   type        = list(string)
-  default     = ["spark-match/spark-match-08-deep-agent"]
+  default     = ["spark-match/spark-match-07-deep-agent"]
 }
 
 ###############################################################################
@@ -205,7 +205,7 @@ variable "frontend_noncurrent_version_expiration_days" {
 }
 
 ###############################################################################
-# Variables para modules/ecr + modules/agent-service (spark-match-08-deep-agent)
+# Variables para modules/ecr + modules/agent-service (spark-match-07-deep-agent)
 ###############################################################################
 
 variable "enable_agent_service" {

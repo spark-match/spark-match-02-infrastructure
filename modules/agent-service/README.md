@@ -1,6 +1,6 @@
 # Module: `agent-service`
 
-Plano de cómputo de `spark-match-08-deep-agent`: cluster ECS + task definition Fargate **ARM64** + servicio detrás de un Application Load Balancer público.
+Plano de cómputo de `spark-match-07-deep-agent`: cluster ECS + task definition Fargate **ARM64** + servicio detrás de un Application Load Balancer público.
 
 ## Decisiones
 

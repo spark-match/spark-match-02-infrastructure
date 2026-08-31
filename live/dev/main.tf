@@ -109,9 +109,9 @@ module "notifications" {
 # OIDC provider (data source por defecto, recurso opt-in via create_oidc_provider)
 # + 4 IAM roles asumidos por GitHub Actions y AWS services:
 #   - spark-match-sam-deploy-dev          (OIDC, spark-match-03-backend)
-#   - spark-match-bedrock-agentcore-deploy-dev (OIDC, spark-match-08-deep-agent)
+#   - spark-match-bedrock-agentcore-deploy-dev (OIDC, spark-match-07-deep-agent)
 #   - spark-match-lambda-runtime-dev      (Lambda service, spark-match-03-backend)
-#   - spark-match-agentcore-runtime-dev   (AgentCore service, spark-match-08-deep-agent)
+#   - spark-match-agentcore-runtime-dev   (AgentCore service, spark-match-07-deep-agent)
 #
 # Extraido de modules/security-groups en PR4a (Sprint 1). Patron copiado de
 # orion-infrastructure/modules/oidc-github/.
@@ -119,7 +119,7 @@ module "notifications" {
 # Wire a GitHub:
 #   - spark-match-03-backend necesita `AWS_SAM_DEPLOY_ROLE_ARN_DEV` apuntando
 #     a module.oidc_github.sam_deploy_role_arn.
-#   - spark-match-08-deep-agent necesita `AWS_BEDROCK_DEPLOY_ROLE_ARN_DEV`
+#   - spark-match-07-deep-agent necesita `AWS_BEDROCK_DEPLOY_ROLE_ARN_DEV`
 #     apuntando a module.oidc_github.bedrock_deploy_role_arn.
 ###############################################################################
 
@@ -455,7 +455,7 @@ module "oidc_frontend" {
 ###############################################################################
 # Module: ecr
 ###############################################################################
-# Repositorio `spark-match-agent-advisor-dev` donde spark-match-08-deep-agent
+# Repositorio `spark-match-agent-advisor-dev` donde spark-match-07-deep-agent
 # publica la imagen ARM64 del agente. El nombre cae dentro del allowlist IAM
 # `spark-match-agent-*-dev` de la policy spark-match-bedrock-agentcore-deploy.
 ###############################################################################
@@ -479,7 +479,7 @@ module "ecr" {
 # Module: agent_service
 ###############################################################################
 # Cluster ECS + task definition Fargate ARM64 + servicio detras de un ALB
-# publico para spark-match-08-deep-agent.
+# publico para spark-match-07-deep-agent.
 #
 # Decision dev: las tasks corren en las subnets PUBLICAS con IP publica
 # (assign_public_ip=true). dev no tiene NAT gateway (enable_nat_gateway=false),
@@ -520,7 +520,7 @@ module "agent_service" {
   # Secrets Manager, SSM). El execution role lo crea el propio modulo.
   agentcore_runtime_role_arn = module.oidc_github.agentcore_runtime_role_arn
 
-  # `latest`, no `bootstrap`: el pipeline de spark-match-08-deep-agent publica
+  # `latest`, no `bootstrap`: el pipeline de spark-match-07-deep-agent publica
   # con `image-tags-input: 'latest,__GITHUB_SHA_SHORT__'`, o sea NUNCA existe un
   # tag `bootstrap`. Apuntar ahi dejaba al servicio en CannotPullContainerError
   # indefinidamente ("...:bootstrap: not found", 7 reintentos por task).

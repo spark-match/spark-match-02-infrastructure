@@ -3,7 +3,7 @@
 #
 # Los 11 parametros SSM que forman el contrato cross-repo con
 # spark-match-03-backend (ver docs/adr/0002-cross-repo-config-contract-ssm-secrets.md)
-# y, desde el ADR-019 de ese mismo repo, con spark-match-08-deep-agent.
+# y, desde el ADR-019 de ese mismo repo, con spark-match-07-deep-agent.
 # Este modulo NO calcula nada: recibe los valores ya resueltos (ARNs, nombre
 # de tabla, IDs de red, etc.) como variables, que el caller (live/{env}/main.tf)
 # pasa desde los outputs de modules/rds-postgres, modules/secrets-bootstrap,

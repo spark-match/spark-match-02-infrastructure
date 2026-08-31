@@ -12,7 +12,7 @@
 # ver module.ssm_bootstrap y docs/adr/0002-cross-repo-config-contract-ssm-secrets.md).
 # Se exponen tambien aca para debug rapido (`terraform output`) sin tener que
 # hacer `aws ssm get-parameter` a mano, y para wiring manual de los 4 IAM
-# roles OIDC en GitHub Actions (spark-match-03-backend, spark-match-08-deep-agent).
+# roles OIDC en GitHub Actions (spark-match-03-backend, spark-match-07-deep-agent).
 #
 # No se expone ningun valor sensible (passwords, connection strings) en texto
 # plano: `rds_postgres.connection_url` NO se re-expone aca (ya vive cifrado en
@@ -86,7 +86,7 @@ output "sam_deploy_role_arn" {
 }
 
 output "bedrock_deploy_role_arn" {
-  description = "ARN del role asumido por GitHub Actions de spark-match-08-deep-agent. Wire a AWS_BEDROCK_DEPLOY_ROLE_ARN_PROD."
+  description = "ARN del role asumido por GitHub Actions de spark-match-07-deep-agent. Wire a AWS_BEDROCK_DEPLOY_ROLE_ARN_PROD."
   value       = module.oidc_github.bedrock_deploy_role_arn
 }
 
@@ -235,7 +235,7 @@ output "frontend_deploy_role_arn" {
 # devuelven null cuando el agente esta apagado, en vez de romper el output.
 
 output "agent_ecr_repository_name" {
-  description = "Nombre del repositorio ECR del agente. Wire a spark-match-08-deep-agent como repo-level var ECR_REPOSITORY_PROD (valor esperado: spark-match-agent-advisor-prod)."
+  description = "Nombre del repositorio ECR del agente. Wire a spark-match-07-deep-agent como repo-level var ECR_REPOSITORY_PROD (valor esperado: spark-match-agent-advisor-prod)."
   value       = one(module.ecr[*].repository_name)
 }
 

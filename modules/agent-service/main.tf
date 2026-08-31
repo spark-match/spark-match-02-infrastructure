@@ -1,7 +1,7 @@
 ###############################################################################
 # Module: agent-service
 #
-# Plano de computo de spark-match-08-deep-agent: cluster ECS + task definition
+# Plano de computo de spark-match-07-deep-agent: cluster ECS + task definition
 # Fargate ARM64 + servicio detras de un Application Load Balancer publico.
 #
 # Por que ECS Fargate y no Bedrock AgentCore Runtime: el agente necesita
@@ -15,7 +15,7 @@
 # cortaria los streams. El ALB permite idle_timeout de hasta 4000s
 # (var.alb_idle_timeout, 300 por defecto).
 #
-# ARM64 no es negociable: ambas etapas del Dockerfile de spark-match-08-deep-agent
+# ARM64 no es negociable: ambas etapas del Dockerfile de spark-match-07-deep-agent
 # declaran `--platform=linux/arm64`. Una task definition X86_64 fallaria al
 # arrancar con "exec format error".
 #
@@ -659,7 +659,7 @@ resource "aws_ecs_service" "this" {
   })
 
   # A partir del primer deploy real, el owner de `task_definition` es el
-  # pipeline de spark-match-08-deep-agent (receta reusable-ecs-deploy.yml de
+  # pipeline de spark-match-07-deep-agent (receta reusable-ecs-deploy.yml de
   # spark-match-01-devops), que registra una revision nueva por cada imagen.
   # Sin este ignore_changes, cada `terraform apply` haria rollback del
   # servicio a la revision bootstrap. `desired_count` se ignora por la misma

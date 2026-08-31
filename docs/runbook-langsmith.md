@@ -106,7 +106,7 @@ aws ecs update-service --cluster spark-match-dev --service spark-match-agent-dev
 
 El `N` de arriba viene de pedir la revision mas alta de la familia. Eso alcanza
 solo si nadie mas registro una revision despues del `apply`. No es el caso si
-un push a `dev` de **spark-match-08-deep-agent** cae cerca en el tiempo:
+un push a `dev` de **spark-match-07-deep-agent** cae cerca en el tiempo:
 `deploy.yml` de ese repo corre en CUALQUIER push a `dev`, sin filtrar por que
 cambio, y su `roll ecs` lee "la task definition actual" como base para
 patchear solo la imagen.
@@ -217,4 +217,4 @@ resto de settings. Un `.env` con `LANGSMITH_API_KEY` a secas **no lo lee
 `Settings`** — aunque, a diferencia de Tavily, LangChain si leeria esa variable
 por su cuenta y el tracing acabaria funcionando "por accidente", saltandose
 `configure_langsmith()` y su eleccion de proyecto. Las trazas caerian en
-`default`. Ver `.env.example` en spark-match-08-deep-agent.
+`default`. Ver `.env.example` en spark-match-07-deep-agent.

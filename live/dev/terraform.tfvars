@@ -73,13 +73,10 @@ sam_deploy_github_repos = [
 ]
 
 bedrock_deploy_github_repos = [
-  # Fase 1 del rename 08-deep-agent -> 07-deep-agent: ambos nombres activos.
-  # El claim `sub` que emite GitHub Actions lleva el nombre ACTUAL del repo y
-  # AWS lo compara literal -- los redirects de GitHub no aplican a OIDC. Si se
-  # renombra sin que el nombre nuevo este ya en el trust policy,
-  # AssumeRoleWithWebIdentity falla y el build/push a ECR del agente se cae.
-  # Retirar la linea vieja en la fase 2, una vez hecho el rename.
-  "spark-match/spark-match-08-deep-agent",
+  # Fase 2 del rename, completada 2026-08-31: el repo ya se llama
+  # spark-match-07-deep-agent y el nombre viejo sale del trust policy.
+  # El claim `sub` de GitHub Actions lleva el nombre actual del repo y AWS
+  # lo compara literal, asi que esta lista tiene que seguir al repo.
   "spark-match/spark-match-07-deep-agent",
 ]
 
@@ -136,19 +133,7 @@ frontend_noncurrent_version_expiration_days = 30
 # Cero resultados, no peores resultados. O sea que cualquier pregunta que
 # dependa de informacion actual (fechas de Beca 18, admisiones) no se podia
 # responder.
-# DESACTIVADO 2026-08-31: el secret "spark-match-dev-tavily-api-key" ya no existe en
-# la cuenta, y un data source de Secrets Manager falla el plan entero si el
-# secret no esta (ver modules/agent-service/main.tf:143). Bloqueaba el apply
-# de dev y con el la fase 1 del rename del agente.
-#
-# No es una decision de producto: es drift del entorno. El apply del 10 de
-# agosto paso con este mismo data source, asi que el secret existia y
-# desaparecio despues (reset de la cuenta AWS Academy, ADR-003).
-#
-# Para restaurarlo: crear el secret segun docs/runbook-tavily.md y volver
-# esta linea a su valor. Requiere un apply mas.
-# agent_tavily_secret_name = "spark-match-dev-tavily-api-key"
-agent_tavily_secret_name = null
+agent_tavily_secret_name = "spark-match-dev-tavily-api-key"
 
 # API key de LangSmith. Mismo trato que la de arriba: aqui solo va el nombre,
 # el valor se crea a mano y Terraform lo lee por ARN. Ver
@@ -161,16 +146,4 @@ agent_tavily_secret_name = null
 # OJO con lo que se manda: una traza lleva la conversacion entera, incluida la
 # que escribe el estudiante. Si eso deja de ser aceptable, basta con volver
 # esta linea a null -- el agente sigue levantando igual, sin tracing.
-# DESACTIVADO 2026-08-31: el secret "spark-match-dev-langsmith-api-key" ya no existe en
-# la cuenta, y un data source de Secrets Manager falla el plan entero si el
-# secret no esta (ver modules/agent-service/main.tf:143). Bloqueaba el apply
-# de dev y con el la fase 1 del rename del agente.
-#
-# No es una decision de producto: es drift del entorno. El apply del 10 de
-# agosto paso con este mismo data source, asi que el secret existia y
-# desaparecio despues (reset de la cuenta AWS Academy, ADR-003).
-#
-# Para restaurarlo: crear el secret segun docs/runbook-langsmith.md y volver
-# esta linea a su valor. Requiere un apply mas.
-# agent_langsmith_secret_name = "spark-match-dev-langsmith-api-key"
-agent_langsmith_secret_name = null
+agent_langsmith_secret_name = "spark-match-dev-langsmith-api-key"

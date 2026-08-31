@@ -148,7 +148,7 @@ variable "alb_ingress_cidr_blocks" {
 ###############################################################################
 
 variable "container_image" {
-  description = "Imagen a correr, normalmente `{ecr_repository_url}:bootstrap`. En el primer apply el repositorio ECR esta vacio y las tasks no van a poder arrancar -- es esperado: el pipeline de spark-match-08-deep-agent publica la imagen real y registra una revision nueva de la task definition. Ver `lifecycle.ignore_changes` en aws_ecs_service.this."
+  description = "Imagen a correr, normalmente `{ecr_repository_url}:bootstrap`. En el primer apply el repositorio ECR esta vacio y las tasks no van a poder arrancar -- es esperado: el pipeline de spark-match-07-deep-agent publica la imagen real y registra una revision nueva de la task definition. Ver `lifecycle.ignore_changes` en aws_ecs_service.this."
   type        = string
 }
 
@@ -159,7 +159,7 @@ variable "container_name" {
 }
 
 variable "container_port" {
-  description = "Puerto donde escucha el agente. 8080 y no 8000: el frontend reserva localhost:8000 para el backend, por lo que el contenedor del agente no debe colisionar (ver el Dockerfile de spark-match-08-deep-agent)."
+  description = "Puerto donde escucha el agente. 8080 y no 8000: el frontend reserva localhost:8000 para el backend, por lo que el contenedor del agente no debe colisionar (ver el Dockerfile de spark-match-07-deep-agent)."
   type        = number
   default     = 8080
 }

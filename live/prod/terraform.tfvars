@@ -66,13 +66,10 @@ sam_deploy_github_repos = [
 ]
 
 bedrock_deploy_github_repos = [
-  # Fase 1 del rename 08-deep-agent -> 07-deep-agent: ambos nombres activos.
-  # El claim `sub` que emite GitHub Actions lleva el nombre ACTUAL del repo y
-  # AWS lo compara literal -- los redirects de GitHub no aplican a OIDC. Si se
-  # renombra sin que el nombre nuevo este ya en el trust policy,
-  # AssumeRoleWithWebIdentity falla y el build/push a ECR del agente se cae.
-  # Retirar la linea vieja en la fase 2, una vez hecho el rename.
-  "spark-match/spark-match-08-deep-agent",
+  # Fase 2 del rename, completada 2026-08-31: el repo ya se llama
+  # spark-match-07-deep-agent y el nombre viejo sale del trust policy.
+  # El claim `sub` de GitHub Actions lleva el nombre actual del repo y AWS
+  # lo compara literal, asi que esta lista tiene que seguir al repo.
   "spark-match/spark-match-07-deep-agent",
 ]
 

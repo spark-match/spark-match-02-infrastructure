@@ -109,3 +109,37 @@ frontend_force_destroy = true
 # 30 en dev: rotacion rapida de los CloudFront access logs.
 frontend_access_logs_retention_days         = 30
 frontend_noncurrent_version_expiration_days = 30
+
+###############################################################################
+# Deep agent (modules/agent-service)
+###############################################################################
+
+# El VALOR de la key NO esta aqui ni en el tfstate: este es solo el nombre del
+# secret, y Terraform resuelve su ARN con un data source. El secret hay que
+# crearlo antes de aplicar esto o el plan falla. Procedimiento completo en
+# docs/runbook-tavily.md.
+#
+# Mientras estuvo en null, `web_search` caia siempre a DuckDuckGo. Medido en
+# los logs de dev el 2026-08-08, esa caida no es benigna:
+#
+#   Tavily search failed (ValueError), falling back to DuckDuckGo:
+#     TAVILY_API_KEY not configured
+#   Web search completed via DuckDuckGo (fallback): 0 results
+#
+# Cero resultados, no peores resultados. O sea que cualquier pregunta que
+# dependa de informacion actual (fechas de Beca 18, admisiones) no se podia
+# responder.
+agent_tavily_secret_name = "spark-match-dev-tavily-api-key"
+
+# API key de LangSmith. Mismo trato que la de arriba: aqui solo va el nombre,
+# el valor se crea a mano y Terraform lo lee por ARN. Ver
+# docs/runbook-langsmith.md.
+#
+# Con esto puesto, el modulo pone SPARK_LANGSMITH_TRACING=true y manda las
+# trazas al proyecto spark-match-agent-dev. Un proyecto por ambiente: las
+# trazas locales van a spark-match-agent-local y no se mezclan con estas.
+#
+# OJO con lo que se manda: una traza lleva la conversacion entera, incluida la
+# que escribe el estudiante. Si eso deja de ser aceptable, basta con volver
+# esta linea a null -- el agente sigue levantando igual, sin tracing.
+agent_langsmith_secret_name = "spark-match-dev-langsmith-api-key"

@@ -92,8 +92,8 @@
         "lambda:ListTags"
       ],
       "Resource": [
-        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-identity-*-${environment}",
-        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-identity-*-${environment}:*"
+        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-*-${environment}",
+        "arn:aws:lambda:us-east-1:681526276858:function:spark-match-*-${environment}:*"
       ]
     },
     {
@@ -243,8 +243,8 @@
       ],
       "Resource": [
         "arn:aws:logs:us-east-1:681526276858:log-group:/aws/spark-match/${environment}/*",
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-identity-*-${environment}",
-        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-identity-*-${environment}:*"
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-*-${environment}",
+        "arn:aws:logs:us-east-1:681526276858:log-group:/aws/lambda/spark-match-*-${environment}:*"
       ]
     },
     {

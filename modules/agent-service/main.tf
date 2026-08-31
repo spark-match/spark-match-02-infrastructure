@@ -57,32 +57,75 @@ locals {
   # Se dejan como variables para poder apuntar a otro ambiente en pruebas.
   db_secret_ssm_param  = coalesce(var.db_secret_ssm_param, "${local.ssm_prefix}/db-secret-arn")
   jwt_secret_ssm_param = coalesce(var.jwt_secret_ssm_param, "${local.ssm_prefix}/jwt-secret-arn")
+  reports_bucket_ssm_param = coalesce(
+    var.reports_bucket_ssm_param, "${local.ssm_prefix}/reports-bucket"
+  )
+
+  # Un proyecto de LangSmith por ambiente. Mezclar las trazas de dev con las
+  # del portatil de alguien es justo lo que estorba cuando algo falla en uno
+  # y no en el otro. Ver docs/runbook-langsmith.md.
+  langsmith_project = coalesce(var.langsmith_project, "${var.project_name}-agent-${var.environment}")
 
   base_environment_variables = {
-    SPARK_ENVIRONMENT                  = var.environment
-    SPARK_AWS_REGION                   = var.aws_region
-    SPARK_PERSISTENCE_BACKEND          = "postgres"
-    SPARK_DB_SECRET_SSM_PARAM          = local.db_secret_ssm_param
-    SPARK_JWT_SECRET_SSM_PARAM         = local.jwt_secret_ssm_param
+    SPARK_ENVIRONMENT          = var.environment
+    SPARK_AWS_REGION           = var.aws_region
+    SPARK_PERSISTENCE_BACKEND  = "postgres"
+    SPARK_DB_SECRET_SSM_PARAM  = local.db_secret_ssm_param
+    SPARK_JWT_SECRET_SSM_PARAM = local.jwt_secret_ssm_param
+    # Faltaba desde la fase 3 del ADR-019. El default del agente es
+    # `/spark-match/dev/config/reports-bucket`, con el ambiente escrito
+    # dentro: en prod habria buscado el parametro de dev, que ahi no existe, y
+    # la subida del informe habria fallado solo en prod.
+    SPARK_REPORTS_BUCKET_SSM_PARAM     = local.reports_bucket_ssm_param
     SPARK_CORS_ORIGINS                 = var.cors_allowed_origins
     SPARK_MAX_WEB_SEARCHES_PER_SESSION = tostring(var.max_web_searches_per_session)
     SPARK_LOG_LEVEL                    = var.log_level
     SPARK_API_PORT                     = tostring(var.container_port)
     SPARK_API_HOST                     = "0.0.0.0"
+    # Atado al secret y no a un flag suelto: sin key, configure_langsmith()
+    # avisa por WARNING en cada arranque y no manda nada. Un "true" sin key
+    # solo ensucia los logs prometiendo trazas que no existen.
+    SPARK_LANGSMITH_TRACING = tostring(var.langsmith_secret_name != null)
+    SPARK_LANGSMITH_PROJECT = local.langsmith_project
   }
 
-  environment_variables = merge(local.base_environment_variables, var.extra_environment_variables)
+  # `SPARK_BACKEND_API_URL` va aparte y no en el mapa base porque puede no
+  # existir: la task definition serializa cada entrada como {name, value}, y un
+  # `value = null` ahi es un error de la API de ECS. Un ambiente sin el
+  # contexto de informes desplegado no tiene URL que dar, y la ausencia de la
+  # variable es exactamente lo que el agente sabe interpretar.
+  backend_api_url_environment = (
+    var.backend_api_url == null ? {} : { SPARK_BACKEND_API_URL = var.backend_api_url }
+  )
+
+  environment_variables = merge(
+    local.base_environment_variables,
+    local.backend_api_url_environment,
+    var.extra_environment_variables,
+  )
 
   # `secrets` en vez de `environment`: el agente de ECS resuelve el valor al
   # arrancar la task y lo inyecta como env var en el contenedor. Asi la key
   # no aparece en `describe-task-definition`, que es lectura publica para
   # cualquiera con acceso al cluster.
-  container_secrets = var.tavily_secret_name == null ? [] : [
-    {
-      name      = "SPARK_TAVILY_API_KEY"
-      valueFrom = data.aws_secretsmanager_secret.tavily[0].arn
-    }
-  ]
+  container_secrets = concat(
+    var.tavily_secret_name == null ? [] : [
+      {
+        name      = "SPARK_TAVILY_API_KEY"
+        valueFrom = data.aws_secretsmanager_secret.tavily[0].arn
+      }
+    ],
+    var.langsmith_secret_name == null ? [] : [
+      {
+        name      = "SPARK_LANGSMITH_API_KEY"
+        valueFrom = data.aws_secretsmanager_secret.langsmith[0].arn
+      }
+    ],
+  )
+
+  # Se evalua sobre las variables, no sobre `container_secrets`, para que el
+  # `count` de la policy sea conocido en plan y no despues del apply.
+  has_container_secrets = var.tavily_secret_name != null || var.langsmith_secret_name != null
 }
 
 data "aws_caller_identity" "current" {}
@@ -104,6 +147,15 @@ data "aws_secretsmanager_secret" "tavily" {
   count = var.tavily_secret_name == null ? 0 : 1
 
   name = var.tavily_secret_name
+}
+
+# Misma historia que Tavily: el valor lo emite un tercero (LangSmith) y lo
+# pone un humano, aqui solo viaja el ARN. Con langsmith_secret_name = null el
+# ambiente arranca sin tracing y SPARK_LANGSMITH_TRACING queda en "false".
+data "aws_secretsmanager_secret" "langsmith" {
+  count = var.langsmith_secret_name == null ? 0 : 1
+
+  name = var.langsmith_secret_name
 }
 
 ###############################################################################
@@ -439,19 +491,24 @@ resource "aws_iam_role_policy" "execution_kms" {
 # (`aws/secretsmanager`, el default al crearlo), su key policy ya permite el
 # descifrado a quien tenga GetSecretValue. Y si se crea con la CMK del
 # proyecto, execution_kms de arriba ya da kms:Decrypt sobre ella.
+#
+# El count se decide sobre las VARIABLES y no sobre los ARN resueltos: los
+# ARN salen de data sources con count, y hacer depender un count de ellos es
+# lo que provoca el "count value depends on resource attributes that cannot
+# be determined until apply".
 data "aws_iam_policy_document" "execution_secrets" {
-  count = var.tavily_secret_name == null ? 0 : 1
+  count = local.has_container_secrets ? 1 : 0
 
   statement {
-    sid       = "ReadTavilyApiKey"
+    sid       = "ReadAgentApiKeys"
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
-    resources = [data.aws_secretsmanager_secret.tavily[0].arn]
+    resources = local.container_secrets[*].valueFrom
   }
 }
 
 resource "aws_iam_role_policy" "execution_secrets" {
-  count = var.tavily_secret_name == null ? 0 : 1
+  count = local.has_container_secrets ? 1 : 0
 
   name   = "${var.project_name}-agentcore-exec-secrets-${var.environment}"
   role   = aws_iam_role.execution.id

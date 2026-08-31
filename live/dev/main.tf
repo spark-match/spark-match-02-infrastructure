@@ -354,6 +354,35 @@ module "rds_postgres" {
 # rutas que el template SAM del backend resuelve via `{{resolve:ssm:}}`.
 ###############################################################################
 
+###############################################################################
+# Module: reports_storage
+###############################################################################
+# Bucket privado donde viven los informes de orientacion (ADR-019 de
+# spark-match-03-backend). El agente sube el JSON y el PDF; el backend guarda
+# en su BD solo bucket + key + version_id y sirve el contenido por su API.
+#
+# Sin CloudFront a proposito: contenido privado que lee una sola persona, nada
+# que cachear, y ponerlo delante obligaria a signed URLs con su key pair y su
+# rotacion. No confundir con module.frontend_hosting, que si lleva CloudFront
+# porque sirve un sitio estatico publico.
+#
+# force_destroy queda en false incluso en dev: son informes, no artefactos de
+# build regenerables, y un `terraform destroy` accidental no deberia poder
+# llevarselos por delante sin vaciar el bucket antes a mano.
+###############################################################################
+
+module "reports_storage" {
+  source = "../../modules/reports-storage"
+
+  project_name = var.project_name
+  environment  = var.environment
+
+  kms_key_arn   = module.kms.kms_key_arn
+  force_destroy = false
+
+  access_logs_retention_days = var.reports_access_logs_retention_days
+}
+
 module "ssm_bootstrap" {
   source = "../../modules/ssm-bootstrap"
 
@@ -371,6 +400,12 @@ module "ssm_bootstrap" {
   # VpcConfig para las Lambdas del backend (ADR 0002 seccion 5).
   private_subnet_ids       = module.networking.private_subnet_ids
   lambda_security_group_id = module.security_groups.sg_lambda_id
+
+  # Informes de orientacion (ADR-019). Los dos numeros se publican en SSM para
+  # poder ajustarlos sin redesplegar ni el backend ni el agente.
+  reports_bucket_name              = module.reports_storage.bucket_name
+  reports_max_per_user_per_day     = var.reports_max_per_user_per_day
+  reports_min_profile_completeness = var.reports_min_profile_completeness
 
   kms_key_arn = module.kms.kms_key_arn
 }
@@ -496,6 +531,13 @@ module "agent_service" {
   task_memory   = var.agent_task_memory
   desired_count = var.agent_desired_count
 
+  # Donde registrar los informes que emite (ADR-019). El id de la API es
+  # literal a proposito: la crea el stack de SAM de 03-backend, asi que
+  # Terraform no la conoce y no puede derivarla. Sobrevive a los updates del
+  # stack; solo cambia si alguien borra y recrea el contexto de informes, y
+  # entonces hay que actualizarlo aqui.
+  backend_api_url = var.reports_api_url
+
   # Origenes que el agente acepta: el dominio CloudFront de dev + el dev
   # server de Angular para poder probar el chat en local contra el agente real.
   cors_allowed_origins = jsonencode([
@@ -513,6 +555,11 @@ module "agent_service" {
   # API key de Tavily para web_search. El valor lo pone un humano en Secrets
   # Manager (docs/runbook-tavily.md); aqui solo viaja el nombre.
   tavily_secret_name = var.agent_tavily_secret_name
+
+  # Idem para LangSmith (docs/runbook-langsmith.md). El nombre del proyecto no
+  # se pasa: el modulo lo calcula como spark-match-agent-dev, que es la
+  # convencion de un proyecto por ambiente.
+  langsmith_secret_name = var.agent_langsmith_secret_name
 
   # false en dev: permite `terraform destroy` mientras se itera.
   enable_deletion_protection = var.agent_enable_deletion_protection

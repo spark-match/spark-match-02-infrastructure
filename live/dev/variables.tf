@@ -252,6 +252,53 @@ variable "agent_tavily_secret_name" {
   default     = null
 }
 
+# Mismo trato que el de Tavily: crear el secret A MANO antes de setear esto.
+# El procedimiento esta en docs/runbook-langsmith.md. En null el agente
+# levanta igual, solo que sin mandar trazas.
+variable "agent_langsmith_secret_name" {
+  description = "Nombre del secret de Secrets Manager con la API key de LangSmith (p.ej. spark-match-dev-langsmith-api-key). null = sin tracing."
+  type        = string
+  default     = null
+}
+
+###############################################################################
+# Informes de orientacion (ADR-019 de spark-match-03-backend)
+###############################################################################
+
+variable "reports_max_per_user_per_day" {
+  description = "Cuantos informes puede generar un mismo estudiante al dia. Cada generacion cuesta una llamada al LLM mas un render de PDF. Se publica en SSM para ajustarlo sin redesplegar."
+  type        = number
+  default     = 3
+}
+
+variable "reports_min_profile_completeness" {
+  description = "Completitud minima del perfil para poder emitir un informe (0.0-1.0). Puerta blanda del ADR-019 D8; la dura -- tener las seis puntuaciones RIASEC -- no es configurable."
+  type        = number
+  default     = 0.6
+}
+
+variable "reports_access_logs_retention_days" {
+  description = "Dias que se conservan los server access logs del bucket de informes. Son el registro de quien leyo que informe y cuando, sobre datos personales de menores."
+  type        = number
+  default     = 365
+}
+
+variable "reports_api_url" {
+  description = <<-EOT
+    URL base de la API de informes de 03-backend. El agente la necesita para
+    registrar y cerrar cada informe que emite.
+
+    Es un valor literal y no un output de otro modulo porque esa API la crea
+    el stack de SAM de 03-backend, no Terraform. Se saca del output
+    `ReportsHttpApiUrl` de `spark-match-backend-dev`, o de la consola.
+
+    En null el agente sigue funcionando y la emision de informes falla
+    diciendo que no esta configurada.
+  EOT
+  type        = string
+  default     = "https://gv0e33t224.execute-api.us-east-1.amazonaws.com/dev"
+}
+
 locals {
   common_tags = {
     Project     = var.project_name

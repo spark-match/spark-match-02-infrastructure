@@ -225,6 +225,18 @@ variable "tavily_secret_name" {
   default     = null
 }
 
+variable "langsmith_secret_name" {
+  description = "Nombre del secret de Secrets Manager con la API key de LangSmith, como string plano. Igual que tavily_secret_name, el VALOR se crea fuera de Terraform (ver docs/runbook-langsmith.md) y aqui solo se resuelve el ARN para inyectarlo como SPARK_LANGSMITH_API_KEY. En null el agente arranca sin tracing y SPARK_LANGSMITH_TRACING queda en false."
+  type        = string
+  default     = null
+}
+
+variable "langsmith_project" {
+  description = "Nombre del proyecto en LangSmith al que van las trazas (SPARK_LANGSMITH_PROJECT). En null se calcula como {project_name}-agent-{environment}, que es la convencion: un proyecto por ambiente para no mezclar las trazas de dev con las locales."
+  type        = string
+  default     = null
+}
+
 variable "max_web_searches_per_session" {
   description = "Limite de busquedas web por sesion (SPARK_MAX_WEB_SEARCHES_PER_SESSION). OJO: 0 NO desactiva la herramienta, desactiva el LIMITE -- src/tools/web_search/handler.py trata cap <= 0 como ilimitado. La descripcion anterior afirmaba lo contrario y dejo a dev con busquedas sin tope."
   type        = number
@@ -361,6 +373,32 @@ variable "db_secret_ssm_param" {
 
 variable "jwt_secret_ssm_param" {
   description = "Path del parametro SSM que contiene el ARN del secret JWT. El agente lo usa para validar los tokens que emite el backend."
+  type        = string
+  default     = null
+}
+
+variable "reports_bucket_ssm_param" {
+  description = "Path del parametro SSM con el nombre del bucket de informes. Sin esto el agente usa su default, que lleva 'dev' escrito dentro y en prod apuntaria al parametro equivocado."
+  type        = string
+  default     = null
+}
+
+variable "backend_api_url" {
+  description = <<-EOT
+    URL base de la API de informes de spark-match-03-backend, sin barra final.
+    El agente la necesita para registrar y cerrar cada informe que emite
+    (ADR-019, enmienda de D4).
+
+    Va como valor literal y NO se lee de SSM, al contrario que el bucket, y el
+    motivo es la direccion de la dependencia: esa API la crea el stack de SAM
+    de 03-backend, no Terraform. Para publicarla en SSM tendria que hacerlo el
+    backend al desplegar, y eso invierte el contrato de ADR-0002 -- que dice
+    que Terraform publica y los demas leen.
+
+    En null la herramienta de informes del agente falla diciendolo y el resto
+    del agente funciona igual. Es lo correcto mientras un ambiente no tenga
+    todavia desplegado el contexto de informes.
+  EOT
   type        = string
   default     = null
 }

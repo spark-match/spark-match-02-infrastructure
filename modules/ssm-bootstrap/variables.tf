@@ -94,7 +94,7 @@ variable "private_subnet_ids" {
 }
 
 variable "reports_bucket_name" {
-  description = "Nombre del bucket de informes de orientacion (output de modules/reports-storage). Se publica en SSM para que 03-backend y 08-deep-agent no lo hardcodeen."
+  description = "Nombre del bucket de informes de orientacion (output de modules/reports-storage). Se publica en SSM para que 03-backend y 07-deep-agent no lo hardcodeen."
   type        = string
 }
 

@@ -270,7 +270,7 @@ module "security" {
                         |  thumbprint 6938fd4d...    |
                         +-----------------------------+
                                        │
-        sub: 02-infra:env:{dev|prod}   │  sub: 03-backend:env:{dev|prod}    sub: 08-deep-agent:env:{dev|prod}
+        sub: 02-infra:env:{dev|prod}   │  sub: 03-backend:env:{dev|prod}    sub: 07-deep-agent:env:{dev|prod}
                                        ▼
         +-------------------+   +----------------------------+   +----------------------------+
         | terraform-plan    |   | spark-match-sam-deploy-   |   | spark-match-bedrock-       |
@@ -337,10 +337,10 @@ module "security" {
 6. ⏳ Primer `terraform apply` desde `live/dev` (crea roles dev + KMS dev + VPC dev + endpoints dev)
 7. ⏳ Validar que `aws sts assume-role-with-web-identity` funciona con un token de prueba
 8. ⏳ Repetir para prod con merge a `main` + approval
-9. ⏳ Configurar los GitHub Secrets en `03-backend` y `08-deep-agent`:
+9. ⏳ Configurar los GitHub Secrets en `03-backend` y `07-deep-agent`:
    - `03-backend` → `AWS_SAM_DEPLOY_ROLE_ARN` (valor: `arn:...:spark-match-sam-deploy-{env}`)
-   - `08-deep-agent` → `AWS_BEDROCK_AGENTCORE_DEPLOY_ROLE_ARN` (valor: `arn:...:spark-match-bedrock-agentcore-deploy-{env}`)
-10. ⏳ Crear los GH Environments `dev` y `production` en `03-backend` y `08-deep-agent`
+   - `07-deep-agent` → `AWS_BEDROCK_AGENTCORE_DEPLOY_ROLE_ARN` (valor: `arn:...:spark-match-bedrock-agentcore-deploy-{env}`)
+10. ⏳ Crear los GH Environments `dev` y `production` en `03-backend` y `07-deep-agent`
 11. ⏳ Validar el flujo end-to-end: push a `dev` → deploy a AWS dev
 
 ---
@@ -411,7 +411,7 @@ es lo que hace que GitHub emita ese sub.
 | rol | caller | donde bindea |
 |---|---|---|
 | `sam-deploy-{env}` | `03-backend/.github/workflows/deploy.yml` | linea 84 |
-| `bedrock-agentcore-deploy-{env}` | `08-deep-agent` via reusables de `01-devops` | `reusable-container-deploy-ecr.yml:137`, `reusable-ecs-deploy.yml:119` |
+| `bedrock-agentcore-deploy-{env}` | `07-deep-agent` via reusables de `01-devops` | `reusable-container-deploy-ecr.yml:137`, `reusable-ecs-deploy.yml:119` |
 
 Si algun dia un caller necesita desplegar sin GitHub Environment, la respuesta
 no es devolver estos patrones: es darle un Environment.

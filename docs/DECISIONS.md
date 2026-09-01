@@ -81,7 +81,7 @@ El `modules/endpoints/variables.tf` ya tiene un set definido de 10 endpoints:
 **Opcion A: 10 endpoints desde dia 1 (estado actual, $72/mes en prod)**
 
 - (+) Configuracion simple: `enable_all_endpoints_by_default = true`.
-- (+) Si 03-backend o 08-deep-agent necesitan un endpoint, ya esta. Sin reconfiguracion.
+- (+) Si 03-backend o 07-deep-agent necesitan un endpoint, ya esta. Sin reconfiguracion.
 - (+) Mantiene trafico AWS privado (sin NAT para servicios AWS).
 - (-) $72/mes baseline, incluso si los servicios no se usan todos.
 - (-) Si se decide no usar Bedrock en prod, se pagan $7.20/mes por `bedrock-runtime` sin uso.
@@ -97,7 +97,7 @@ El `modules/endpoints/variables.tf` ya tiene un set definido de 10 endpoints:
 
 Para un proyecto en Fase 0/1 (Fase 1.5 sin apply todavia), **la complejidad de Opcion B no se justifica** cuando:
 - El costo maximo es $72/mes (similar a un cafe al mes).
-- El proyecto no tiene 03-backend ni 08-deep-agent deployados, asi que ninguno de esos endpoints esta en uso todavia.
+- El proyecto no tiene 03-backend ni 07-deep-agent deployados, asi que ninguno de esos endpoints esta en uso todavia.
 - Cuando llegue el momento de deployar 03-backend (que usa Bedrock + Lambda + S3 + CloudWatch), probablemente use 8 de los 10 endpoints, asi que el costo sera ~$58/mes.
 
 **Si en algun momento** se quiere reducir costos, se puede:

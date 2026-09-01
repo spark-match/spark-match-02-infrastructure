@@ -21,7 +21,11 @@ updates:
       day: "monday"
       time: "08:00"
     commit-message:
-      prefix: "ci(deps)"
+      # El prefijo NO debe llevar scope: `include: "scope"` hace que Dependabot
+      # anada `(deps)` por su cuenta, y `prefix: "ci(deps)"` producia el
+      # malformado `ci(deps)(deps):`, que commitlint rechaza. Mismo criterio
+      # que spark-match-03-backend/.github/dependabot.yml.
+      prefix: "ci"
       include: "scope"
     labels:
       - "dependencies"
@@ -55,7 +59,11 @@ updates:
       day: "monday"
       time: "08:00"
     commit-message:
-      prefix: "ci(deps)"
+      # El prefijo NO debe llevar scope: `include: "scope"` hace que Dependabot
+      # anada `(deps)` por su cuenta, y `prefix: "ci(deps)"` producia el
+      # malformado `ci(deps)(deps):`, que commitlint rechaza. Mismo criterio
+      # que spark-match-03-backend/.github/dependabot.yml.
+      prefix: "ci"
       include: "scope"
     labels:
       - "dependencies"

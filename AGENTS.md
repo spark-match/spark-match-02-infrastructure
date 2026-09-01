@@ -9,7 +9,7 @@ Lectura obligatoria antes de cada PR. Fuente de verdad local (no duplicada en do
 
 **Spark Match** — Plataforma de matching academico-industrial con componentes
 multi-repo (spark-match-00-knowledge-base, 01-devops, 02-infrastructure, 03-backend,
-04-frontend, 05-data-pipeline, 06-model-training, 07-article, 08-deep-agent).
+04-frontend, 05-data-pipeline, 06-article, 07-deep-agent).
 
 Este repo define la **infraestructura AWS del proyecto** (VPC, IAM, KMS, SGs,
 endpoints, observability base) usando Terraform modular y workflows reutilizables

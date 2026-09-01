@@ -1,5 +1,5 @@
 output "bucket_name" {
-  description = "Nombre del bucket de informes. Es lo que se publica en SSM (/spark-match/{env}/config/reports-bucket) para que 03-backend y 08-deep-agent no lo hardcodeen."
+  description = "Nombre del bucket de informes. Es lo que se publica en SSM (/spark-match/{env}/config/reports-bucket) para que 03-backend y 07-deep-agent no lo hardcodeen."
   value       = aws_s3_bucket.reports.id
 }
 

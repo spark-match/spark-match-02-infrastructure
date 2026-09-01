@@ -53,7 +53,7 @@ locals {
   # caller que cada uno bindea environment a nivel de job, que es lo que hace
   # que GitHub emita `repo:O/R:environment:NAME` en el sub.
   #   - sam_deploy      -> 03-backend/.github/workflows/deploy.yml:84
-  #   - bedrock_deploy  -> 08-deep-agent llama a reusables de 01-devops que
+  #   - bedrock_deploy  -> 07-deep-agent llama a reusables de 01-devops que
   #                        bindean: reusable-container-deploy-ecr.yml:137 y
   #                        reusable-ecs-deploy.yml:119, ambos
   #                        `environment: ${inputs.environment-name}`.
@@ -151,7 +151,7 @@ resource "aws_iam_role_policy" "sam_deploy_inline" {
 }
 
 ###############################################################################
-# IAM Role: spark-match-bedrock-agentcore-deploy-{env} (08-deep-agent)
+# IAM Role: spark-match-bedrock-agentcore-deploy-{env} (07-deep-agent)
 ###############################################################################
 
 data "aws_iam_policy_document" "bedrock_deploy_assume_role" {

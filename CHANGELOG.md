@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.1](https://github.com/spark-match/spark-match-02-infrastructure/compare/v1.0.0...v1.0.1) (2026-09-01)
+
+
+### Documentation
+
+* actualizar los punteros a repos tras el renumerado ([#233](https://github.com/spark-match/spark-match-02-infrastructure/issues/233)) ([87fcfc0](https://github.com/spark-match/spark-match-02-infrastructure/commit/87fcfc0824aa8fb739d7def0ede2fcc7677d718d))
+* **readme:** reflejar los 17 módulos reales y el estado de la cuenta ([#227](https://github.com/spark-match/spark-match-02-infrastructure/issues/227)) ([9bd6c73](https://github.com/spark-match/spark-match-02-infrastructure/commit/9bd6c73f7b6f5e6ee2699ce350952df6a682e9a6))
+
+
+### CI/CD
+
+* corregir el doble scope en los commits de Dependabot ([#231](https://github.com/spark-match/spark-match-02-infrastructure/issues/231)) ([7ce1917](https://github.com/spark-match/spark-match-02-infrastructure/commit/7ce1917beb52dfb4e6cf186973fa997409b75742))
+
 ## [1.0.0](https://github.com/spark-match/spark-match-02-infrastructure/compare/v0.1.0...v1.0.0) (2026-08-04)
 
 

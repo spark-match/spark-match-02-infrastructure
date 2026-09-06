@@ -64,4 +64,15 @@ jobs:
       dry-run: ${{ inputs.dry_run }}
       auto-approve: true
     secrets:
-      AWS_APPLY_ROLE_ARN: ${{ secrets.AWS_APPLY_ROLE_ARN }}
+      # Literal a proposito, igual que `apply-role-arn` en terraform-apply-dev.yml.
+      #
+      # `${{ secrets.AWS_APPLY_ROLE_ARN }}` NO funciona aqui: el bloque
+      # `secrets:` del caller se evalua SIN environment, y este valor solo
+      # existe con scope de environment. Resolvia a cadena vacia, el reusable
+      # lo declara `required: true`, y el run moria en startup_failure antes de
+      # ejecutar un solo paso. Es lo que tenia este workflow con CERO
+      # ejecuciones utiles en toda su historia.
+      #
+      # Un ARN es un identificador, no una credencial (ADR-0002), y el account
+      # ID ya aparece en 15 ficheros de este repositorio.
+      AWS_APPLY_ROLE_ARN: arn:aws:iam::681526276858:role/spark-match-terraform-apply-dev

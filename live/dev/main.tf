@@ -366,9 +366,14 @@ module "rds_postgres" {
 # rotacion. No confundir con module.frontend_hosting, que si lleva CloudFront
 # porque sirve un sitio estatico publico.
 #
-# force_destroy queda en false incluso en dev: son informes, no artefactos de
-# build regenerables, y un `terraform destroy` accidental no deberia poder
-# llevarselos por delante sin vaciar el bucket antes a mano.
+# force_destroy sale de una variable, con default false: son informes, no
+# artefactos de build regenerables, y un `terraform destroy` accidental no
+# deberia poder llevarselos por delante sin vaciar el bucket antes a mano.
+#
+# Estaba cableado a false, lo que hacia el ambiente IMPOSIBLE de bajar sin
+# vaciar el bucket a mano primero: el destroy fallaba justo ahi y dejaba el
+# entorno a medias. Ahora se decide en terraform.tfvars, y bajar dev pasa a ser
+# un acto deliberado en vez de imposible.
 ###############################################################################
 
 module "reports_storage" {
@@ -378,7 +383,7 @@ module "reports_storage" {
   environment  = var.environment
 
   kms_key_arn   = module.kms.kms_key_arn
-  force_destroy = false
+  force_destroy = var.reports_force_destroy
 
   access_logs_retention_days = var.reports_access_logs_retention_days
 }

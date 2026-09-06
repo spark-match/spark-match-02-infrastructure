@@ -246,19 +246,21 @@ variable "agent_enable_deletion_protection" {
 # El secret hay que crearlo A MANO antes de setear esta variable; Terraform
 # solo lo lee. El procedimiento esta en docs/runbook-tavily.md. Mientras siga
 # en null el agente levanta igual y web_search cae a DuckDuckGo.
-variable "agent_tavily_secret_name" {
-  description = "Nombre del secret de Secrets Manager con la API key de Tavily (p.ej. spark-match-dev-tavily-api-key). null = sin Tavily."
-  type        = string
-  default     = null
+# Ya no hay que crear el secret a mano: lo crea Terraform y el valor lo
+# inyecta el workflow de apply desde el GitHub Environment secret (ADR-0003).
+# Antes de poner esto en true hay que cargar TAVILY_API_KEY en el Environment
+# `dev` del repositorio, o el job push-agent-api-keys falla.
+variable "agent_tavily_enabled" {
+  description = "true crea el secret de la API key de Tavily y se la inyecta al agente. false = sin Tavily, y web_search cae a DuckDuckGo (que devuelve cero resultados, no peores)."
+  type        = bool
+  default     = false
 }
 
-# Mismo trato que el de Tavily: crear el secret A MANO antes de setear esto.
-# El procedimiento esta en docs/runbook-langsmith.md. En null el agente
-# levanta igual, solo que sin mandar trazas.
-variable "agent_langsmith_secret_name" {
-  description = "Nombre del secret de Secrets Manager con la API key de LangSmith (p.ej. spark-match-dev-langsmith-api-key). null = sin tracing."
-  type        = string
-  default     = null
+# Mismo trato. Requiere LANGSMITH_API_KEY en el Environment antes de activarlo.
+variable "agent_langsmith_enabled" {
+  description = "true crea el secret de la API key de LangSmith y activa el tracing. false = el agente levanta igual, sin mandar trazas."
+  type        = bool
+  default     = false
 }
 
 ###############################################################################

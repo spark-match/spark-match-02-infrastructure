@@ -297,3 +297,23 @@ locals {
     Repository  = "spark-match/spark-match-02-infrastructure"
   }
 }
+
+###############################################################################
+# API keys de terceros del agente (ADR-0003)
+###############################################################################
+# Terraform crea el contenedor del secret; el valor lo inyecta el job
+# push-agent-api-keys del workflow de apply desde el GitHub Environment
+# `production`. Activar el flag sin haber cargado el secret hace fallar ese job
+# a proposito.
+
+variable "agent_tavily_enabled" {
+  description = "true crea el secret de la API key de Tavily y se la inyecta al agente. false = sin Tavily, y web_search cae a DuckDuckGo (que devuelve cero resultados, no peores)."
+  type        = bool
+  default     = false
+}
+
+variable "agent_langsmith_enabled" {
+  description = "true crea el secret de la API key de LangSmith y activa el tracing. OJO en prod: una traza lleva la conversacion entera de un estudiante real."
+  type        = bool
+  default     = false
+}

@@ -219,16 +219,27 @@ variable "cors_allowed_origins" {
   default     = "[]"
 }
 
-variable "tavily_secret_name" {
-  description = "Nombre del secret de Secrets Manager que guarda la API key de Tavily, como string plano. El VALOR se crea fuera de Terraform a proposito (ver el comentario de data.aws_secretsmanager_secret.tavily): aqui solo se resuelve el ARN para inyectarlo como SPARK_TAVILY_API_KEY. En null el agente no recibe la key y web_search cae a DuckDuckGo."
-  type        = string
-  default     = null
+variable "tavily_enabled" {
+  description = "Crea el secret de la API key de Tavily y se la inyecta al contenedor como SPARK_TAVILY_API_KEY. El nombre del secret lo deriva el modulo ({project}-{env}-tavily-api-key) y el VALOR lo pone el workflow de apply desde el GitHub Environment secret TAVILY_API_KEY, nunca Terraform (ADR-0003). En false el agente no recibe key y web_search cae a DuckDuckGo, que segun los logs de dev del 2026-08-08 devuelve CERO resultados, no peores."
+  type        = bool
+  default     = false
 }
 
-variable "langsmith_secret_name" {
-  description = "Nombre del secret de Secrets Manager con la API key de LangSmith, como string plano. Igual que tavily_secret_name, el VALOR se crea fuera de Terraform (ver docs/runbook-langsmith.md) y aqui solo se resuelve el ARN para inyectarlo como SPARK_LANGSMITH_API_KEY. En null el agente arranca sin tracing y SPARK_LANGSMITH_TRACING queda en false."
-  type        = string
-  default     = null
+variable "langsmith_enabled" {
+  description = "Crea el secret de la API key de LangSmith y activa el tracing (SPARK_LANGSMITH_TRACING). Mismo reparto que tavily_enabled: el contenedor lo crea Terraform, el valor lo inyecta el workflow desde LANGSMITH_API_KEY. En false el agente arranca igual, sin mandar trazas. OJO con activarlo: una traza lleva la conversacion entera, incluido lo que escribe el estudiante."
+  type        = bool
+  default     = false
+}
+
+variable "secret_recovery_window_in_days" {
+  description = "Dias de gracia antes de borrar definitivamente los secrets de API keys tras un destroy. 0 = borrado inmediato, necesario en dev para poder recrear el ambiente sin chocar con un secret en cuarentena que aun ocupa el nombre. Mismo criterio y misma variable de origen que modules/secrets-bootstrap."
+  type        = number
+  default     = 30
+
+  validation {
+    condition     = var.secret_recovery_window_in_days == 0 || (var.secret_recovery_window_in_days >= 7 && var.secret_recovery_window_in_days <= 30)
+    error_message = "secret_recovery_window_in_days debe ser 0 o estar entre 7 y 30 (limites de AWS)."
+  }
 }
 
 variable "langsmith_project" {

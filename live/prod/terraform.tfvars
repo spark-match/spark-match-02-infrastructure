@@ -154,6 +154,19 @@ frontend_noncurrent_version_expiration_days = 90
 # ~$137/mes, bajo el budget de $200/mes de la cuenta.
 enable_agent_service = true
 
+# API keys de terceros del agente (ADR-0003). Terraform crea el contenedor del
+# secret; el valor lo inyecta el job push-agent-api-keys del workflow de apply
+# desde el GitHub Environment `production`.
+#
+# En false porque todavia no se han cargado las keys en ese Environment.
+# Activarlas sin cargarlas antes hace fallar el job a proposito, que es
+# preferible a levantar el agente con el centinela y descubrirlo por un 401.
+#
+# LangSmith en prod NO es un copy-paste de dev: una traza lleva la conversacion
+# entera, y aqui los estudiantes son reales. Decision aparte antes de activarlo.
+agent_tavily_enabled    = false
+agent_langsmith_enabled = false
+
 # 1 task: el estado de conversacion vive en Postgres (schema `agent`), no en
 # memoria de la task, asi que escalar horizontalmente es solo subir este
 # numero cuando el trafico lo justifique.

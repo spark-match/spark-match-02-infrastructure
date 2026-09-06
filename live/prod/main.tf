@@ -540,4 +540,22 @@ module "agent_service" {
   # true en prod: protege el ALB (y con el, el DNS publicado en SSM) contra
   # un destroy accidental.
   enable_deletion_protection = var.agent_enable_deletion_protection
+
+  # API keys de terceros (ADR-0003). Se pasan explicitamente aunque hoy sean
+  # false: heredar el default del modulo dejaria la decision invisible desde
+  # aqui, y en prod interesa que se lea en el sitio.
+  #
+  # Antes de ponerlas en true hay que cargar TAVILY_API_KEY / LANGSMITH_API_KEY
+  # en el GitHub Environment `production`, que a diferencia de `dev` tiene
+  # required reviewers: el job de inyeccion espera aprobacion humana.
+  #
+  # LangSmith en prod merece una decision aparte y no un copy-paste de dev: una
+  # traza lleva la conversacion entera del estudiante, y en prod esos son
+  # usuarios reales.
+  tavily_enabled    = var.agent_tavily_enabled
+  langsmith_enabled = var.agent_langsmith_enabled
+
+  # 30 en prod (viene de secrets_recovery_window_in_days): borrar un secret por
+  # error deja 30 dias para recuperarlo.
+  secret_recovery_window_in_days = var.secrets_recovery_window_in_days
 }

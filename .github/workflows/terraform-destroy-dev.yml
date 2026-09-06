@@ -46,6 +46,18 @@ on:
 permissions:
   contents: read
   id-token: write
+  # OBLIGATORIO aunque este workflow no toque ningun PR.
+  #
+  # `reusable-terraform-destroy.yml` declara `pull-requests: write` a nivel de
+  # workflow, y GitHub NO deja que un reusable reciba mas permisos de los que
+  # concede quien lo llama: rechaza el run entero en `startup_failure`, sin
+  # crear un solo job y sin ninguna anotacion que lo explique.
+  #
+  # Es la causa de que los dos workflows de destroy acumulen CERO ejecuciones
+  # arrancadas en toda su historia. Los dos de apply llaman a un reusable que
+  # pide exactamente los mismos tres permisos, los conceden, y llevan 30 y 28
+  # runs arrancados. La unica diferencia entre unos y otros era esta linea.
+  pull-requests: write
 
 jobs:
   destroy-dev:
@@ -62,16 +74,12 @@ jobs:
       backend-key: dev/terraform.tfstate
       confirm-destroy-token: ${{ inputs.confirm_destroy }}
       # El contexto `inputs` de un workflow_dispatch entrega CADENAS, tambien
-      # para un input declarado `type: boolean`. El reusable declara `dry-run`
-      # como boolean, asi que pasarle "true" es un choque de tipos y GitHub
-      # aborta el run entero en `startup_failure`, antes de crear un solo job:
-      # ni logs, ni pasos, ni anotacion que lo explique.
+      # para un input declarado `type: boolean`, y el reusable espera un
+      # boolean. La comparacion devuelve un boolean de verdad venga cadena o
+      # booleano.
       #
-      # Es la causa de que este workflow acumule CERO ejecuciones arrancadas en
-      # toda su historia. Los de apply si arrancan (30 y 28 runs) y la
-      # diferencia es exactamente esta: alli todos los booleanos son literales.
-      #
-      # La comparacion devuelve un boolean de verdad venga cadena o booleano.
+      # Bug real, pero NO era la causa del startup_failure: esa era la falta de
+      # `pull-requests: write` en el bloque `permissions` de arriba.
       dry-run: ${{ inputs.dry_run == true || inputs.dry_run == 'true' }}
       auto-approve: true
     secrets:
@@ -81,8 +89,8 @@ jobs:
       # `secrets:` del caller se evalua SIN environment, y este valor solo
       # existe con scope de environment, asi que resolvia a cadena vacia y el
       # job se habria quedado sin rol que asumir. Bug latente real, aunque NO
-      # era la causa del startup_failure: esa es el choque de tipos de
-      # `dry-run`, documentado mas arriba.
+      # era la causa del startup_failure: esa era la falta de
+      # `pull-requests: write` en el bloque `permissions`.
       #
       # Un ARN es un identificador, no una credencial (ADR-0002), y el account
       # ID ya aparece en 15 ficheros de este repositorio.

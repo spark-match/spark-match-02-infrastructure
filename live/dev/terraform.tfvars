@@ -51,8 +51,19 @@ enable_nat_ha      = false
 #   plano de control de Lambda, no por la ENI de la funcion).
 #   Costo networking dev: ~$21.90/mes (3 endpoints x 1 AZ), sin NAT.
 enable_all_endpoints_by_default = false
-enabled_endpoints               = ["secretsmanager", "events", "ssm"]
-enable_s3_gateway_endpoint      = true
+# DESACTIVADO 2026-09-06 a peticion de ahincho: bajar el gasto de dev sin
+# destruir el ambiente. Cada interface endpoint son ~$7,20/mes por AZ y aqui
+# hay tres, o sea ~$21,60/mes que es el mayor gasto fijo despues del agente.
+#
+# Consecuencia real, no cosmetica: sin NAT (enable_nat_gateway = false) y sin
+# estos endpoints, cualquier cosa que corra en subnet privada se queda SIN
+# salida hacia Secrets Manager, EventBridge y SSM. Hoy no hay nada corriendo
+# ahi -- el agente tambien se apaga en este mismo cambio -- pero volver a
+# encender el agente exige volver a poner esta lista.
+#
+# Para reactivar: ["secretsmanager", "events", "ssm"]
+enabled_endpoints          = []
+enable_s3_gateway_endpoint = true
 
 # Flow logs: desactivado en dev para minimizar costo (~$0.50/mes si esta
 # prendido y hay trafico). Se puede activar localmente con -var si se necesita
@@ -166,3 +177,19 @@ agent_langsmith_enabled = false
 # Volver a false en cuanto el ambiente se recree: el default de la variable ya
 # es false, asi que basta con borrar esta linea.
 reports_force_destroy = true
+
+###############################################################################
+# Interruptor del agente
+###############################################################################
+# DESACTIVADO 2026-09-06 a peticion de ahincho. Apaga los 26 recursos de
+# module.agent_service y module.ecr: cluster y servicio ECS, task definition,
+# ALB, distribucion CloudFront, security groups, log groups y el repositorio
+# ECR. Es el mayor gasto del ambiente, con el ALB como partida fija.
+#
+# NO es un destroy: el ambiente sigue en pie (VPC, KMS, RDS, buckets) y
+# volver a poner esto en true lo reconstruye con un apply.
+#
+# OJO al reactivar: el repositorio ECR se destruye con este flag, y con el las
+# imagenes del agente. Habra que volver a publicar una imagen antes de que el
+# servicio pueda arrancar.
+enable_agent_service = false

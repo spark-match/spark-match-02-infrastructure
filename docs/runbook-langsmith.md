@@ -27,61 +27,66 @@ Mezclarlos es justo lo que estorba cuando algo falla en dev y no en local:
 media hora buscando por que una traza "no aparece" hasta caer en que estaba
 mirando las del portatil de otro.
 
-## Por que la key no esta en Terraform
+## Como se reparte esto - ver [ADR-0003](adr/0003-api-keys-terceros-contenedor-terraform-valor-ci.md)
 
-Lo mismo que con Tavily (`runbook-tavily.md`): Terraform lee el ARN del secret,
-nunca su valor. Un `aws_secretsmanager_secret_version` dejaria la key **en claro
-dentro del tfstate**, que vive en S3 con versionado — borrarla despues no
-serviria, quedan las versiones anteriores del objeto.
+Lo mismo que con Tavily (`runbook-tavily.md`):
 
-El valor lo pone una persona, una vez, fuera del pipeline.
+| Quien | Que |
+|---|---|
+| Terraform | Crea el **contenedor** del secret y el permiso del execution role |
+| Job `push-agent-api-keys` del workflow de apply | Escribe el **valor**, desde el GitHub Environment secret `LANGSMITH_API_KEY` |
 
-## Crear el secret
+Terraform nunca ve la key. Un `aws_secretsmanager_secret_version` la dejaria
+**en claro dentro del tfstate**, que vive en S3 con versionado: borrarla despues
+no serviria, quedan las versiones anteriores del objeto.
 
-Una sola vez por ambiente. La key se saca de <https://smith.langchain.com> →
-Settings → API Keys; empieza por `lsv2_`.
+## Alta: cargar la key una vez por ambiente
 
-```bash
-aws secretsmanager create-secret \
-  --name spark-match-dev-langsmith-api-key \
-  --description "API key de LangSmith para el tracing del deep-agent (dev)" \
-  --secret-string "lsv2_REEMPLAZAR" \
-  --profile spark-match-admin --region us-east-1
+La key se saca de <https://smith.langchain.com> -> Settings -> API Keys; empieza
+por `lsv2_`.
+
+**1. Cargarla en el GitHub Environment.** En
+`spark-match/spark-match-02-infrastructure` -> *Settings* -> *Environments* ->
+`dev` (o `production`) -> *Environment secrets* -> *Add secret*:
+
+```
+Name:   LANGSMITH_API_KEY
+Value:  lsv2_...
 ```
 
-`--secret-string` es la key tal cual, **string plano, no JSON**: asi lo espera
-el `valueFrom` de la task definition, que apunta al secret entero sin sufijo de
-clave.
+Va como **string plano, no JSON**: asi lo espera el `valueFrom` de la task
+definition, que apunta al secret entero sin sufijo de clave. Y a diferencia de
+`aws secretsmanager create-secret`, no deja la key en el historial del shell.
 
-Nota sobre el historial del shell: `create-secret` deja la key en el historial
-de bash/PowerShell. Para evitarlo, `--secret-string file://ruta` y borrar el
-fichero despues, o crearlo desde la consola de AWS.
-
-Encriptacion: la key por defecto (`aws/secretsmanager`) esta bien — al
-execution role le basta con `GetSecretValue`. Con la CMK del proyecto tambien
-funciona: el role ya tiene `kms:Decrypt` sobre ella.
-
-## Cablearlo
-
-En `live/dev/terraform.tfvars`:
+**2. Activar el flag.** En `live/dev/terraform.tfvars`:
 
 ```hcl
-agent_langsmith_secret_name = "spark-match-dev-langsmith-api-key"
+agent_langsmith_enabled = true
 ```
 
-Y aplicar. Terraform resuelve el ARN, lo mete en el bloque `secrets` de la task
-definition como `SPARK_LANGSMITH_API_KEY`, le da `secretsmanager:GetSecretValue`
-al execution role sobre ese ARN concreto, y pone `SPARK_LANGSMITH_TRACING=true`
-y `SPARK_LANGSMITH_PROJECT=spark-match-agent-dev` como env vars normales.
+**3. Aplicar.** Al mergear a `dev`, el workflow crea el secret y el job
+`push-agent-api-keys` le inyecta el valor.
 
-El flag va atado al secret: con `agent_langsmith_secret_name = null`,
+> Activar el flag sin haber cargado el secret hace fallar ese job a proposito.
+>
+> **En `production` piensalo dos veces.** Ahi las conversaciones son de
+> estudiantes reales; ver la seccion "Que se manda, y como apagarlo". El
+> Environment `production` tiene required reviewers, asi que la inyeccion espera
+> aprobacion humana.
+
+Terraform mete el secret en el bloque `secrets` de la task definition como
+`SPARK_LANGSMITH_API_KEY`, le da `secretsmanager:GetSecretValue` al execution
+role sobre ese ARN concreto, y pone `SPARK_LANGSMITH_TRACING=true` y
+`SPARK_LANGSMITH_PROJECT=spark-match-agent-dev` como env vars normales.
+
+El flag va atado al secret: con `agent_langsmith_enabled = false`,
 `SPARK_LANGSMITH_TRACING` queda en `false` y no hay WARNING de arranque
 prometiendo trazas que nadie va a mandar.
 
-El valor de la key **no** aparece en `aws ecs describe-task-definition` — ahi
+El valor de la key **no** aparece en `aws ecs describe-task-definition` - ahi
 solo se ve el ARN. Por eso va en `secrets` y no en `environment`.
 
-### Aplicar NO alcanza: hay que mover el servicio a mano una vez
+## Aplicar NO alcanza: hay que mover el servicio a mano una vez
 
 Identico al caso de Tavily, y por la misma razon: `aws_ecs_service` tiene
 `ignore_changes = [task_definition]` y el CD (`reusable-ecs-deploy.yml`) parte
@@ -177,14 +182,18 @@ Y por ultimo, un turno de chat real: la traza aparece en
 
 ## Rotar
 
-```bash
-aws secretsmanager put-secret-value \
-  --secret-id spark-match-dev-langsmith-api-key \
-  --secret-string "lsv2_LA-NUEVA" \
-  --profile spark-match-admin --region us-east-1
-```
+Ya no se toca AWS a mano. Se actualiza el Environment secret y se relanza el
+apply:
 
-Terraform no se entera ni le hace falta: el ARN no cambia. Lo que si hace falta
+1. *Settings* -> *Environments* -> `dev` -> `LANGSMITH_API_KEY` -> *Update*.
+2. Lanzar `continuous-deployment-terraform-apply-dev` (workflow_dispatch, o
+   cualquier merge a `dev`). El job `push-agent-api-keys` detecta que el valor
+   cambio y escribe una version nueva del secret.
+
+El job compara antes de escribir, asi que relanzar el apply sin cambiar la key
+no crea versiones nuevas: AWS solo conserva las 100 ultimas.
+
+Terraform no se entera ni le hace falta, el ARN no cambia. Lo que si hace falta
 es **reciclar el servicio**, porque ECS resuelve los `secrets` una sola vez, al
 arrancar la task:
 
@@ -202,7 +211,7 @@ lo que hace util el tracing y tambien lo que hay que tener presente — son dato
 de personas reales saliendo de la cuenta de AWS hacia un SaaS de terceros en
 EEUU.
 
-Para apagarlo: `agent_langsmith_secret_name = null` en `terraform.tfvars`,
+Para apagarlo: `agent_langsmith_enabled = false` en `terraform.tfvars`,
 aplicar y reciclar el servicio. El agente levanta igual, sin tracing. No hace
 falta borrar el secret.
 

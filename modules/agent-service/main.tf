@@ -48,6 +48,14 @@ locals {
     }
   )
 
+  # Los nombres de los secrets NO llevan el infijo `-agent-` de name_prefix:
+  # las policies de bootstrap autorizan `secret:spark-match-${environment}-*`
+  # (ver bootstrap/policies/spark-match-tf-apply-*.json y ADR-0002 seccion 2),
+  # y el workflow de apply construye el mismo nombre para inyectar el valor.
+  # Si esto cambia, hay que cambiarlo en los tres sitios a la vez.
+  tavily_secret_name    = "${var.project_name}-${var.environment}-tavily-api-key"
+  langsmith_secret_name = "${var.project_name}-${var.environment}-langsmith-api-key"
+
   name_prefix    = "${var.project_name}-agent-${var.environment}"
   cluster_name   = "${var.project_name}-${var.environment}"
   log_group_name = "/aws/${var.project_name}/agent/${var.environment}/service"
@@ -85,7 +93,7 @@ locals {
     # Atado al secret y no a un flag suelto: sin key, configure_langsmith()
     # avisa por WARNING en cada arranque y no manda nada. Un "true" sin key
     # solo ensucia los logs prometiendo trazas que no existen.
-    SPARK_LANGSMITH_TRACING = tostring(var.langsmith_secret_name != null)
+    SPARK_LANGSMITH_TRACING = tostring(var.langsmith_enabled)
     SPARK_LANGSMITH_PROJECT = local.langsmith_project
   }
 
@@ -109,53 +117,104 @@ locals {
   # no aparece en `describe-task-definition`, que es lectura publica para
   # cualquiera con acceso al cluster.
   container_secrets = concat(
-    var.tavily_secret_name == null ? [] : [
+    var.tavily_enabled ? [
       {
         name      = "SPARK_TAVILY_API_KEY"
-        valueFrom = data.aws_secretsmanager_secret.tavily[0].arn
+        valueFrom = aws_secretsmanager_secret.tavily[0].arn
       }
-    ],
-    var.langsmith_secret_name == null ? [] : [
+    ] : [],
+    var.langsmith_enabled ? [
       {
         name      = "SPARK_LANGSMITH_API_KEY"
-        valueFrom = data.aws_secretsmanager_secret.langsmith[0].arn
+        valueFrom = aws_secretsmanager_secret.langsmith[0].arn
       }
-    ],
+    ] : [],
   )
 
   # Se evalua sobre las variables, no sobre `container_secrets`, para que el
   # `count` de la policy sea conocido en plan y no despues del apply.
-  has_container_secrets = var.tavily_secret_name != null || var.langsmith_secret_name != null
+  has_container_secrets = var.tavily_enabled || var.langsmith_enabled
 }
 
 data "aws_caller_identity" "current" {}
 data "aws_partition" "current" {}
 
-# El VALOR de la API key se crea fuera de Terraform (consola o
-# `aws secretsmanager create-secret`) y aqui solo se lee el ARN.
+###############################################################################
+# API keys de terceros (Tavily, LangSmith) -- ver ADR-0003
+###############################################################################
+# Reparto de responsabilidades, y el motivo de que sea asi:
 #
-# No es pereza: un `aws_secretsmanager_secret_version` guardaria la key EN
-# CLARO dentro del tfstate, y el tfstate vive en S3 -- cualquiera con acceso
-# al bucket la leeria, y quedaria ademas en cada version del objeto. Es el
-# mismo agujero que ya tiene modules/secrets-bootstrap con el JWT, salvo que
-# ese valor lo genera Terraform y este lo emite un tercero.
+#   Terraform crea el CONTENEDOR (nombre, KMS, ventana de recuperacion, tags).
+#   El workflow de apply inyecta el VALOR desde un GitHub Environment secret.
 #
-# Un data source falla el plan si el secret no existe, de ahi el count: con
-# tavily_secret_name = null el ambiente se levanta sin Tavily y web_search
-# cae a DuckDuckGo.
-data "aws_secretsmanager_secret" "tavily" {
-  count = var.tavily_secret_name == null ? 0 : 1
+# Terraform NO escribe el valor a proposito. Un `aws_secretsmanager_secret_version`
+# con la key de verdad la dejaria EN CLARO dentro del tfstate, y el tfstate vive
+# en S3: cualquiera con acceso al bucket la leeria, y quedaria ademas en cada
+# version del objeto. Con este reparto el valor solo viaja por el runner y por
+# la API de Secrets Manager.
+#
+# Antes esto eran `data` sources que leian un secret creado a mano. Se cambio
+# porque un data source falla el PLAN ENTERO si el secret no existe, y eso
+# convertia cualquier drift de la cuenta en un CI rojo para todo el repo -- paso
+# el 2026-08-31 y dejo `plan-dev` en rojo cinco dias. Un recurso no puede faltar:
+# si no esta, Terraform lo crea.
+resource "aws_secretsmanager_secret" "tavily" {
+  # checkov:skip=CKV2_AWS_57:rotacion automatica no configurada. La key la emite Tavily, no AWS; rotarla exige pedir una nueva en su consola y actualizar el GitHub Environment secret. Mismo criterio que modules/secrets-bootstrap.
+  count = var.tavily_enabled ? 1 : 0
 
-  name = var.tavily_secret_name
+  name                    = local.tavily_secret_name
+  description             = "API key de Tavily para web_search del agente (${var.environment}). El valor lo inyecta el workflow de apply desde el GitHub Environment secret TAVILY_API_KEY."
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.secret_recovery_window_in_days
+
+  tags = merge(local.common_tags, {
+    Name = local.tavily_secret_name
+  })
 }
 
-# Misma historia que Tavily: el valor lo emite un tercero (LangSmith) y lo
-# pone un humano, aqui solo viaja el ARN. Con langsmith_secret_name = null el
-# ambiente arranca sin tracing y SPARK_LANGSMITH_TRACING queda en "false".
-data "aws_secretsmanager_secret" "langsmith" {
-  count = var.langsmith_secret_name == null ? 0 : 1
+# Version de arranque con un valor centinela, NO la key.
+#
+# Hace falta porque un secret sin ninguna version hace que `GetSecretValue`
+# falle y la task de ECS no arranque, con un error que no dice por que. Con el
+# centinela el contenedor levanta y, si nadie inyecto la key, el fallo aparece
+# donde se entiende: en la llamada a Tavily.
+#
+# `ignore_changes` para que el apply siguiente no pise el valor real que puso
+# el workflow. Mismo mecanismo que ya usa modules/secrets-bootstrap con el JWT.
+resource "aws_secretsmanager_secret_version" "tavily_placeholder" {
+  count = var.tavily_enabled ? 1 : 0
 
-  name = var.langsmith_secret_name
+  secret_id     = aws_secretsmanager_secret.tavily[0].id
+  secret_string = "PENDIENTE-DE-INYECTAR-POR-EL-WORKFLOW-DE-APPLY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}
+
+resource "aws_secretsmanager_secret" "langsmith" {
+  # checkov:skip=CKV2_AWS_57:rotacion automatica no configurada, mismo criterio que el secret de Tavily de arriba.
+  count = var.langsmith_enabled ? 1 : 0
+
+  name                    = local.langsmith_secret_name
+  description             = "API key de LangSmith para el tracing del agente (${var.environment}). El valor lo inyecta el workflow de apply desde el GitHub Environment secret LANGSMITH_API_KEY."
+  kms_key_id              = var.kms_key_arn
+  recovery_window_in_days = var.secret_recovery_window_in_days
+
+  tags = merge(local.common_tags, {
+    Name = local.langsmith_secret_name
+  })
+}
+
+resource "aws_secretsmanager_secret_version" "langsmith_placeholder" {
+  count = var.langsmith_enabled ? 1 : 0
+
+  secret_id     = aws_secretsmanager_secret.langsmith[0].id
+  secret_string = "PENDIENTE-DE-INYECTAR-POR-EL-WORKFLOW-DE-APPLY"
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
 }
 
 ###############################################################################

@@ -100,3 +100,83 @@ jobs:
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate
       auto-approve: false
+
+  # ===========================================================================
+  # Inyeccion del VALOR de las API keys de terceros (ADR-0003)
+  # ===========================================================================
+  # Terraform crea el CONTENEDOR del secret; este job pone el VALOR. El reparto
+  # existe para que la key no acabe en el tfstate: un
+  # `aws_secretsmanager_secret_version` con el valor real lo dejaria en claro en
+  # S3, legible por cualquiera con acceso al bucket y en cada version del objeto.
+  #
+  # `environment:` se declara AQUI, en el job, y no es un detalle: un secret con
+  # scope de environment es invisible en el bloque `with:`/`secrets:` de quien
+  # llama a un reusable -- la trampa que dejo 20 ejecuciones fallidas en
+  # terraform-apply-prod.yml. Al bindear el environment en este job, tanto
+  # `secrets.AWS_APPLY_ROLE_ARN` como las API keys se resuelven con normalidad.
+  #
+  # Corre despues del apply porque el secret tiene que existir antes de poder
+  # escribirle un valor.
+  push-agent-api-keys:
+    name: push-agent-api-keys
+    needs: apply-prod
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: configure-aws-credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ secrets.AWS_APPLY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: push-api-keys
+        env:
+          TF_ENVIRONMENT: prod
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
+          LANGSMITH_API_KEY: ${{ secrets.LANGSMITH_API_KEY }}
+        run: |
+          set -euo pipefail
+
+          # El nombre lo construye tambien modules/agent-service (locals
+          # tavily_secret_name / langsmith_secret_name) y lo autorizan las
+          # policies de bootstrap como `secret:spark-match-${environment}-*`.
+          # Si la formula cambia, hay que cambiarla en los tres sitios.
+          inyectar() {
+            etiqueta="$1"
+            nombre="spark-match-${TF_ENVIRONMENT}-$2"
+            valor="$3"
+
+            # Que el secret no exista NO es un error: significa que el flag de
+            # Terraform esta en false y este ambiente corre sin ese servicio.
+            if ! aws secretsmanager describe-secret --secret-id "$nombre" >/dev/null 2>&1; then
+              echo "::notice::${etiqueta} desactivado en Terraform (no existe ${nombre}); nada que inyectar."
+              return 0
+            fi
+
+            # Que exista y no haya valor SI lo es. Sin esto el agente arrancaria
+            # con el centinela que puso Terraform y el fallo apareceria mucho
+            # despues, como un 401 del proveedor que nadie relaciona con esto.
+            if [ -z "$valor" ]; then
+              echo "::error::${nombre} existe en AWS pero el secret ${etiqueta} no esta cargado en el GitHub Environment 'production'. Cargalo en Settings > Environments, o pon el flag de Terraform en false."
+              return 1
+            fi
+
+            # Comparar antes de escribir: sin esto cada apply crearia una version
+            # nueva del secret, y AWS solo conserva las 100 ultimas.
+            actual="$(aws secretsmanager get-secret-value --secret-id "$nombre" --query SecretString --output text 2>/dev/null || true)"
+            if [ "$actual" = "$valor" ]; then
+              echo "::notice::${nombre} ya tiene el valor vigente; sin cambios."
+              return 0
+            fi
+
+            aws secretsmanager put-secret-value --secret-id "$nombre" --secret-string "$valor" >/dev/null
+            echo "::notice::${nombre} actualizado."
+          }
+
+          fallos=0
+          inyectar "TAVILY_API_KEY" "tavily-api-key" "${TAVILY_API_KEY:-}" || fallos=1
+          inyectar "LANGSMITH_API_KEY" "langsmith-api-key" "${LANGSMITH_API_KEY:-}" || fallos=1
+          exit "$fallos"

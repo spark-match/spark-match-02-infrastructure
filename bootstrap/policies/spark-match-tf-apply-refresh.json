@@ -243,6 +243,23 @@
           ]
         }
       }
+    },
+    {
+      "Sid": "S3EmptyVersionedBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucketVersions"
+      ],
+      "Resource": "arn:aws:s3:::spark-match-*"
+    },
+    {
+      "Sid": "S3DeleteObjectsAndVersions",
+      "Effect": "Allow",
+      "Action": [
+        "s3:DeleteObject",
+        "s3:DeleteObjectVersion"
+      ],
+      "Resource": "arn:aws:s3:::spark-match-*/*"
     }
   ]
 }

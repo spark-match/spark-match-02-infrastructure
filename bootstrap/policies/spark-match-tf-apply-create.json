@@ -154,6 +154,17 @@
           "kms:ViaService": "ssm.us-east-1.amazonaws.com"
         }
       }
+    },
+    {
+      "Sid": "SNSCreateTopic",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:DeleteTopic",
+        "sns:TagResource",
+        "sns:UntagResource"
+      ],
+      "Resource": "arn:aws:sns:us-east-1:681526276858:spark-match-*"
     }
   ]
 }

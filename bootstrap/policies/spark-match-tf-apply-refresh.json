@@ -112,13 +112,14 @@
       "Resource": "arn:aws:sqs:us-east-1:681526276858:spark-match-*"
     },
     {
-      "Sid": "SNSDescribe",
+      "Sid": "SNSDescribeAndConfigure",
       "Effect": "Allow",
       "Action": [
         "sns:GetTopicAttributes",
         "sns:ListTagsForResource",
         "sns:GetSubscriptionAttributes",
-        "sns:ListSubscriptionsByTopic"
+        "sns:ListSubscriptionsByTopic",
+        "sns:SetTopicAttributes"
       ],
       "Resource": "arn:aws:sns:us-east-1:681526276858:spark-match-*"
     },

@@ -118,66 +118,43 @@ frontend_noncurrent_version_expiration_days = 30
 # Deep agent (modules/agent-service)
 ###############################################################################
 
-# El VALOR de la key NO esta aqui ni en el tfstate: este es solo el nombre del
-# secret, y Terraform resuelve su ARN con un data source. El secret hay que
-# crearlo antes de aplicar esto o el plan falla. Procedimiento completo en
-# docs/runbook-tavily.md.
+# API keys de terceros: el flag decide, el valor lo pone el workflow (ADR-0003)
 #
-# Mientras estuvo en null, `web_search` caia siempre a DuckDuckGo. Medido en
-# los logs de dev el 2026-08-08, esa caida no es benigna:
+# Terraform crea el CONTENEDOR del secret; el VALOR lo inyecta el job
+# push-agent-api-keys del workflow de apply, leyendolo del GitHub Environment
+# secret TAVILY_API_KEY del entorno `dev`. La key nunca pasa por Terraform, asi
+# que no acaba en el tfstate.
+#
+# Antes esto era el NOMBRE de un secret creado a mano, leido con un data
+# source. Se cambio porque un data source falla el plan entero si el secret no
+# existe: el 2026-08-31 desaparecio del entorno y dejo `plan-dev` en rojo en
+# todos los PR del repositorio durante cinco dias.
+#
+# En false, `web_search` cae a DuckDuckGo. Medido en los logs de dev el
+# 2026-08-08, esa caida no es benigna:
 #
 #   Tavily search failed (ValueError), falling back to DuckDuckGo:
 #     TAVILY_API_KEY not configured
 #   Web search completed via DuckDuckGo (fallback): 0 results
 #
-# Cero resultados, no peores resultados. O sea que cualquier pregunta que
-# dependa de informacion actual (fechas de Beca 18, admisiones) no se podia
-# responder.
-# DESACTIVADO. El secret "spark-match-dev-tavily-api-key" no existe en la cuenta, y un data
-# source de Secrets Manager falla el plan ENTERO si el secret no esta (ver
-# modules/agent-service/main.tf). Con el nombre puesto, `terraform plan`
-# aborta con "couldn't find resource" y el check plan-dev sale rojo en
-# todos los PR del repositorio.
+# Cero resultados, no peores resultados. Cualquier pregunta que dependa de
+# informacion actual (fechas de Beca 18, admisiones) se queda sin responder.
 #
-# No es una decision de producto: es drift del entorno. El apply del 10 de
-# agosto paso con este mismo data source, asi que el secret existia y
-# desaparecio despues (reset de la cuenta AWS Academy, ADR-003).
-#
-# Historia: se desactivo en el PR #224 (2026-08-31) y el PR #226, el del
-# renumerado, lo revirtio sin querer al resolver un conflicto. Se restaura
-# aqui el 2026-09-06.
-#
-# Para restaurarlo: crear el secret segun docs/runbook-tavily.md y volver esta linea a
-# su valor. Requiere un apply mas.
-# agent_tavily_secret_name = "spark-match-dev-tavily-api-key"
-agent_tavily_secret_name = null
+# Para activarlo: cargar TAVILY_API_KEY en el Environment `dev` del repositorio
+# y poner esto en true. Si se activa sin el secret cargado, el job falla a
+# proposito -- ver docs/runbook-tavily.md.
+agent_tavily_enabled = false
 
-# API key de LangSmith. Mismo trato que la de arriba: aqui solo va el nombre,
-# el valor se crea a mano y Terraform lo lee por ARN. Ver
-# docs/runbook-langsmith.md.
+# API key de LangSmith. Mismo reparto que la de arriba: el contenedor lo crea
+# Terraform, el valor lo inyecta el workflow desde LANGSMITH_API_KEY.
 #
-# Con esto puesto, el modulo pone SPARK_LANGSMITH_TRACING=true y manda las
-# trazas al proyecto spark-match-agent-dev. Un proyecto por ambiente: las
-# trazas locales van a spark-match-agent-local y no se mezclan con estas.
+# En true el modulo pone SPARK_LANGSMITH_TRACING=true y manda las trazas al
+# proyecto spark-match-agent-dev. Un proyecto por ambiente: las trazas locales
+# van a spark-match-agent-local y no se mezclan con estas.
 #
 # OJO con lo que se manda: una traza lleva la conversacion entera, incluida la
 # que escribe el estudiante. Si eso deja de ser aceptable, basta con volver
-# esta linea a null -- el agente sigue levantando igual, sin tracing.
-# DESACTIVADO. El secret "spark-match-dev-langsmith-api-key" no existe en la cuenta, y un data
-# source de Secrets Manager falla el plan ENTERO si el secret no esta (ver
-# modules/agent-service/main.tf). Con el nombre puesto, `terraform plan`
-# aborta con "couldn't find resource" y el check plan-dev sale rojo en
-# todos los PR del repositorio.
+# esto a false -- el agente sigue levantando igual, sin tracing.
 #
-# No es una decision de producto: es drift del entorno. El apply del 10 de
-# agosto paso con este mismo data source, asi que el secret existia y
-# desaparecio despues (reset de la cuenta AWS Academy, ADR-003).
-#
-# Historia: se desactivo en el PR #224 (2026-08-31) y el PR #226, el del
-# renumerado, lo revirtio sin querer al resolver un conflicto. Se restaura
-# aqui el 2026-09-06.
-#
-# Para restaurarlo: crear el secret segun docs/runbook-langsmith.md y volver esta linea a
-# su valor. Requiere un apply mas.
-# agent_langsmith_secret_name = "spark-match-dev-langsmith-api-key"
-agent_langsmith_secret_name = null
+# Procedimiento en docs/runbook-langsmith.md.
+agent_langsmith_enabled = false

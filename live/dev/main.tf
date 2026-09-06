@@ -552,14 +552,24 @@ module "agent_service" {
   # es un atributo computado y `count` no admite valores desconocidos en plan.
   enable_kms_encryption = true
 
-  # API key de Tavily para web_search. El valor lo pone un humano en Secrets
-  # Manager (docs/runbook-tavily.md); aqui solo viaja el nombre.
-  tavily_secret_name = var.agent_tavily_secret_name
+  # API keys de terceros (ADR-0003). El flag decide si Terraform crea el
+  # contenedor del secret; el VALOR lo inyecta el job push-agent-api-keys del
+  # workflow de apply, desde los GitHub Environment secrets del entorno `dev`.
+  # Terraform nunca ve la key, asi que no acaba en el tfstate.
+  #
+  # Activar el flag sin haber puesto el secret en el Environment hace fallar
+  # ese job a proposito: es preferible a levantar el agente con el centinela y
+  # que Tavily devuelva 401 en produccion de dev sin que nadie lo note.
+  tavily_enabled = var.agent_tavily_enabled
 
-  # Idem para LangSmith (docs/runbook-langsmith.md). El nombre del proyecto no
-  # se pasa: el modulo lo calcula como spark-match-agent-dev, que es la
-  # convencion de un proyecto por ambiente.
-  langsmith_secret_name = var.agent_langsmith_secret_name
+  # El nombre del proyecto de LangSmith no se pasa: el modulo lo calcula como
+  # spark-match-agent-dev, que es la convencion de un proyecto por ambiente.
+  langsmith_enabled = var.agent_langsmith_enabled
+
+  # 0 en dev (viene de secrets_recovery_window_in_days): sin ventana de
+  # recuperacion se puede destruir y recrear el ambiente sin chocar con un
+  # secret en cuarentena que todavia ocupa el nombre.
+  secret_recovery_window_in_days = var.secrets_recovery_window_in_days
 
   # false en dev: permite `terraform destroy` mientras se itera.
   enable_deletion_protection = var.agent_enable_deletion_protection

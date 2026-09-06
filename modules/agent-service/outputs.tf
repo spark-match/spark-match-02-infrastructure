@@ -95,3 +95,27 @@ output "ssm_parameter_names" {
     aws_ssm_parameter.agent_ecr_repository_url.name,
   ]
 }
+
+###############################################################################
+# Secrets de API keys de terceros (ADR-0003)
+###############################################################################
+# Se exponen los NOMBRES y no los valores. Un nombre, como un ARN, es un
+# identificador y no autoriza nada por si mismo (ADR-0002, seccion 1); el
+# control real vive en la policy del execution role.
+#
+# Sirven para que el workflow de apply sepa a que secret inyectar el valor sin
+# repetir la formula del nombre, y para poder verificar el reparto a mano:
+#
+#   aws secretsmanager describe-secret --secret-id <nombre>
+#
+# En null cuando el flag correspondiente esta en false: no hay secret que
+# nombrar, y el workflow se lo salta.
+output "tavily_secret_name" {
+  description = "Nombre del secret de Secrets Manager con la API key de Tavily, o null si tavily_enabled = false."
+  value       = var.tavily_enabled ? aws_secretsmanager_secret.tavily[0].name : null
+}
+
+output "langsmith_secret_name" {
+  description = "Nombre del secret de Secrets Manager con la API key de LangSmith, o null si langsmith_enabled = false."
+  value       = var.langsmith_enabled ? aws_secretsmanager_secret.langsmith[0].name : null
+}

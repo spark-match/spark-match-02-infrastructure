@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.1.0](https://github.com/spark-match/spark-match-02-infrastructure/compare/v1.0.0...v1.1.0) (2026-09-06)
+
+
+### Features
+
+* **secrets:** las api keys de terceros pasan a github environments (adr-0003) ([#239](https://github.com/spark-match/spark-match-02-infrastructure/issues/239)) ([42b5ba5](https://github.com/spark-match/spark-match-02-infrastructure/commit/42b5ba54bf3796e0319d7f68080bb70607795ae1))
+
+
+### Bug Fixes
+
+* **agent:** restaurar la desactivacion de tavily y langsmith en dev ([#237](https://github.com/spark-match/spark-match-02-infrastructure/issues/237)) ([6d00717](https://github.com/spark-match/spark-match-02-infrastructure/commit/6d007177c8ec0af8f8a68a657c99cbde58c18584))
+* **ci:** arreglar los workflows de destroy, que nunca han podido ejecutarse ([#243](https://github.com/spark-match/spark-match-02-infrastructure/issues/243)) ([82ef7be](https://github.com/spark-match/spark-match-02-infrastructure/commit/82ef7bed6f46775fd93296fbfbf44ec83d343667))
+* **ci:** conceder pull-requests a los workflows de destroy ([#247](https://github.com/spark-match/spark-match-02-infrastructure/issues/247)) ([ad19b78](https://github.com/spark-match/spark-match-02-infrastructure/commit/ad19b78a1a58e5ebbe8e95f117405b33b3b4279a))
+* **ci:** pasar dry-run como booleano de verdad a los workflows de destroy ([#245](https://github.com/spark-match/spark-match-02-infrastructure/issues/245)) ([e04157a](https://github.com/spark-match/spark-match-02-infrastructure/commit/e04157a35d148cc3a22ea4f1db3cd5d9ba091568))
+* **iam:** permitir al rol de apply crear el topic de sns ([#241](https://github.com/spark-match/spark-match-02-infrastructure/issues/241)) ([378c024](https://github.com/spark-match/spark-match-02-infrastructure/commit/378c02442e3aeffddfd096cfbc4632e863a41c5d))
+* **iam:** permitir al rol de apply vaciar buckets versionados ([#253](https://github.com/spark-match/spark-match-02-infrastructure/issues/253)) ([bf69f52](https://github.com/spark-match/spark-match-02-infrastructure/commit/bf69f52472aa2869fc91adcf7e4f1495193617b7))
+
+
+### Documentation
+
+* actualizar los punteros a repos tras el renumerado ([#233](https://github.com/spark-match/spark-match-02-infrastructure/issues/233)) ([87fcfc0](https://github.com/spark-match/spark-match-02-infrastructure/commit/87fcfc0824aa8fb739d7def0ede2fcc7677d718d))
+* **readme:** reflejar los 17 módulos reales y el estado de la cuenta ([#227](https://github.com/spark-match/spark-match-02-infrastructure/issues/227)) ([9bd6c73](https://github.com/spark-match/spark-match-02-infrastructure/commit/9bd6c73f7b6f5e6ee2699ce350952df6a682e9a6))
+
+
+### CI/CD
+
+* corregir el doble scope en los commits de Dependabot ([#231](https://github.com/spark-match/spark-match-02-infrastructure/issues/231)) ([7ce1917](https://github.com/spark-match/spark-match-02-infrastructure/commit/7ce1917beb52dfb4e6cf186973fa997409b75742))
+
 ## [1.0.0](https://github.com/spark-match/spark-match-02-infrastructure/compare/v0.1.0...v1.0.0) (2026-08-04)
 
 

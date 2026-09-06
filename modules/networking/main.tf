@@ -55,9 +55,21 @@ resource "aws_vpc" "main" {
     Name = "${var.project_name}-${var.environment}-vpc"
   })
 
-  lifecycle {
-    prevent_destroy = true
-  }
+  # RETIRADO TEMPORALMENTE 2026-09-06 para bajar dev a peticion de ahincho.
+  #
+  # Habia aqui un `lifecycle { prevent_destroy = true }` sobre la VPC.
+  # `prevent_destroy` no admite variables -- es una limitacion dura de Terraform,
+  # no se puede condicionar por ambiente -- asi que la unica forma de destruir
+  # dev era retirarlo del modulo, que comparten dev y prod.
+  #
+  # El riesgo de la ventana es acotado: prod NO tiene ni un recurso desplegado.
+  # Verificado por tres vias el 2026-09-06: el bucket de estado de prod esta
+  # vacio (documentado en terraform-apply-prod.yml), los `plan-prod` refrescan
+  # cero recursos, y ninguno de los seis `apply-prod` llego a ejecutar una sola
+  # accion de Terraform.
+  #
+  # SE RESTAURA en cuanto termine la bajada. Si lees esto y dev ya esta abajo,
+  # el guardarrail deberia haber vuelto: si no ha vuelto, es un descuido, reponlo.
 }
 
 # Lock del Security Group default de la VPC.

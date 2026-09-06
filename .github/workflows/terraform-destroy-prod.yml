@@ -61,17 +61,28 @@ jobs:
       backend-bucket: spark-match-tfstate-prod
       backend-key: prod/terraform.tfstate
       confirm-destroy-token: ${{ inputs.confirm_destroy }}
-      dry-run: ${{ inputs.dry_run }}
+      # El contexto `inputs` de un workflow_dispatch entrega CADENAS, tambien
+      # para un input declarado `type: boolean`. El reusable declara `dry-run`
+      # como boolean, asi que pasarle "true" es un choque de tipos y GitHub
+      # aborta el run entero en `startup_failure`, antes de crear un solo job:
+      # ni logs, ni pasos, ni anotacion que lo explique.
+      #
+      # Es la causa de que este workflow acumule CERO ejecuciones arrancadas en
+      # toda su historia. Los de apply si arrancan (30 y 28 runs) y la
+      # diferencia es exactamente esta: alli todos los booleanos son literales.
+      #
+      # La comparacion devuelve un boolean de verdad venga cadena o booleano.
+      dry-run: ${{ inputs.dry_run == true || inputs.dry_run == 'true' }}
       auto-approve: false
     secrets:
       # Literal a proposito, igual que `apply-role-arn` en terraform-apply-prod.yml.
       #
       # `${{ secrets.AWS_APPLY_ROLE_ARN }}` NO funciona aqui: el bloque
       # `secrets:` del caller se evalua SIN environment, y este valor solo
-      # existe con scope de environment. Resolvia a cadena vacia, el reusable
-      # lo declara `required: true`, y el run moria en startup_failure antes de
-      # ejecutar un solo paso. Es lo que tenia este workflow con CERO
-      # ejecuciones utiles en toda su historia.
+      # existe con scope de environment, asi que resolvia a cadena vacia y el
+      # job se habria quedado sin rol que asumir. Bug latente real, aunque NO
+      # era la causa del startup_failure: esa es el choque de tipos de
+      # `dry-run`, documentado mas arriba.
       #
       # Un ARN es un identificador, no una credencial (ADR-0002), y el account
       # ID ya aparece en 15 ficheros de este repositorio.

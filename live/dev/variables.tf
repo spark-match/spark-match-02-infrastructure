@@ -309,3 +309,9 @@ locals {
     Repository  = "spark-match/spark-match-02-infrastructure"
   }
 }
+
+variable "reports_force_destroy" {
+  description = "Permite que `terraform destroy` se lleve el bucket de informes aunque tenga objetos. false por defecto a proposito: los informes no son artefactos de build regenerables. Ponerlo en true SOLO para bajar el ambiente a conciencia, sabiendo que se pierden."
+  type        = bool
+  default     = false
+}

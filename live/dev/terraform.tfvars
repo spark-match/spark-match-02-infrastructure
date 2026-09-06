@@ -158,3 +158,11 @@ agent_tavily_enabled = false
 #
 # Procedimiento en docs/runbook-langsmith.md.
 agent_langsmith_enabled = false
+
+# Bajada deliberada del ambiente (2026-09-06). Con esto en true, el destroy se
+# lleva el bucket de informes aunque tenga objetos. Confirmado con ahincho que
+# no hay datos que conservar en dev.
+#
+# Volver a false en cuanto el ambiente se recree: el default de la variable ya
+# es false, asi que basta con borrar esta linea.
+reports_force_destroy = true
